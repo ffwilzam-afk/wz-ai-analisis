@@ -13,7 +13,7 @@ import android.widget.Toast;
 
 public class MainActivity extends Activity {
     // Replace this with the final HTTPS Vercel/custom domain before the Play Store build.
-    private static final String START_URL = "https://wzgrup.vercel.app/";
+    private static final String START_URL = "https://wz-ai-analisis-rust.vercel.app/";
     private WebView web;
 
     @Override public void onCreate(Bundle savedInstanceState) {
