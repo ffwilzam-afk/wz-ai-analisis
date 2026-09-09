@@ -1,0 +1,63 @@
+{
+  "status": "PASS_WITH_LIVE_ENV_LIMITATION",
+  "checked_at": "2026-09-05T18:30:00+09:00",
+  "online_storage_refs": 0,
+  "menus": 16,
+  "menu_list": [
+    "Dashboard",
+    "Transaksi",
+    "Tutup Shift",
+    "Karyawan",
+    "Pelanggan",
+    "Layanan & Promo",
+    "Keuangan",
+    "Laporan",
+    "Operasional",
+    "Analisis Bisnis",
+    "Notifikasi",
+    "Cabang",
+    "Profil Saya",
+    "Pengaturan",
+    "Sistem & Data",
+    "Keamanan"
+  ],
+  "html_files": [
+    "index.html",
+    "app/index.html",
+    "app/index-offline-reference.html"
+  ],
+  "critical_api_paths": [
+    "auth/login",
+    "auth/logout",
+    "auth/me",
+    "business",
+    "app-state",
+    "employees",
+    "transaction",
+    "transaction/void",
+    "shift-report",
+    "sync-business",
+    "profile",
+    "password",
+    "reset-business"
+  ],
+  "syntax_checks": [
+    "index.html inline scripts",
+    "app/index.html inline scripts",
+    "api/[...path].js",
+    "sw.js",
+    "tools/online-bridge.js",
+    "tools/patch-online.js"
+  ],
+  "fixes": [
+    "restored missing initial state",
+    "restored missing menu/can/guard/dateNow/rupiah/branchOfEmployee/profit helpers",
+    "online profile/password endpoints",
+    "online backup/restore",
+    "employee-safe app-state sync for customers/master read data",
+    "removed duplicate Operasional Tutup Shift KPI",
+    "kept API out of PWA cache",
+    "removed browser storage references"
+  ],
+  "live_test": "Not executed against production Neon/Vercel because live environment credentials are not available in this local audit environment."
+}

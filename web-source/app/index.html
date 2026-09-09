@@ -1,0 +1,1727 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#08090b">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<title>WZ MANAGE PRO — Online Premium</title>
+<style>
+:root{
+ --bg:#060709;--panel:#0e1115;--panel2:#12161c;--line:#282d35;--gold:#c99932;--gold2:#efd078;
+ --text:#f5f3ed;--muted:#8f96a1;--green:#43c985;--red:#ef6666;--blue:#5aa9ff;--shadow:0 14px 36px #0007
+}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%;background:var(--bg);color:var(--text);font:14px Arial,Helvetica,sans-serif}
+body{background:
+ radial-gradient(circle at 50% -10%,#211a0c 0,#0c0f13 35%,#050607 75%),
+ linear-gradient(180deg,#060709,#060709)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+a{text-decoration:none;color:inherit}
+.app{min-height:100vh;display:flex}
+.sidebar{position:fixed;inset:0 auto 0 0;width:252px;background:#0a0d11;border-right:1px solid #262a30;overflow:auto;z-index:20}
+.brand{padding:20px 16px 16px;text-align:center;border-bottom:1px solid var(--line)}
+.logo{font:700 38px Georgia,serif;color:var(--gold2);letter-spacing:3px}
+.brand-title{font-weight:800;letter-spacing:2px}.brand-sub{font-size:10px;color:var(--muted);letter-spacing:3px;margin-top:4px}.offline{display:inline-block;margin-top:9px;padding:4px 8px;border-radius:99px;border:1px solid #68521d;color:var(--gold2);font-size:10px}
+.nav{padding:12px}.nav-group{color:#6f7580;font-size:10px;letter-spacing:1px;text-transform:uppercase;margin:14px 8px 6px}
+.nav button{width:100%;border:0;background:transparent;color:#ddd;text-align:left;padding:10px 12px;border-radius:8px;margin:2px 0}
+.nav button:hover,.nav button.active{background:linear-gradient(90deg,#624b17,#b58727);color:#fff}
+.main{margin-left:252px;width:calc(100% - 252px);min-width:0}.topbar{height:66px;position:sticky;top:0;z-index:10;background:#090b0eeb;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;backdrop-filter:blur(8px)}
+.top-left{display:flex;align-items:center;gap:12px}.hamb{display:none}.crumb{color:#8d939d;font-size:12px}.top-actions{display:flex;gap:8px;align-items:center}.save-state{font-size:11px;color:var(--green)}
+.content{max-width:1500px;margin:auto;padding:24px}
+.hero{display:grid;grid-template-columns:230px 1fr 180px;gap:24px;align-items:center;padding:18px;border:1px solid #725618;border-radius:16px;background:linear-gradient(135deg,#14130e,#0f1217 62%,#090b0f);box-shadow:var(--shadow)}
+.hero-photo{width:100%;height:300px;object-fit:cover;object-position:center top;border:1px solid #81621e;border-radius:12px;background:#111}
+.gold-label{color:var(--gold2);font-size:10px;font-weight:800;letter-spacing:.18em}.hero h1{font:700 40px Georgia,serif;margin:7px 0 3px}.role{color:var(--gold2);font-weight:700}.quote{font-style:italic;color:#dbc27d}.profile-grid{display:grid;gap:9px;margin-top:16px}.profile-grid div{display:grid;grid-template-columns:90px 1fr;gap:10px;font-size:12px}.profile-grid b{color:#9ca1a9}.emblem{width:145px;height:145px;border:2px solid #9b7420;border-radius:50%;display:grid;place-content:center;text-align:center;justify-self:center;color:var(--gold2);font:700 46px Georgia,serif;box-shadow:0 0 28px #be8b2140}.emblem span{display:block;font:700 9px Arial;letter-spacing:.15em}.emblem small{font:700 9px Arial;letter-spacing:.25em}
+.section-head{display:flex;justify-content:space-between;align-items:end;gap:16px;margin:26px 0 12px}.section-head h1,.section-head h2{font:700 28px Georgia,serif;margin:6px 0}.section-head p{color:var(--muted);margin:0;font-size:12px}
+.btn{border:1px solid #3e434a;background:#12161c;color:#e8e9eb;padding:9px 12px;border-radius:8px}.btn:hover{border-color:#9d7825}.btn.primary{border:0;background:linear-gradient(90deg,#876216,#cda13d);color:#fff;font-weight:800}.btn.danger{border-color:#833838;color:#ffb0b0}.btn.small{padding:6px 8px;font-size:11px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin:18px 0}.kpi{padding:16px;border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,#14171b,#0b0e12);box-shadow:0 6px 20px #0004}.kpi-icon{font-size:20px}.kpi-label{color:#8f959e;text-transform:uppercase;font-size:10px;letter-spacing:.08em;margin-top:7px}.kpi-value{font-size:22px;font-weight:800;margin-top:6px}.kpi-change{font-size:10px;color:var(--green);margin-top:7px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.card{border:1px solid var(--line);border-radius:12px;background:linear-gradient(145deg,#14171c,#0a0c10);padding:17px}.clickable{cursor:pointer;transition:.18s}.clickable:hover{border-color:#b38a2a;transform:translateY(-2px);box-shadow:0 10px 28px #0007}.card h3{margin:0 0 6px}.muted{color:var(--muted)}.label{color:#8f959f;text-transform:uppercase;font-size:10px;letter-spacing:.08em}.value{font-size:26px;font-weight:800;margin-top:7px}.pill{display:inline-block;border:1px solid #355d48;color:#74dba0;background:#102219;padding:4px 8px;border-radius:999px;font-size:10px;margin-top:8px}.pill.gold{border-color:#6a531f;color:var(--gold2);background:#211909}.pill.red{border-color:#713333;color:#ffa6a6;background:#281010}
+.two{display:grid;grid-template-columns:1.35fr 1fr;gap:12px}.panel{border:1px solid var(--line);border-radius:12px;background:#0d1014;padding:17px}.bar-row{display:grid;grid-template-columns:120px 1fr 85px;gap:8px;align-items:center;margin:12px 0}.bar{height:9px;border-radius:99px;background:#252a31;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#84611b,var(--gold2));border-radius:99px}.bar-num{text-align:right;color:#ddd;font-size:12px}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:700px}.table th,.table td{padding:11px;border-bottom:1px solid #20242b;text-align:left}.table th{font-size:10px;color:#979da6;letter-spacing:.08em;text-transform:uppercase}.table td{font-size:12px}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.toolbar input,.toolbar select,.form input,.form select,.form textarea{background:#090c10;color:#fff;border:1px solid #30353d;border-radius:8px;padding:9px}.toolbar input,.toolbar select{min-width:150px}
+.form{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.form label{display:grid;gap:6px;color:#b2b7bf;font-size:12px}.form .full{grid-column:1/-1}
+.modal{display:none;position:fixed;inset:0;background:#000c;align-items:center;justify-content:center;padding:16px;z-index:50}.modal.open{display:flex}.dialog{width:min(820px,100%);max-height:92vh;overflow:auto;background:#11151a;border:1px solid #73561b;border-radius:14px;padding:20px;box-shadow:var(--shadow)}.dialog h2{font:700 24px Georgia,serif;margin:7px 0 12px}.dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.detail-box{border:1px solid #282d34;border-radius:9px;background:#0b0e12;padding:12px}.detail-box strong{display:block;font-size:18px;margin-top:6px}.result{white-space:pre-wrap;word-break:break-word;background:#07090b;border:1px solid #272b31;padding:12px;border-radius:9px;color:#cfd3d9;font-size:12px}
+.mobile-menu{display:none}.empty{padding:28px;text-align:center;color:#777f89}.toast{display:none;position:fixed;right:18px;bottom:18px;background:#142219;border:1px solid #356648;color:#bcf1cf;padding:12px 15px;border-radius:9px;z-index:70}
+footer{text-align:center;color:#5e646d;font-size:10px;padding:34px 0 10px}
+@media(max-width:1100px){.hero{grid-template-columns:190px 1fr}.emblem{display:none}.kpis{grid-template-columns:repeat(3,1fr)}.two{grid-template-columns:1fr}}
+@media(max-width:800px){.sidebar{transform:translateX(-100%);transition:.2s}.sidebar.open{transform:translateX(0)}.main{margin-left:0;width:100%}.hamb{display:block;background:transparent;border:0;color:#fff;font-size:20px}.mobile-menu{display:block}.content{padding:14px}.topbar{padding:0 14px}.hero{grid-template-columns:1fr;text-align:center}.hero-photo{height:280px}.profile-grid div{grid-template-columns:80px 1fr;text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.form,.detail-grid{grid-template-columns:1fr}.form .full{grid-column:auto}.top-actions .save-state{display:none}}
+
+/* WZ PRO dashboard upgrade */
+.dashboard-head{display:flex;justify-content:space-between;align-items:flex-start;gap:18px;margin-bottom:18px}
+.greeting{font:700 30px Georgia,serif;margin:4px 0}.subtle{color:var(--muted);font-size:12px}
+.gold-btn{background:linear-gradient(135deg,#a4771d,#e0b44d);color:#111;border:0;font-weight:800;padding:12px 16px;border-radius:9px;box-shadow:0 6px 20px #b8892730}
+.kpi.pro{min-height:122px;position:relative;overflow:hidden}.kpi.pro:after{content:"";position:absolute;width:70px;height:70px;right:-20px;top:-20px;border-radius:50%;background:#c9993212}
+.kpi-top{display:flex;justify-content:space-between;align-items:center}.trend.up{color:var(--green)}.trend.down{color:var(--red)}
+.dashboard-grid{display:grid;grid-template-columns:1.35fr 1fr;gap:14px}.dashboard-grid.three{grid-template-columns:repeat(3,1fr)}
+.panel-title{display:flex;justify-content:space-between;align-items:center;margin-bottom:13px}.panel-title h3{margin:0;font:700 18px Georgia,serif;color:var(--gold2)}
+.select-mini{background:#0b0e12;border:1px solid #343940;color:#ddd;border-radius:7px;padding:7px 10px}
+.ops-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.ops-box{padding:14px 10px;background:#0a0d11;border:1px solid #292e35;border-radius:9px}.ops-num{font-size:25px;font-weight:800;margin-top:7px}.ops-box small{color:var(--muted)}
+.schedule-item{display:grid;grid-template-columns:58px 1fr auto;gap:10px;padding:12px 0;border-bottom:1px solid #22262c;align-items:center}.schedule-item:last-child{border-bottom:0}.time{font-weight:800;color:#eee}.tag{font-size:9px;padding:5px 7px;border-radius:5px;border:1px solid #73561d;color:var(--gold2)}
+.bar-list{display:grid;gap:10px}.bar-row{display:grid;grid-template-columns:125px 1fr 42px;gap:9px;align-items:center;font-size:11px}.bar-track{height:7px;background:#272b31;border-radius:99px;overflow:hidden}.bar-fill{height:100%;background:linear-gradient(90deg,#89651e,#e5bd55);border-radius:99px}
+.quick-grid{display:grid;grid-template-columns:repeat(10,1fr);gap:8px}.quick{border:1px solid #2b3037;background:#0d1014;border-radius:9px;padding:12px 5px;text-align:center;cursor:pointer}.quick:hover{border-color:#b8892c;transform:translateY(-1px)}.quick b{display:block;font-size:10px;margin-top:6px}.quick span{font-size:20px}
+.chart{height:210px;display:flex;align-items:end;gap:9px;padding:20px 8px 4px;border-top:1px solid #20242a;background:linear-gradient(180deg,#11140f,#0b0e12)}.chart-col{flex:1;height:100%;display:flex;flex-direction:column;justify-content:end;align-items:center;gap:5px}.chart-bar{width:100%;max-width:38px;border-radius:5px 5px 0 0;background:linear-gradient(180deg,#e0b84e,#6f531a);min-height:8px}.chart-col small{color:#858b94;font-size:9px}.chart-col b{font-size:9px;color:#ddd}
+.insight{padding:10px 0;border-bottom:1px solid #22262c;font-size:11px}.insight:last-child{border-bottom:0}.rank{display:grid;grid-template-columns:24px 1fr auto;gap:9px;align-items:center;padding:10px 0;border-bottom:1px solid #22262c}.rank:last-child{border:0}.rankno{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#252019;color:var(--gold2);font-weight:800}
+@media(max-width:1100px){.dashboard-grid,.dashboard-grid.three{grid-template-columns:1fr 1fr}.quick-grid{grid-template-columns:repeat(5,1fr)}}
+@media(max-width:800px){.dashboard-head{flex-direction:column}.dashboard-grid,.dashboard-grid.three{grid-template-columns:1fr}.ops-grid{grid-template-columns:repeat(2,1fr)}.quick-grid{grid-template-columns:repeat(5,1fr)}.bar-row{grid-template-columns:105px 1fr 35px}.greeting{font-size:24px}}
+
+/* ROLE LOGIN */
+.login-screen{position:fixed;inset:0;z-index:100;background:radial-gradient(circle at 50% -10%,#211a0c 0,#0c0f13 38%,#050607 78%);display:flex;align-items:center;justify-content:center;padding:18px}.login-card{width:min(430px,100%);background:#0e1115;border:1px solid #725618;border-radius:18px;padding:28px;box-shadow:0 20px 60px #000b;text-align:center}.login-logo{font:700 48px Georgia,serif;color:var(--gold2);letter-spacing:4px}.login-title{font-weight:800;letter-spacing:2px;margin-top:4px}.login-sub{font-size:10px;color:var(--muted);letter-spacing:2px;margin:5px 0 24px}.login-card form{display:grid;gap:12px;text-align:left}.login-card label{display:grid;gap:6px;color:#b9bec6;font-size:12px}.login-card input{width:100%;background:#090c10;color:#fff;border:1px solid #30353d;border-radius:9px;padding:12px;outline:none}.login-error{display:none;color:#ffaaaa;background:#281010;border:1px solid #713333;border-radius:8px;padding:9px;font-size:11px}.user-badge{font-size:10px;border:1px solid #6a531f;color:var(--gold2);padding:5px 8px;border-radius:999px}
+
+/* OWNER DASHBOARD — STATISTICAL CHARTS ONLY */
+.owner-chart-line{height:240px;padding:8px 4px 2px;border-top:1px solid #20242a;background:linear-gradient(180deg,#11140f,#0b0e12);overflow:hidden}
+.owner-chart-line svg{width:100%;height:100%;display:block}
+.owner-chart-line .gridline{stroke:#252a30;stroke-width:1}
+.owner-chart-line .axis-label{fill:#777f89;font-size:11px}
+.owner-chart-line .line-blue{fill:none;stroke:#2f8cff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.owner-chart-line .line-red{fill:none;stroke:#ef5350;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.owner-chart-line .line-green{fill:none;stroke:#32c77a;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.owner-chart-line .point-blue{fill:#2f8cff;stroke:#0b0e12;stroke-width:3}
+.owner-chart-line .point-red{fill:#ef5350;stroke:#0b0e12;stroke-width:3}
+.owner-chart-line .point-green{fill:#32c77a;stroke:#0b0e12;stroke-width:3}
+.owner-chart-line .click-point{cursor:pointer}
+.owner-chart-line .click-point:hover{filter:brightness(1.25)}
+.owner-chart-legend{display:flex;align-items:center;gap:7px;margin:7px 4px 0;font-size:10px;color:#9ca3ad}
+.owner-chart-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+.owner-chart-legend .blue{background:#2f8cff}.owner-chart-legend .red{background:#ef5350}.owner-chart-legend .green{background:#32c77a}
+.owner-ranked-chart{padding:10px 6px 4px;border-top:1px solid #20242a;background:linear-gradient(180deg,#11140f,#0b0e12)}
+.owner-rank-row{display:grid;grid-template-columns:minmax(105px,1fr) 2fr minmax(58px,auto);gap:9px;align-items:center;padding:8px 3px;border:0;background:none;color:#ddd;width:100%;text-align:left;cursor:pointer;border-radius:7px}
+.owner-rank-row:hover{background:#15191e}
+.owner-rank-name{font-size:11px;white-space:normal;overflow:visible}
+.owner-rank-track{height:12px;background:#252a31;border-radius:99px;overflow:hidden}
+.owner-rank-fill{height:100%;border-radius:99px}
+.owner-rank-fill.purple{background:linear-gradient(90deg,#7650b8,#a878ee)}
+.owner-rank-fill.gold{background:linear-gradient(90deg,#89651e,#e5bd55)}
+.owner-rank-value{text-align:right;font-size:10px;color:#ddd;white-space:nowrap}
+@media(max-width:800px){
+ .owner-chart-line{height:225px}
+ .owner-rank-row{grid-template-columns:minmax(92px,1fr) 1.6fr minmax(52px,auto);gap:7px}
+ .owner-rank-name{font-size:10px}
+ .owner-rank-value{font-size:9px}
+}
+
+</style>
+<style id="payroll-color-revision">.payroll-revenue{color:#9BE7A5!important}.payroll-wage{color:#FF6B6B!important}.payroll-bonus{color:#FF6B6B!important}</style>
+<style id="graph-range-ui">
+.graph-range-controls{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
+.graph-range-controls label{display:flex;flex-direction:column;gap:5px;min-width:145px}
+.graph-range-controls input{min-height:38px;padding:7px 9px}
+.range-arrow{padding-bottom:9px;font-weight:700;opacity:.7}
+@media(max-width:700px){
+ .graph-range-controls{align-items:stretch}
+ .graph-range-controls label{flex:1;min-width:130px}
+ .range-arrow{display:none}
+ .graph-range-controls .btn{width:100%}
+}
+</style>
+<style id="profile-account-ui">
+.profile-card{max-width:760px}
+.profile-top{display:flex;align-items:center;gap:18px;margin-bottom:20px}
+.profile-avatar{width:96px;height:96px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:36px;font-weight:800;border:2px solid var(--gold);background:var(--panel)}
+@media(max-width:600px){.profile-top{align-items:flex-start}.profile-card .detail-grid{grid-template-columns:1fr 1fr}}
+</style></head>
+<body>
+<div class="login-screen" id="loginScreen"><div class="login-card"><div class="login-logo">WZ</div><div class="login-title">BARBERSHOP PRO</div><div class="login-sub">SECURE ACCESS · ONLINE</div><form onsubmit="login(event)"><label>Username<input id="loginUser" autocomplete="username" required></label><label>Password<input id="loginPass" type="password" autocomplete="current-password" required></label><div class="login-error" id="loginError">Username atau password salah.</div><button class="btn primary" type="submit">MASUK KE SISTEM</button></form><div style="margin-top:14px;color:#6f7680;font-size:10px">Akses menu ditentukan berdasarkan role akun.</div></div></div>
+<div class="app">
+<aside class="sidebar" id="sidebar">
+ <div class="brand"><div class="logo">WZ</div><div class="brand-title">BARBERSHOP PRO</div><div class="brand-sub">MANAGEMENT SYSTEM</div><span class="offline">ONLINE PREMIUM</span></div>
+ <div class="nav" id="nav"></div>
+</aside>
+<main class="main">
+ <header class="topbar">
+  <div class="top-left"><button class="hamb" onclick="toggleMenu()">☰</button><div><strong>WZ MANAGE PRO</strong><div class="crumb" id="crumb">Dashboard</div></div></div>
+  <div class="top-actions"><span class="user-badge" id="roleBadge"></span><span class="save-state" id="saveState">● Online</span><button class="btn small" onclick="exportBackup()">Backup</button><button class="btn small" onclick="document.getElementById('importFile').click()">Restore</button><input id="importFile" type="file" accept=".json,application/json" hidden onchange="importBackup(event)"></div>
+ </header>
+ <div class="content" id="content"></div>
+</main>
+</div>
+<div class="modal" id="modal"><div class="dialog" id="dialog"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const initial={
+  branches:[
+    {id:'B001',name:'WZBARBERSHOP MASBAGIK',address:'Indonesia',active:true},
+    {id:'B002',name:'WZBARBERSHOP MONJOK',address:'Indonesia',active:true},
+    {id:'B003',name:'WZBARBERSHOP GUNUNGSARI',address:'Indonesia',active:true},
+    {id:'B004',name:'WZBARBERSHOP KURANJI',address:'Indonesia',active:true},
+    {id:'B005',name:'WZBARBERSHOP LEMBAR',address:'Indonesia',active:true}
+  ],
+  employees:[
+    {id:'E001',name:'Rizky',role:'Barber',branchId:'B001',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true},
+    {id:'E002',name:'ALVIN',role:'Barber',branchId:'B002',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true},
+    {id:'E003',name:'KYONG',role:'Barber',branchId:'B003',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true},
+    {id:'E004',name:'IWAN',role:'Barber',branchId:'B004',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true},
+    {id:'E005',name:'DIKA',role:'Barber',branchId:'B005',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true}
+  ],
+  customers:[],
+  services:[
+    {id:'S001',name:'Haircut',category:'Hair',price:20000,duration:45,active:true},
+    {id:'S002',name:'Hairwash',category:'Hair',price:5000,duration:15,active:true},
+    {id:'S003',name:'Hairstyling',category:'Hair',price:5000,duration:20,active:true},
+    {id:'S004',name:'Haircoloring',category:'Hair',price:75000,duration:90,active:true},
+    {id:'S005',name:'Shaving',category:'Hair',price:5000,duration:15,active:true}
+  ],
+  transactions:[],shiftReports:[],expenses:[],attendance:[],notifications:[],
+  profile:{name:'OWNER',role:'Direktur',brand:'WZ BARBERSHOP',focus:'Management System',notificationSoundEnabled:true,analyticsPeriod:'7'}
+};
+
+const AUTH_DEFAULTS=[
+ {username:'owner',password:'owner123',role:'owner',name:'OWNER'},
+ {username:'manager',password:'manager123',role:'manager',name:'MANAGER'},
+ {username:'rizky',password:'rizky123',role:'employee',name:'Rizky',employeeId:'E001'},
+ {username:'alvin',password:'alvin123',role:'employee',name:'ALVIN',employeeId:'E002'},
+ {username:'kyong',password:'kyong123',role:'employee',name:'KYONG',employeeId:'E003'},
+ {username:'iwan',password:'iwan123',role:'employee',name:'IWAN',employeeId:'E004'},
+ {username:'dika',password:'dika123',role:'employee',name:'DIKA',employeeId:'E005'}
+];
+const ACCESS={
+ owner:['dashboard','transactions','shiftReports','employees','customers','services','finance','reports','operations','analytics','notifications','branches','profile','settings','system','auth'],
+ manager:['dashboard','transactions','shiftReports','employees','customers','services','finance','reports','operations','analytics','notifications','branches','settings','system','auth'],
+ employee:['dashboard','transactions','shiftReports','customers','services','operations','notifications','profile']
+};
+const menu=[
+ ['dashboard','⌂','Dashboard'],['transactions','🧾','Transaksi'],['shiftReports','📋','Tutup Shift'],['employees','👥','Karyawan'],['customers','👤','Pelanggan'],
+ ['services','✂','Layanan & Promo'],['finance','💰','Keuangan'],['reports','📊','Laporan'],['operations','🕘','Operasional'],['analytics','📈','Analisis Bisnis'],
+ ['notifications','🔔','Notifikasi'],['branches','🏢','Cabang'],['profile','👤','Profil Saya'],['settings','⚙','Pengaturan'],['system','🛠','Sistem & Data'],['auth','🔐','Keamanan']
+];
+function can(key){return !!currentUser&&Array.isArray(ACCESS[currentUser.role])&&ACCESS[currentUser.role].includes(key)}
+function guard(key){if(!currentUser){toast('Silakan login terlebih dahulu.',true);return false}if(!can(key)){toast('Akses menu tidak diizinkan untuk role ini.',true);return false}return true}
+function dateNow(){return new Date().toISOString().slice(0,10)}
+function rupiah(value){return 'Rp '+Number(value||0).toLocaleString('id-ID')}
+function branchOfEmployee(employeeId){return (db.employees||[]).find(e=>String(e.id)===String(employeeId))?.branchId||null}
+function profit(){return revenue()-expenses()}
+
+
+function toggleMenu(){
+ const sidebar=document.getElementById('sidebar');
+ if(!sidebar)return;
+ sidebar.classList.toggle('open');
+}
+function closeMobileMenu(){
+ const sidebar=document.getElementById('sidebar');
+ if(window.innerWidth<=800) sidebar?.classList.remove('open');
+}
+
+function getAccounts(){return AUTH_DEFAULTS.slice()}
+function saveAccounts(){return true}
+(function normalizeEmployeeAccounts(){
+  return;
+})
+
+function accountForEmployee(id){return getAccounts().find(a=>a.role==='employee'&&a.employeeId===id)||null}
+function defaultEmployeePassword(name){return name.trim().toLowerCase().replace(/\s+/g,'')+'123'}
+function defaultEmployeeUsername(name){return name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'')||'employee'}
+
+function getSession(){return null}
+function login(ev){ev.preventDefault();return window.login?.(ev)}
+function logout(){return window.logout?.()};
+let db=load(); db.shiftReports=db.shiftReports||[];
+/* CURRENT ROSTER LOCK — preserves the exact 5 employee/branch assignments.
+   Only roster fields requested by the owner are normalized; transactions, reports,
+   customers, expenses and other stored records are retained. */
+(function normalizeCurrentRoster(){
+ const roster=[
+  {id:'E001',name:'Rizky',role:'Barber',branchId:'B001',target:4500000,salary:2000000},
+  {id:'E002',name:'ALVIN',role:'Barber',branchId:'B002',target:4500000,salary:2000000},
+  {id:'E003',name:'KYONG',role:'Barber',branchId:'B003',target:4500000,salary:2000000},
+  {id:'E004',name:'IWAN',role:'Barber',branchId:'B004',target:4500000,salary:2000000},
+  {id:'E005',name:'DIKA',role:'Barber',branchId:'B005',target:4500000,salary:2000000}
+ ];
+ const branchList=[
+  {id:'B001',name:'WZBARBERSHOP MASBAGIK',address:'Indonesia',active:true},
+  {id:'B002',name:'WZBARBERSHOP MONJOK',address:'Indonesia',active:true},
+  {id:'B003',name:'WZBARBERSHOP GUNUNGSARI',address:'Indonesia',active:true},
+  {id:'B004',name:'WZBARBERSHOP KURANJI',address:'Indonesia',active:true},
+  {id:'B005',name:'WZBARBERSHOP LEMBAR',address:'Indonesia',active:true}
+ ];
+ const oldEmployees=Array.isArray(db.employees)?db.employees:[];
+ db.employees=roster.map(r=>{
+  const old=oldEmployees.find(e=>e.id===r.id)||{};
+  return {...old,...r};
+ });
+ db.branches=branchList;
+ db.employees.forEach(e=>{e.salary=2000000;e.target=4500000;e.branchId=roster.find(r=>r.id===e.id).branchId});
+ db.__rosterVersion='2026-09-01-5branch';
+ save();
+})();
+/* KYONG SHIFT REPORT IMPORT — approved raw service/expense data only. */
+(function importKyongShiftReports(){
+ return;
+ const marker='kyong-shift-import-2026-09-01-v1';
+ if(db.__kyongShiftImport===marker)return;
+ const imported=[{"id":"KYONGSHIFT001","date":"2026-07-24","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":14,"openingCash":0,"cash":0,"qris":0,"cashExpense":190000,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":12,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":250000,"productTotal":0,"totalOmzet":250000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT002","date":"2026-07-25","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-HS","serviceName":"Hairstyling","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":195000,"productTotal":0,"totalOmzet":195000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT003","date":"2026-07-27","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":7,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":7,"price":20000}],"products":[],"serviceTotal":140000,"productTotal":0,"totalOmzet":140000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT004","date":"2026-07-28","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":9,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000}],"products":[],"serviceTotal":180000,"productTotal":0,"totalOmzet":180000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT005","date":"2026-07-29","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":11,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":2,"price":5000}],"products":[],"serviceTotal":190000,"productTotal":0,"totalOmzet":190000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT006","date":"2026-07-30","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":210000,"productTotal":0,"totalOmzet":210000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT007","date":"2026-07-31","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":5,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":4,"price":20000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":85000,"productTotal":0,"totalOmzet":85000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT008","date":"2026-08-01","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":13,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":11,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":230000,"productTotal":0,"totalOmzet":230000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT009","date":"2026-08-02","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":8,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000}],"products":[],"serviceTotal":160000,"productTotal":0,"totalOmzet":160000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT010","date":"2026-08-03","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000}],"products":[],"serviceTotal":200000,"productTotal":0,"totalOmzet":200000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT011","date":"2026-08-04","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":10000,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":2,"price":5000}],"products":[],"serviceTotal":210000,"productTotal":0,"totalOmzet":210000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT012","date":"2026-08-05","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":210000,"productTotal":0,"totalOmzet":210000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT013","date":"2026-08-06","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":210000,"productTotal":0,"totalOmzet":210000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT014","date":"2026-08-07","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":13,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":11,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":230000,"productTotal":0,"totalOmzet":230000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT015","date":"2026-08-08","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":7,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":6,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000}],"products":[],"serviceTotal":125000,"productTotal":0,"totalOmzet":125000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT016","date":"2026-08-11","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":8,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000}],"products":[],"serviceTotal":160000,"productTotal":0,"totalOmzet":160000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT017","date":"2026-08-12","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":7,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":7,"price":20000}],"products":[],"serviceTotal":140000,"productTotal":0,"totalOmzet":140000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT018","date":"2026-08-13","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":11,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":190000,"productTotal":0,"totalOmzet":190000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT019","date":"2026-08-14","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":9,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000}],"products":[],"serviceTotal":165000,"productTotal":0,"totalOmzet":165000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT020","date":"2026-08-15","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":6,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":6,"price":20000}],"products":[],"serviceTotal":120000,"productTotal":0,"totalOmzet":120000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT021","date":"2026-08-16","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000}],"products":[],"serviceTotal":185000,"productTotal":0,"totalOmzet":185000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT022","date":"2026-08-17","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":2,"price":5000}],"products":[],"serviceTotal":170000,"productTotal":0,"totalOmzet":170000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT023","date":"2026-08-18","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":16000,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-HS","serviceName":"Hairstyling","qty":1,"price":5000}],"products":[],"serviceTotal":170000,"productTotal":0,"totalOmzet":170000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT024","date":"2026-08-19","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000}],"products":[],"serviceTotal":200000,"productTotal":0,"totalOmzet":200000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT025","date":"2026-08-21","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":8,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":6,"price":20000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":2,"price":5000}],"products":[],"serviceTotal":130000,"productTotal":0,"totalOmzet":130000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT026","date":"2026-08-22","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":13000,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000}],"products":[],"serviceTotal":200000,"productTotal":0,"totalOmzet":200000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT027","date":"2026-08-23","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":16,"openingCash":0,"cash":0,"qris":0,"cashExpense":579800,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":11,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":2,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":3,"price":5000}],"products":[],"serviceTotal":245000,"productTotal":0,"totalOmzet":245000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"}];
+ db.shiftReports=(db.shiftReports||[]).filter(r=>r.__kyongImport!==marker);
+ imported.forEach(r=>r.__kyongImport=marker);
+ db.shiftReports.push(...imported);
+ db.__kyongShiftImport=marker;
+ save();
+})();
+
+if(!Array.isArray(db.branches))db.branches=[];
+const defaultBranchId=db.branches[0]?.id||null;
+(db.employees||[]).forEach(e=>{if(!e.salary)e.salary=2000000;});
+// TEST FIXTURE — daftar layanan yang diminta user (tidak diterapkan otomatis ke data tersimpan):
+// Haircut 20000 | Hairwash 5000 | Hairstyling 5000 | Haircoloring 75000 | Shaving 5000
+
+(db.employees||[]).forEach(e=>{if(!e.branchId)e.branchId=defaultBranchId;});
+function load(){return structuredClone(initial)}
+function toast(message,silent=false){
+ const el=document.getElementById('toast');
+ if(!el)return;
+ el.textContent=message;
+ el.style.display='block';
+ if(!silent)playNotificationSound();
+ if(!silent)speakNotification(message);
+ clearTimeout(window.__wzToastTimer);
+ window.__wzToastTimer=setTimeout(()=>{el.style.display='none'},2200);
+}
+function speakNotification(message){
+ if(db?.profile?.notificationSoundEnabled===false||!('speechSynthesis' in window))return;
+ try{window.speechSynthesis.cancel();const utterance=new SpeechSynthesisUtterance(String(message));utterance.lang='id-ID';utterance.rate=.95;utterance.pitch=1;window.speechSynthesis.speak(utterance)}catch(e){console.debug('Suara nama notifikasi tidak tersedia.',e)}
+}
+function playNotificationSound(){
+ if(db?.profile?.notificationSoundEnabled===false)return;
+ try{
+  const AudioContext=window.AudioContext||window.webkitAudioContext;
+  if(!AudioContext)return;
+  const ctx=window.__wzAudioContext||(window.__wzAudioContext=new AudioContext());
+  if(ctx.state==='suspended')ctx.resume().catch(()=>{});
+  const now=ctx.currentTime,osc=ctx.createOscillator(),gain=ctx.createGain();
+  osc.type='sine';osc.frequency.setValueAtTime(880,now);osc.frequency.exponentialRampToValueAtTime(660,now+0.12);
+  gain.gain.setValueAtTime(0.0001,now);gain.gain.exponentialRampToValueAtTime(0.12,now+0.015);gain.gain.exponentialRampToValueAtTime(0.0001,now+0.18);
+  osc.connect(gain);gain.connect(ctx.destination);osc.start(now);osc.stop(now+0.2);
+ }catch(e){console.debug('Suara notifikasi tidak tersedia.',e)}
+}
+
+function save(){
+  if(window.WZOnlineStateSave?.queue) window.WZOnlineStateSave.queue();
+  const el=document.getElementById('saveState');
+  if(el)el.textContent=currentUser&&['owner','manager'].includes(currentUser.role)?'● Tersimpan online':'● Siap disinkronkan';
+  return true;
+}
+async function resetAll(){
+  if(!confirm('Hapus seluruh transaksi dan laporan shift online?'))return;
+  try{
+    if(!window.WZOnlineEmployee?.api)throw new Error('API online belum siap.');
+    await window.WZOnlineEmployee.api('reset-business',{method:'POST'});
+    db.transactions=[];db.shiftReports=[];
+    if(typeof render==='function')render();
+    toast('Data transaksi dan laporan shift online berhasil direset.');
+  }catch(e){alert('Reset online gagal: '+(e.message||e));}
+}
+function branchBusinessFeed(branchId){
+ return ownerBusinessFeed().filter(x=>!branchId||branchOfEmployee(x.employeeId)===branchId);
+}
+function branchBusinessTotals(branchId){
+ const feed=branchBusinessFeed(branchId);
+ return {omzet:feed.reduce((s,x)=>s+Number(x.amount||0),0),pelanggan:feed.reduce((s,x)=>s+Number(x.customers||0),0),cash:feed.reduce((s,x)=>s+Number(x.cash||0),0),qris:feed.reduce((s,x)=>s+Number(x.qris||0),0),pengeluaran:feed.reduce((s,x)=>s+Number(x.expense||0),0)};
+}
+function ownerBusinessFeed(){
+ const pos=(db.transactions||[]).filter(t=>t.status==='SELESAI').map(t=>({
+  source:'POS',id:t.id,date:t.date,employeeId:t.employeeId,
+  customers:1,amount:Number(t.total||0),cash:t.payment==='Tunai'?Number(t.total||0):0,
+  qris:t.payment==='QRIS'?Number(t.total||0):0,expense:0
+ }));
+ const shift=(db.shiftReports||[]).map(r=>({
+  source:'TUTUP_SHIFT',id:r.id,date:r.date,employeeId:r.employeeId,
+  customers:Number(r.customers||0),amount:Number(r.totalOmzet||0),
+  cash:Number(r.cash||0),qris:Number(r.qris||0),expense:Number(r.cashExpense||0)
+ }));
+ return pos.concat(shift);
+}
+function ownerBusinessTotals(){
+ const feed=ownerBusinessFeed();
+ return {
+  omzet:feed.reduce((s,x)=>s+x.amount,0),
+  pelanggan:feed.reduce((s,x)=>s+x.customers,0),
+  cash:feed.reduce((s,x)=>s+x.cash,0),
+  qris:feed.reduce((s,x)=>s+x.qris,0),
+  pengeluaran:feed.reduce((s,x)=>s+x.expense,0)+((db.expenses||[]).reduce((s,e)=>s+Number(e.amount||0),0))
+ };
+}
+
+function expenses(){return ownerBusinessTotals().pengeluaran}
+function revenue(){return ownerBusinessTotals().omzet}
+function businessServiceStats(){
+ const map={};
+ (db.services||[]).forEach(s=>map[s.id]={name:s.name,count:0,rev:0});
+ (db.transactions||[]).filter(t=>t.status==='SELESAI').forEach(t=>{
+  if(!map[t.serviceId])map[t.serviceId]={name:getService(t.serviceId)?.name||'Layanan',count:0,rev:0};
+  map[t.serviceId].count++;
+  map[t.serviceId].rev+=Number(t.total||0);
+ });
+ (db.shiftReports||[]).forEach(r=>(r.services||[]).forEach(x=>{
+  if(!map[x.serviceId])map[x.serviceId]={name:getService(x.serviceId)?.name||'Layanan',count:0,rev:0};
+  map[x.serviceId].count+=Number(x.qty||0);
+  map[x.serviceId].rev+=Number(x.qty||0)*Number(x.price||0);
+ }));
+ return Object.values(map).sort((a,b)=>b.rev-a.rev);
+}
+function businessCustomersCount(){
+ return db.customers.length + (db.shiftReports||[]).reduce((s,r)=>s+Number(r.customers||0),0);
+}
+function businessEmployeeStats(){
+ const feed=ownerBusinessFeed();
+ return (db.employees||[]).map(e=>{
+  const rows=feed.filter(x=>x.employeeId===e.id);
+  return {name:e.name,id:e.id,eval:e.eval||0,tx:rows.reduce((n,x)=>n+Number(x.customers||0),0),value:rows.reduce((n,x)=>n+Number(x.amount||0),0)};
+ }).sort((a,b)=>b.value-a.value);
+}
+function businessDailyRevenue(iso){return ownerBusinessFeed().filter(x=>x.date===iso).reduce((s,x)=>s+x.amount,0)}
+function getCustomer(id){return db.customers.find(x=>x.id===id)}
+function getEmployee(id){return db.employees.find(x=>x.id===id)}
+function getService(id){return db.services.find(x=>x.id===id)}
+function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','system','auth']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
+function navBtn(m){const unread=m[0]==='notifications'?(db.notifications||[]).filter(x=>!x.read).length:0;return `<button id="nav-${m[0]}" data-nav="${m[0]}">${m[1]} ${m[2]}${unread?` <span class="pill red" style="font-size:10px;padding:2px 6px">${unread}</span>`:''}</button>`}
+function go(key){if(!guard(key))return;location.hash=key;render()}
+function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='system')systemPage();else if(key==='auth')auth();else dashboard()}
+document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){go(b.dataset.nav);document.getElementById('sidebar').classList.remove('open')}});window.onhashchange=render;
+
+function employeeDashboard(){const today=dateNow(),tx=db.transactions.filter(t=>t.date===today&&t.status==='SELESAI');document.getElementById('content').innerHTML=`<div class="dashboard-head"><div><span class="gold-label">EMPLOYEE WORKSPACE</span><div class="greeting">SELAMAT DATANG, ${currentUser.name.toUpperCase()}!</div><div class="subtle">Ringkasan pekerjaan hari ini · ${today}</div></div><button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button></div><section class="kpis">${kpi('🧾','Transaksi Hari Ini',tx.length,'transactions')}${kpi('👥','Pelanggan Terdaftar',db.customers.length,'customers')}${kpi('💈','Layanan Aktif',db.services.filter(s=>s.active).length,'services')}</section><div class="dashboard-grid"><section class="card"><div class="panel-title"><h3>AKSI KERJA</h3></div><div class="quick-grid"><div class="quick" onclick="openTransaction()"><span>🧾</span><b>Transaksi Baru</b></div><div class="quick" onclick="showWalkin()"><span>🚶</span><b>Walk-in</b></div><div class="quick" onclick="openCustomer()"><span>👤</span><b>Tambah Pelanggan</b></div><div class="quick" onclick="go('customers')"><span>🔎</span><b>Cari Pelanggan</b></div><div class="quick" onclick="go('services')"><span>📦</span><b>Lihat Layanan</b></div><div class="quick" onclick="go('operations')"><span>🕘</span><b>Absensi</b></div><div class="quick" onclick="go('shiftReports')"><span>📋</span><b>Tutup Shift</b></div></div></section><section class="card"><div class="panel-title"><h3>TRANSAKSI TERBARU</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>${tx.slice().reverse().slice(0,5).map(t=>`<div class="schedule-item"><span class="time">${t.date}</span><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'}</div></div><span class="tag">SELESAI</span></div>`).join('')||'<div class="empty">Belum ada transaksi hari ini.</div>'}</section></div><section class="section-head"><div><span class="gold-label">ACCESS LEVEL</span><h2>Akses Karyawan</h2><p>Perhitungan gaji, bonus, upah, dan data keuangan sensitif hanya dapat dilihat Owner/Manager.</p></div></section>`}
+
+
+function dashboardDateObj(iso){
+ const p=String(iso||'').split('-').map(Number);
+ return new Date(Date.UTC(p[0]||1970,(p[1]||1)-1,p[2]||1));
+}
+function dashboardIso(d){
+ return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-${String(d.getUTCDate()).padStart(2,'0')}`;
+}
+function dashboardMonthName(m){return ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][m]}
+function dashboardGraphBuckets(period,feed){
+ const today=dashboardDateObj(dateNow()), out=[];
+ let range=window.__dashboardGraphRange||{};
+ let start=range.from?dashboardDateObj(range.from):null;
+ let end=range.to?dashboardDateObj(range.to):null;
+ if(!start||!end){start=new Date(today);start.setUTCDate(today.getUTCDate()-6);end=today}
+ if(start>end){const t=start;start=end;end=t}
+ const clampStart=dashboardIso(start),clampEnd=dashboardIso(end);
+
+ if(period==='day'){
+  for(let d=new Date(start);d<=end;d.setUTCDate(d.getUTCDate()+1)){
+   const iso=dashboardIso(d);
+   out.push({key:iso,label:`${d.getUTCDate()} ${dashboardMonthName(d.getUTCMonth())}`,start:iso,end:iso,shortLabel:`${d.getUTCDate()} ${dashboardMonthName(d.getUTCMonth())}`});
+  }
+ }else if(period==='week'){
+  const dow=start.getUTCDay()||7;
+  const first=new Date(start); first.setUTCDate(first.getUTCDate()-(dow-1));
+  for(let s=new Date(first);s<=end;){
+   const e=new Date(s);e.setUTCDate(e.getUTCDate()+6);
+   const bs=new Date(Math.max(s.getTime(),start.getTime()));
+   const be=new Date(Math.min(e.getTime(),end.getTime()));
+   if(bs<=be)out.push({key:dashboardIso(bs),label:`${bs.getUTCDate()}–${be.getUTCDate()} ${dashboardMonthName(be.getUTCMonth())}`,start:dashboardIso(bs),end:dashboardIso(be),shortLabel:`${bs.getUTCDate()}–${be.getUTCDate()}`});
+   s.setUTCDate(s.getUTCDate()+7);
+  }
+ }else if(period==='month'){
+  let x=new Date(Date.UTC(start.getUTCFullYear(),start.getUTCMonth(),1));
+  const lastMonth=new Date(Date.UTC(end.getUTCFullYear(),end.getUTCMonth(),1));
+  for(;x<=lastMonth;x.setUTCMonth(x.getUTCMonth()+1)){
+   const mStart=new Date(x), mEnd=new Date(Date.UTC(x.getUTCFullYear(),x.getUTCMonth()+1,0));
+   const bs=new Date(Math.max(mStart.getTime(),start.getTime()));
+   const be=new Date(Math.min(mEnd.getTime(),end.getTime()));
+   out.push({key:`${x.getUTCFullYear()}-${String(x.getUTCMonth()+1).padStart(2,'0')}`,label:`${dashboardMonthName(x.getUTCMonth())} ${x.getUTCFullYear()}`,start:dashboardIso(bs),end:dashboardIso(be),shortLabel:dashboardMonthName(x.getUTCMonth())});
+  }
+ }else{
+  for(let y=start.getUTCFullYear();y<=end.getUTCFullYear();y++){
+   const ys=`${y}-01-01`, ye=`${y}-12-31`;
+   const bs=y===start.getUTCFullYear()?clampStart:ys;
+   const be=y===end.getUTCFullYear()?clampEnd:ye;
+   out.push({key:String(y),label:String(y),start:bs,end:be,shortLabel:String(y)});
+  }
+ }
+ return out;
+}
+function dashboardInRange(date,start,end){return String(date||'')>=start&&String(date||'')<=end}
+function dashboardPeriodValue(rows,start,end,field){
+ return rows.filter(x=>dashboardInRange(x.date,start,end)).reduce((s,x)=>s+Number(x[field]||0),0);
+}
+function dashboardExpenseRows(branchFilter){
+ let rows=[];
+ (db.shiftReports||[]).forEach(r=>{
+  if(!branchFilter||branchOfEmployee(r.employeeId)===branchFilter)rows.push({date:r.date,amount:Number(r.cashExpense||0),source:'Tutup Shift',employeeId:r.employeeId});
+ });
+ if(!branchFilter)(db.expenses||[]).forEach(e=>rows.push({date:e.date,amount:Number(e.amount||0),source:'Pengeluaran',category:e.category,note:e.note}));
+ return rows;
+}
+function dashboardGraphDetail(type,key,label){
+ const selected=window.__dashboardBranchId||'ALL', branchFilter=selected==='ALL'?null:selected;
+ const period=window.__dashboardGraphPeriod||'day', feed=branchBusinessFeed(branchFilter), buckets=dashboardGraphBuckets(period,feed);
+ key=decodeURIComponent(key); label=decodeURIComponent(label); const bucket=(type==='service'||type==='barber') ? (buckets.find(b=>b.label===label)||buckets[buckets.length-1]) : (buckets.find(b=>b.key===key)||buckets.find(b=>b.label===label)||buckets[buckets.length-1]);
+ if(!bucket)return;
+ const rows=feed.filter(x=>dashboardInRange(x.date,bucket.start,bucket.end));
+ const expensesRows=dashboardExpenseRows(branchFilter).filter(x=>dashboardInRange(x.date,bucket.start,bucket.end));
+ let title='',body='';
+ if(type==='revenue'){
+  const pos=rows.filter(x=>x.source==='POS'),shift=rows.filter(x=>x.source==='TUTUP_SHIFT');
+  title=`Detail Omzet — ${bucket.label}`;
+  body=`<div class="detail-grid">${box('Periode',bucket.label)}${box('POS',rupiah(pos.reduce((s,x)=>s+x.amount,0)))}${box('Tutup Shift',rupiah(shift.reduce((s,x)=>s+x.amount,0)))}${box('Total',rupiah(rows.reduce((s,x)=>s+x.amount,0)))}</div>`;
+ }else if(type==='expense'){
+  title=`Detail Pengeluaran — ${bucket.label}`;
+  body=`<div class="detail-grid">${box('Periode',bucket.label)}${box('Total',rupiah(expensesRows.reduce((s,x)=>s+x.amount,0)))}${box('Jumlah',expensesRows.length)}</div><div class="feature" style="margin-top:12px">${expensesRows.map(x=>`<div style="padding:7px 0;border-bottom:1px solid #20242b">${x.date} · ${x.source}${x.category?` · ${x.category}`:''} <b style="float:right">${rupiah(x.amount)}</b></div>`).join('')||'<div class="empty">Tidak ada pengeluaran pada periode ini.</div>'}</div>`;
+ }else if(type==='profit'){
+  const revenueValue=rows.reduce((s,x)=>s+x.amount,0), expenseValue=expensesRows.reduce((s,x)=>s+x.amount,0);
+  title=`Detail Laba — ${bucket.label}`;
+  body=`<div class="detail-grid">${box('Periode',bucket.label)}${box('Pendapatan',rupiah(revenueValue))}${box('Pengeluaran',rupiah(expenseValue))}${box('Laba',rupiah(revenueValue-expenseValue))}</div>`;
+ }else if(type==='service'){
+  const map={};
+  rows.forEach(r=>{
+   if(r.source==='POS'){
+    const name=getService(r.id&&db.transactions.find(t=>t.id===r.id)?.serviceId)?.name||'Layanan';
+    map[name]=(map[name]||0)+1;
+   }else{
+    const original=(db.shiftReports||[]).find(x=>x.id===r.id);
+    (original?.services||[]).forEach(x=>{const name=x.serviceName||getService(x.serviceId)?.name||'Layanan';map[name]=(map[name]||0)+Number(x.qty||0)});
+   }
+  });
+  title=`Detail Layanan Terlaris — ${bucket.label}`;
+  body=`<div class="feature">${Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([n,c],i)=>`<div style="padding:8px 0;border-bottom:1px solid #20242b"><b>${i+1}. ${n}</b><span style="float:right">${c} trx</span></div>`).join('')||'<div class="empty">Belum ada layanan pada periode ini.</div>'}</div>`;
+ }else if(type==='barber'){
+  const map={};
+  rows.forEach(r=>{
+   const e=getEmployee(r.employeeId);if(!e)return;
+   if(!map[e.id])map[e.id]={name:e.name,amount:0,tx:0};
+   map[e.id].amount+=r.amount; if(r.source==='POS')map[e.id].tx++;
+   if(r.source==='TUTUP_SHIFT'){const original=(db.shiftReports||[]).find(x=>x.id===r.id);map[e.id].tx+=(original?.services||[]).reduce((s,x)=>s+Number(x.qty||0),0)}
+  });
+  title=`Detail Top Barber — ${bucket.label}`;
+  body=`<div class="feature">${Object.values(map).sort((a,b)=>b.amount-a.amount).map((x,i)=>`<div style="padding:8px 0;border-bottom:1px solid #20242b"><b>${i+1}. ${x.name}</b><span style="float:right">${rupiah(x.amount)}</span><div class="subtle">${x.tx} layanan/transaksi</div></div>`).join('')||'<div class="empty">Belum ada data barber pada periode ini.</div>'}</div>`;
+ }
+ show(`<span class="gold-label">DETAIL GRAFIK</span><h2>${title}</h2>${body}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`);
+}
+function dashboardGraphPeriodChange(value){
+ window.__dashboardGraphPeriod=value;
+ dashboard(window.__dashboardBranchId||'ALL');
+}
+
+if(!window.__dashboardGraphRange){
+ const _t=dashboardDateObj(dateNow()); const _s=new Date(_t); _s.setUTCDate(_t.getUTCDate()-6);
+ window.__dashboardGraphRange={from:dashboardIso(_s),to:dashboardIso(_t)};
+}
+function dashboardGraphRangeChange(){
+ const from=document.getElementById('graphFrom')?.value||'';
+ const to=document.getElementById('graphTo')?.value||'';
+ if(!from||!to)return;
+ window.__dashboardGraphRange={from,to};
+ dashboard(window.__dashboardBranchId||'ALL');
+}
+
+
+function ownerChartEsc(v){
+ return String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function ownerLineChart(type,items,colorClass,valueLabel){
+ const vals=items.map(x=>Number(x.value||0)), max=Math.max(1,...vals), w=600,h=230,pL=48,pR=16,pT=18,pB=34;
+ const usableW=w-pL-pR, usableH=h-pT-pB;
+ const pts=items.map((x,i)=>({x:items.length===1?pL+usableW/2:pL+i*(usableW/(items.length-1)),y:pT+usableH-(Number(x.value||0)/max)*usableH,...x}));
+ const path=pts.map((p,i)=>(i?'L':'M')+p.x.toFixed(1)+' '+p.y.toFixed(1)).join(' ');
+ const grid=[0,.25,.5,.75,1].map(q=>{const y=pT+usableH-q*usableH;return `<line class="gridline" x1="${pL}" y1="${y}" x2="${w-pR}" y2="${y}"/><text class="axis-label" x="${pL-7}" y="${y+4}" text-anchor="end">${rupiah(Math.round(max*q))}</text>`}).join('');
+ const circles=pts.map(p=>`<g class="click-point" role="button" tabindex="0" onclick="dashboardGraphDetail('${type}','${encodeURIComponent(p.key)}','${encodeURIComponent(p.label)}')"><title>${ownerChartEsc(p.label)} — ${ownerChartEsc(valueLabel)}: ${ownerChartEsc(rupiah(p.value))}</title><circle class="point-${colorClass}" cx="${p.x}" cy="${p.y}" r="5"/></g>`).join('');
+ const labels=pts.map(p=>`<text class="axis-label" x="${p.x}" y="${h-10}" text-anchor="middle">${ownerChartEsc(p.shortLabel||p.label)}</text>`).join('');
+ return `<div class="owner-chart-line"><svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-label="${ownerChartEsc(valueLabel)}">${grid}<path class="line-${colorClass}" d="${path}"/>${circles}${labels}</svg></div><div class="owner-chart-legend"><i class="${colorClass}"></i><span>${ownerChartEsc(valueLabel)} · titik dapat diklik untuk detail</span></div>`;
+}
+function ownerRankChart(items,colorClass,valueFormatter){
+ if(!items.length)return '<div class="owner-ranked-chart"><div class="empty">Belum ada data.</div></div>';
+ const max=Math.max(1,...items.map(x=>Number(x.value||0)));
+ return `<div class="owner-ranked-chart">${items.map(x=>`<button type="button" class="owner-rank-row" onclick="dashboardGraphDetail('${x.type}','${encodeURIComponent(x.id||x.name)}','${encodeURIComponent(x.periodLabel||'')}')"><span class="owner-rank-name">${ownerChartEsc(x.name)}</span><span class="owner-rank-track"><span class="owner-rank-fill ${colorClass}" style="display:block;width:${Math.max(3,(Number(x.value||0)/max)*100)}%"></span></span><span class="owner-rank-value">${ownerChartEsc(valueFormatter(x.value))}</span></button>`).join('')}</div>`;
+}
+
+function dashboard(branchId){
+ if(currentUser.role==='employee'){employeeDashboard();return}
+ const selected=branchId||window.__dashboardBranchId||'ALL'; window.__dashboardBranchId=selected;
+ const branchFilter=selected==='ALL'?null:selected;
+ const feed=branchBusinessFeed(branchFilter);
+ const today=dateNow();
+ const todayFeed=feed.filter(x=>x.date===today);
+ const todayTx=db.transactions.filter(t=>t.date===today&&t.status==='SELESAI'&&(!branchFilter||branchOfEmployee(t.employeeId)===branchFilter));
+ const todayShifts=(db.shiftReports||[]).filter(r=>r.date===today&&(!branchFilter||branchOfEmployee(r.employeeId)===branchFilter));
+ const rev=feed.reduce((s,x)=>s+Number(x.amount||0),0);
+ const exp=feed.reduce((s,x)=>s+Number(x.expense||0),0)+db.expenses.reduce((s,x)=>s+Number(x.amount||0),0);
+ const pro=rev-exp;
+ const todayRev=todayFeed.reduce((s,x)=>s+Number(x.amount||0),0);
+ const todayExp=todayFeed.reduce((s,x)=>s+Number(x.expense||0),0)+db.expenses.filter(x=>x.date===today).reduce((s,x)=>s+Number(x.amount||0),0);
+ const active=db.employees.filter(e=>e.active!==false&&(!branchFilter||e.branchId===branchFilter));
+ const attended=db.attendance.filter(a=>a.date===today&&['Hadir','Terlambat'].includes(a.status)&&active.some(e=>e.id===a.employeeId));
+ const queue=todayFeed.reduce((s,x)=>s+Number(x.customers||0),0);
+ const serviceMap={};
+ db.transactions.filter(t=>t.status==='SELESAI'&&(!branchFilter||branchOfEmployee(t.employeeId)===branchFilter)).forEach(t=>{
+  const n=getService(t.serviceId)?.name||'Layanan';
+  serviceMap[n]=(serviceMap[n]||0)+1;
+ });
+ (db.shiftReports||[]).filter(r=>!branchFilter||branchOfEmployee(r.employeeId)===branchFilter).forEach(r=>{
+  (r.services||[]).forEach(x=>{
+   const n=x.serviceName||getService(x.serviceId)?.name||((db.services||[]).find(s=>s.id===x.serviceId)?.name)||'Layanan';
+   serviceMap[n]=(serviceMap[n]||0)+Number(x.qty||0);
+  });
+ });
+ const serviceStats=Object.entries(serviceMap).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count);
+ const maxSvc=Math.max(1,...serviceStats.map(x=>x.count));
+ const empMap={};
+ feed.forEach(x=>{const e=getEmployee(x.employeeId);if(!e)return;if(!empMap[e.id])empMap[e.id]={name:e.name,tx:0,value:0,eval:Number(e.eval||0)};empMap[e.id].tx+=x.source==='POS'?1:0;empMap[e.id].value+=Number(x.amount||0)});
+ const barberStats=Object.values(empMap).sort((a,b)=>b.value-a.value);
+ const graphPeriod=window.__dashboardGraphPeriod||'day';
+ const graphBuckets=dashboardGraphBuckets(graphPeriod,feed);
+ const graphRevenue=graphBuckets.map(b=>({...b,value:dashboardPeriodValue(feed,b.start,b.end,'amount')}));
+ const graphExpenses=graphBuckets.map(b=>({...b,value:dashboardExpenseRows(branchFilter).filter(x=>dashboardInRange(x.date,b.start,b.end)).reduce((s,x)=>s+Number(x.amount||0),0)}));
+ const graphProfit=graphRevenue.map((b,i)=>({...b,value:b.value-graphExpenses[i].value}));
+ const selectedBucket=graphBuckets[graphBuckets.length-1];
+ const selectedRows=feed.filter(x=>selectedBucket&&dashboardInRange(x.date,selectedBucket.start,selectedBucket.end));
+ const svcMap={};
+ selectedRows.forEach(r=>{
+  if(r.source==='POS'){
+   const t=db.transactions.find(x=>x.id===r.id),n=getService(t?.serviceId)?.name||'Layanan';
+   svcMap[n]=(svcMap[n]||0)+1;
+  }else{
+   const rr=(db.shiftReports||[]).find(x=>x.id===r.id);
+   (rr?.services||[]).forEach(x=>{const n=x.serviceName||getService(x.serviceId)?.name||'Layanan';svcMap[n]=(svcMap[n]||0)+Number(x.qty||0)});
+  }
+ });
+ const serviceGraph=Object.entries(svcMap).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count);
+ const barberMap={};
+ selectedRows.forEach(r=>{const e=getEmployee(r.employeeId);if(!e)return;if(!barberMap[e.id])barberMap[e.id]={id:e.id,name:e.name,value:0,tx:0};barberMap[e.id].value+=r.amount;if(r.source==='POS')barberMap[e.id].tx++;else{const rr=(db.shiftReports||[]).find(x=>x.id===r.id);barberMap[e.id].tx+=(rr?.services||[]).reduce((s,x)=>s+Number(x.qty||0),0)}});
+ const barberGraph=Object.values(barberMap).sort((a,b)=>b.value-a.value);
+ const maxRevenue=Math.max(1,...graphRevenue.map(x=>x.value)),maxExpense=Math.max(1,...graphExpenses.map(x=>x.value)),maxProfit=Math.max(1,...graphProfit.map(x=>Math.max(0,x.value))),maxService=Math.max(1,...serviceGraph.map(x=>x.count)),maxBarber=Math.max(1,...barberGraph.map(x=>x.value));
+
+ const recent=db.transactions
+  .filter(t=>t.status==='SELESAI'&&(!branchFilter||branchOfEmployee(t.employeeId)===branchFilter))
+  .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))
+  .slice(0,5);
+ const branchLabel=branchFilter?(db.branches.find(b=>b.id===branchFilter)?.name||'Cabang'):'Semua Cabang';
+ const branchCustomers=feed.reduce((s,x)=>s+Number(x.customers||0),0);
+ const branchEmployees=active;
+ document.getElementById('content').innerHTML=`
+ <div class="dashboard-head">
+  <div><span class="gold-label">OWNER CONTROL CENTER</span><div class="greeting">GOOD AFTERNOON, WILZAM! 👋</div><div class="subtle">Dashboard ${branchLabel} · ${today}</div></div>
+  <button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button>
+ </div>
+ <section class="card section" style="margin-bottom:14px"><div class="panel-title"><h3>PILIH CABANG</h3><span class="subtle">Data Dashboard mengikuti data server</span></div><select class="select" onchange="dashboard(this.value)"><option value="ALL" ${selected==='ALL'?'selected':''}>Semua Cabang</option>${db.branches.filter(b=>b.active!==false).map(b=>`<option value="${b.id}" ${selected===b.id?'selected':''}>${b.name}</option>`).join('')}</select></section>
+ <section class="kpis">
+  <div class="kpi pro clickable" onclick="go('finance')"><div class="kpi-top"><span class="kpi-label">Omzet Hari Ini</span><span>💰</span></div><div class="kpi-value">${rupiah(todayRev)}</div><div class="kpi-change trend up">▲ Hari ini</div></div>
+  <div class="kpi pro clickable" onclick="go('customers')"><div class="kpi-top"><span class="kpi-label">Pelanggan Hari Ini</span><span>👥</span></div><div class="kpi-value">${todayTx.length+todayShifts.reduce((a,r)=>a+Number(r.customers||0),0)}</div><div class="kpi-change trend up">▲ Data realtime</div></div>
+  <div class="kpi pro clickable" onclick="go('transactions')"><div class="kpi-top"><span class="kpi-label">Booking / Transaksi</span><span>🧾</span></div><div class="kpi-value">${queue}</div><div class="kpi-change trend up">▲ Selesai</div></div>
+  <div class="kpi pro clickable" onclick="go('operations')"><div class="kpi-top"><span class="kpi-label">Barber Aktif</span><span>✂️</span></div><div class="kpi-value">${attended.length}/${active.length}</div><div class="kpi-change">● Status operasional</div></div>
+  <div class="kpi pro clickable" onclick="go('finance')"><div class="kpi-top"><span class="kpi-label">Laba Hari Ini</span><span>📈</span></div><div class="kpi-value">${rupiah(todayRev-todayExp)}</div><div class="kpi-change trend up">▲ Setelah pengeluaran</div></div>
+ </section>
+ <div class="dashboard-grid">
+  <section class="card"><div class="panel-title"><h3>STATUS OPERASIONAL SAAT INI — ${branchLabel}</h3><span class="pill green">● ONLINE</span></div>
+   <div class="ops-grid">
+    <div class="ops-box"><span class="label">Barber Aktif</span><div class="ops-num">${attended.length}</div><small>Orang</small></div>
+    <div class="ops-box"><span class="label">Transaksi Selesai</span><div class="ops-num">${todayTx.length}</div><small>Transaksi</small></div>
+    <div class="ops-box"><span class="label">Belum Absen</span><div class="ops-num">${Math.max(0,active.length-attended.length)}</div><small>Barber</small></div>
+    <div class="ops-box"><span class="label">Antrean Hari Ini</span><div class="ops-num">${queue}</div><small>Pelanggan</small></div>
+   </div>
+   <div class="feature" style="margin-top:12px">⏱️ <b>Estimasi operasional:</b> ${queue? 'Layanan berjalan normal':'Belum ada antrean'} <button class="btn small" style="float:right" onclick="go('operations')">LIHAT ANTREAN</button></div>
+  </section>
+  <section class="card"><div class="panel-title"><h3>JADWAL / TRANSAKSI TERBARU — ${branchLabel}</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>
+   ${recent.length?recent.slice(0,4).map(t=>`<div class="schedule-item"><span class="time">${t.date===today?'Hari ini':t.date}</span><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'} · ${getEmployee(t.employeeId)?.name||'-'}</div></div><span class="tag">${rupiah(t.total)}</span></div>`).join(''):'<div class="empty">Belum ada transaksi.</div>'}
+  </section>
+ </div>
+ <section class="card" style="margin-top:14px">
+  <div class="panel-title">
+   <div><h3>GRAFIK BISNIS — ${branchLabel}</h3><span class="subtle">Pilih periode dan rentang tanggal yang ingin dianalisis</span></div>
+   <select class="select-mini" onchange="dashboardGraphPeriodChange(this.value)">
+    <option value="day" ${graphPeriod==='day'?'selected':''}>Per Hari</option>
+    <option value="week" ${graphPeriod==='week'?'selected':''}>Per Minggu</option>
+    <option value="month" ${graphPeriod==='month'?'selected':''}>Per Bulan</option>
+    <option value="year" ${graphPeriod==='year'?'selected':''}>Per Tahun</option>
+   </select>
+  </div>
+  <div class="graph-range-controls">
+   <label class="subtle">Dari
+    <input id="graphFrom" class="select-mini" type="date" value="${(window.__dashboardGraphRange?.from||'')}" onchange="dashboardGraphRangeChange()">
+   </label>
+   <span class="range-arrow">→</span>
+   <label class="subtle">Sampai
+    <input id="graphTo" class="select-mini" type="date" value="${(window.__dashboardGraphRange?.to||'')}" onchange="dashboardGraphRangeChange()">
+   </label>
+   <button class="btn small" type="button" onclick="dashboardGraphRangeChange()">Tampilkan</button>
+  </div>
+ </section>
+ <div class="dashboard-grid" style="margin-top:14px">
+  <section class="card"><div class="panel-title"><div><h3>GRAFIK OMZET</h3><span class="subtle">${graphPeriod==='day'?'7 hari':graphPeriod==='week'?'8 minggu':graphPeriod==='month'?'12 bulan':'tahun tersedia'} · biru</span></div></div>
+   ${ownerLineChart('revenue',graphRevenue,'blue','Omzet')}
+  </section>
+  <section class="card"><div class="panel-title"><div><h3>GRAFIK PENGELUARAN</h3><span class="subtle">${graphPeriod==='day'?'7 hari':graphPeriod==='week'?'8 minggu':graphPeriod==='month'?'12 bulan':'tahun tersedia'} · merah</span></div></div>
+   ${ownerLineChart('expense',graphExpenses,'red','Pengeluaran')}
+  </section>
+  <section class="card"><div class="panel-title"><div><h3>GRAFIK LABA</h3><span class="subtle">${graphPeriod==='day'?'7 hari':graphPeriod==='week'?'8 minggu':graphPeriod==='month'?'12 bulan':'tahun tersedia'} · hijau</span></div></div>
+   ${ownerLineChart('profit',graphProfit,'green','Laba')}
+  </section>
+  <section class="card"><div class="panel-title"><div><h3>GRAFIK LAYANAN TERLARIS</h3><span class="subtle">${selectedBucket?.label||''} · ungu · berdasarkan jumlah terjual</span></div></div>
+   ${ownerRankChart(serviceGraph.slice(0,8).map(x=>({name:x.name,value:x.count,id:x.name,type:'service',periodLabel:selectedBucket?.label||''})),'purple',v=>`${v} trx`)}
+  </section>
+  <section class="card"><div class="panel-title"><div><h3>GRAFIK TOP BARBER</h3><span class="subtle">${selectedBucket?.label||''} · gold · berdasarkan omzet</span></div></div>
+   ${ownerRankChart(barberGraph.slice(0,8).map(x=>({name:x.name,value:x.value,id:x.id,type:'barber',periodLabel:selectedBucket?.label||''})),'gold',v=>rupiah(v))}
+  </section>
+  <section class="card"><div class="panel-title"><h3>SUMBER DATA BISNIS</h3><span class="subtle">Database perangkat</span></div>
+   <div class="detail-grid">${box('Total Pendapatan',rupiah(rev))}${box('Total Pengeluaran',rupiah(exp))}${box('Total Laba',rupiah(pro))}${box('Total Pelanggan',branchCustomers)}</div>
+   <div class="insight">💡 <b>Insight:</b> ${rev>=exp?'Pendapatan saat ini lebih besar dari pengeluaran.':'Pengeluaran perlu dikendalikan agar laba meningkat.'}</div>
+  </section>
+ </div>
+ <div class="dashboard-grid three" style="margin-top:14px">
+  <section class="card"><div class="panel-title"><h3>LAYANAN TERLARIS — ${branchLabel}</h3><span class="subtle">POS + Tutup Shift</span><button class="btn small" onclick="go('services')">LIHAT SEMUA</button></div>
+   <div class="bar-list">${serviceStats.slice(0,5).map(x=>`<div class="bar-row"><span>${x.name}</span><div class="bar-track"><div class="bar-fill" style="width:${(x.count/maxSvc)*100}%"></div></div><b>${x.count} trx</b></div>`).join('')||'<div class="empty">Belum ada data.</div>'}</div>
+  </section>
+  <section class="card"><div class="panel-title"><h3>TOP BARBER — ${branchLabel}</h3><button class="btn small" onclick="go('employees')">LIHAT SEMUA</button></div>
+   ${barberStats.slice(0,5).map((x,i)=>`<div class="rank"><span class="rankno">${i+1}</span><div><b>${x.name}</b><div class="subtle">${x.tx} transaksi · KPI ${x.eval}%</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada barber.</div>'}
+  </section>
+  <section class="card"><div class="panel-title"><h3>PELANGGAN AKTIF</h3><span class="subtle">Semua periode</span></div>
+   ${box('Total Pelanggan',businessCustomersCount())}${box('Pelanggan Baru',db.customers.filter(c=>c.status==='Baru').length)}${box('Pelanggan Aktif',db.customers.filter(c=>c.status==='Aktif').length)}
+   <button class="btn primary" style="width:100%;margin-top:10px" onclick="go('customers')">LIHAT SEMUA PELANGGAN</button>
+  </section>
+ </div>
+ <section class="section-head"><div><span class="gold-label">BUSINESS INTELLIGENCE</span><h2>Insight & Notifikasi</h2></div></section>
+ <div class="dashboard-grid three">
+  <section class="card"><h3>💡 Insight Bisnis</h3><div class="insight">📊 Omzet keseluruhan <b>${rupiah(rev)}</b>.</div><div class="insight">✂️ Layanan teratas: <b>${serviceStats[0]?.name||'-'}</b>.</div><div class="insight">👥 Basis pelanggan: <b>${branchCustomers}</b> orang.</div><div class="insight">🎯 Target karyawan dapat dipantau dari menu KPI.</div><button class="btn" style="width:100%" onclick="go('analytics')">LIHAT SEMUA ANALISIS</button></section>
+  <section class="card"><h3>🔔 Pengingat & Notifikasi</h3><div class="insight">💾 Backup terakhir tersimpan lokal.</div><div class="insight">👥 ${active.length} karyawan terdaftar aktif.</div><div class="insight">🧾 ${feed.filter(x=>x.source==='POS').length} transaksi POS + ${feed.filter(x=>x.source==='TUTUP_SHIFT').length} tutup shift tersimpan.</div><div class="insight">📦 Gunakan Backup untuk mengamankan data.</div><button class="btn" style="width:100%" onclick="go('notifications')">LIHAT NOTIFIKASI</button></section>
+  <section class="card"><h3>🎯 KPI & TARGET</h3><div class="value">${active.length?Math.round(active.reduce((a,e)=>a+Number(e.eval||0),0)/active.length):0}%</div><p class="subtle">Rata-rata evaluasi karyawan</p><div class="bar-track"><div class="bar-fill" style="width:${active.length?Math.min(100,active.reduce((a,e)=>a+Number(e.eval||0),0)/active.length):0}%"></div></div><button class="btn primary" style="width:100%;margin-top:14px" onclick="go('employees')">LIHAT DETAIL TARGET</button></section>
+ </div>
+ <section class="section-head"><div><span class="gold-label">AKSI CEPAT</span><h2>WZ MANAGE PRO</h2></div></section>
+ <div class="quick-grid">
+  <div class="quick" onclick="openTransaction()"><span>🧾</span><b>Transaksi Baru</b></div>
+  <div class="quick" onclick="showWalkin()"><span>🚶</span><b>Walk-in</b></div>
+  <div class="quick" onclick="openTransaction()"><span>🛒</span><b>Kasir / POS</b></div>
+  <div class="quick" onclick="openCustomer()"><span>👤</span><b>Tambah Pelanggan</b></div>
+  <div class="quick" onclick="openEmployee()"><span>👥</span><b>Tambah Karyawan</b></div>
+  <div class="quick" onclick="openExpense()"><span>💸</span><b>Pengeluaran</b></div>
+  <div class="quick" onclick="go('services')"><span>📦</span><b>Layanan</b></div>
+  <div class="quick" onclick="go('services')"><span>🏷️</span><b>Promo</b></div>
+  <div class="quick" onclick="go('reports')"><span>📑</span><b>Laporan</b></div>
+  <div class="quick" onclick="exportBackup()"><span>💾</span><b>Backup Data</b></div>
+ </div>
+ <footer>© 2026 WZ BARBERSHOP PRO · OWNER: WILZAM HIDAYAT · ONLINE PREMIUM · Data tersimpan di server</footer>`;
+}
+
+
+function kpi(icon,label,value,key){return `<div class="kpi clickable" onclick="go('${key}')"><div class="kpi-icon">${icon}</div><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-change">Klik untuk detail →</div></div>`}
+function quick(icon,title,text,key){return `<div class="card clickable" onclick="go('${key}')"><div style="font-size:25px">${icon}</div><h3>${title}</h3><p class="muted">${text}</p><span class="pill gold">BUKA →</span></div>`}
+function metricLine(a,b){return `<div class="feature" style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #20242b"><span class="muted">${a}</span><b>${b}</b></div>`}
+function txRow(t){let c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);return `<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${t.id} · ${c?.name||'-'} · ${s?.name||'-'}</span><b>${rupiah(t.total)}</b></div>`}
+
+function transactions(){
+ const rows=db.transactions.slice().reverse();
+ document.getElementById('content').innerHTML=`
+ <div class="section-head"><div><span class="gold-label">TRANSACTION</span><h1>Transaksi</h1><p>Buat, simpan, lihat dan kelola transaksi online.</p></div><button class="btn primary" onclick="openTransaction()">＋ Buat Transaksi</button></div>
+ <div class="card toolbar"><input id="txSearch" placeholder="Cari nomor/pelanggan/barber..." oninput="filterTransactions()"><select id="txStatus" onchange="filterTransactions()"><option value="">Semua Status</option><option>SELESAI</option><option>VOID</option></select></div>
+ <section class="card table-wrap"><table class="table"><thead><tr><th>No</th><th>Tanggal</th><th>Pelanggan</th><th>Layanan</th><th>Barber</th><th>Total</th><th>Pembayaran</th><th>Status</th><th></th></tr></thead><tbody id="txBody">${rows.map(txTable).join('')}</tbody></table>${!rows.length?'<div class="empty">Belum ada transaksi.</div>':''}</section>`;
+}
+function txTable(t){const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);return `<tr><td>${t.id}</td><td>${t.date}</td><td>${c?.name||'-'}</td><td>${s?.name||'-'}</td><td>${e?.name||'-'}</td><td>${rupiah(t.total)}</td><td>${t.payment}</td><td><span class="pill ${t.status==='VOID'?'red':''}">${t.status}</span></td><td><button class="btn small" onclick="txDetail('${t.id}')">Detail</button></td></tr>`}
+function filterTransactions(){const q=(document.getElementById('txSearch').value||'').toLowerCase(),st=document.getElementById('txStatus').value;document.querySelectorAll('#txBody tr').forEach(r=>r.style.display=(!st||r.textContent.includes(st))&&(!q||r.textContent.toLowerCase().includes(q))?'':'none')}
+function openTransaction(){
+ const c=db.customers.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+ const s=db.services.filter(x=>x.active).map(x=>`<option value="${x.id}">${x.name} — ${rupiah(x.price)}</option>`).join('');
+ const e=db.employees.filter(x=>x.active).map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+ show(`<span class="gold-label">TRANSAKSI BARU</span><h2>Simpan Transaksi</h2><div class="form">
+ <label>Pelanggan<select id="fCustomer">${c}</select></label>
+ <label>Layanan<select id="fService" onchange="calcTx()">${s}</select></label>
+ <label>Barber<select id="fEmployee">${e}</select></label>
+ <label>Pembayaran<select id="fPayment"><option>Tunai</option><option>QRIS</option><option>Transfer</option></select></label>
+ <label>Diskon<input id="fDiscount" type="number" min="0" value="0" oninput="calcTx()"></label>
+ <label>Total<input id="fTotal" readonly></label></div>
+ <div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button type="button" id="saveTransactionBtn" class="btn primary" onclick="saveTransaction()">Simpan Transaksi</button></div>`);
+ calcTx();
+}
+function calcTx(){const s=getService(document.getElementById('fService').value);const d=Number(document.getElementById('fDiscount').value)||0;document.getElementById('fTotal').value=rupiah(Math.max(0,Number(s?.price||0)-d))}
+function saveTransaction(){
+ const customerEl=document.getElementById('fCustomer');
+ const serviceEl=document.getElementById('fService');
+ const employeeEl=document.getElementById('fEmployee');
+ const paymentEl=document.getElementById('fPayment');
+ const discountEl=document.getElementById('fDiscount');
+ if(!customerEl||!serviceEl||!employeeEl||!paymentEl||!discountEl){alert('Form transaksi belum siap.');return;}
+ const svc=getService(serviceEl.value),total=Math.max(0,Number(svc?.price||0)-Number(discountEl.value||0)),id=window.__wzTransactionStableId||('TRX'+String(db.transactions.length+1).padStart(4,'0'));
+ const t={id,date:dateNow(),customerId:customerEl.value,serviceId:serviceEl.value,employeeId:employeeEl.value,total,payment:paymentEl.value,status:'SELESAI'};
+ db.transactions.push(t);const c=getCustomer(t.customerId);if(c){c.visits=(c.visits||0)+1;c.total=(c.total||0)+total}else{}
+ db.notifications.push({id:'N'+Date.now(),date:dateNow(),title:'Transaksi berhasil',message:`${id} sebesar ${rupiah(total)}`,read:false});
+ save();closeModal();render();toast('Transaksi tersimpan dan laporan diperbarui.');
+function dashboardFilter(){
+ const f=document.getElementById('dashFrom')?.value||'',t=document.getElementById('dashTo')?.value||'';
+ const list=db.transactions.filter(x=>(!f||x.date>=f)&&(!t||x.date<=t)&&x.status==='SELESAI');
+ const r=list.reduce((a,x)=>a+Number(x.total||0),0);
+ const ex=db.expenses.filter(x=>(!f||x.date>=f)&&(!t||x.date<=t)).reduce((a,x)=>a+Number(x.amount||0),0);
+ const el=document.getElementById('dashFiltered');
+ if(el)el.innerHTML=`<b>${list.length}</b> transaksi · Pendapatan <b>${rupiah(r)}</b> · Pengeluaran <b>${rupiah(ex)}</b> · Laba <b>${rupiah(r-ex)}</b>`;
+}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='n'){e.preventDefault();openTransaction()}if(e.key==='Escape')closeModal()});
+
+function dashboardFilter(){
+ const f=document.getElementById('dashFrom')?.value||'',t=document.getElementById('dashTo')?.value||'';
+ const list=db.transactions.filter(x=>(!f||x.date>=f)&&(!t||x.date<=t)&&x.status==='SELESAI');
+ const r=list.reduce((a,x)=>a+Number(x.total||0),0);
+ const ex=db.expenses.filter(x=>(!f||x.date>=f)&&(!t||x.date<=t)).reduce((a,x)=>a+Number(x.amount||0),0);
+ const el=document.getElementById('dashFiltered');
+ if(el)el.innerHTML=`<b>${list.length}</b> transaksi · Pendapatan <b>${rupiah(r)}</b> · Pengeluaran <b>${rupiah(ex)}</b> · Laba <b>${rupiah(r-ex)}</b>`;
+}
+render();
+}
+function txDetail(id){const t=db.transactions.find(x=>x.id===id);const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${t.id}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(confirm('Void transaksi ini?')){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
+function box(a,b){return `<div class="detail-box"><span class="label">${a}</span><strong>${b}</strong></div>`}
+
+function shiftReports(){
+ if(!guard('shiftReports'))return;
+ const today=dateNow();
+ const isManager=['owner','manager'].includes(currentUser.role);
+ const reports=(db.shiftReports||[]).slice().reverse();
+ const activeEmployees=db.employees.filter(e=>e.active!==false);
+ const myEmployee=activeEmployees.find(e=>e.id===currentUser.employeeId)||activeEmployees.find(e=>e.name===currentUser.name)||activeEmployees[0];
+ const currentReports=isManager?reports:reports.filter(r=>r.employeeId===myEmployee?.id);
+ const existing=isManager?null:reports.find(r=>r.date===today&&r.employeeId===myEmployee?.id);
+
+ const services=(db.services||[]).filter(s=>s.active!==false).map(s=>({id:s.id,name:s.name,price:Number(s.price||0),active:true}));
+
+ if(isManager){
+  document.getElementById('content').innerHTML=`
+   <div class="section-head">
+    <div><span class="gold-label">SHIFT REPORT</span><h1>Laporan Tutup Shift</h1><p>Daftar laporan shift yang telah disimpan oleh karyawan.</p></div>
+   </div>
+   <section class="card table-wrap">
+    <table class="table">
+     <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Shift</th><th>Pelanggan</th><th>Total Pembayaran</th><th>Omzet</th><th>Selisih Kasir</th></tr></thead>
+     <tbody>
+      ${currentReports.map(r=>`<tr>
+       <td>${r.date||'-'}</td><td>${r.employeeName||'-'}</td><td>${r.shiftType||'-'}</td>
+       <td>${r.customers||0}</td><td>${rupiah(r.totalPayment||0)}</td><td>${rupiah(r.totalOmzet||0)}</td>
+       <td>${rupiah(r.cashDifference||0)}</td>
+      </tr>`).join('')||'<tr><td colspan="7" class="empty">Belum ada laporan shift.</td></tr>'}
+     </tbody>
+    </table>
+   </section>`;
+  return;
+ }
+
+ if(!myEmployee){
+  document.getElementById('content').innerHTML='<div class="card"><div class="empty">Akun karyawan belum terhubung dengan data karyawan.</div></div>';
+  return;
+ }
+
+ document.getElementById('content').innerHTML=`
+ <div class="section-head">
+  <div><span class="gold-label">WZ STAFF REPORTING</span><h1>Laporan Tutup Shift</h1><p>Setelah selesai shift, karyawan mengisi hasil kerja hari itu.</p></div>
+ </div>
+
+ <div class="dashboard-grid">
+  <section class="card">
+   <div class="panel-title"><h3>Laporan Selesai Shift</h3><span class="tag">${existing?'SUDAH DISIMPAN':'INPUT MANUAL'}</span></div>
+
+   <div class="form">
+    <label>Tanggal<input id="srDate" type="date" value="${existing?.date||today}" ${existing?'disabled':''}></label>
+    <label>Pilih karyawan<select id="srEmployee" disabled><option value="${myEmployee.id}">${myEmployee.name}</option></select></label>
+    <label>Jenis shift<select id="srShift" ${existing?'disabled':''}><option ${existing?.shiftType==='Full Shift'?'selected':''}>Full Shift</option><option ${existing?.shiftType==='Pagi'?'selected':''}>Pagi</option><option ${existing?.shiftType==='Siang'?'selected':''}>Siang</option><option ${existing?.shiftType==='Sore'?'selected':''}>Sore</option></select></label>
+    <label>Jumlah pelanggan<input id="srCustomers" type="number" min="0" value="${existing?.customers??0}" ${existing?'disabled':''}></label>
+   </div>
+
+   <h3 style="margin-top:18px">Pembayaran & Kasir</h3>
+   <div class="form">
+    <label>Kas awal shift (Rp)<input id="srOpening" type="number" min="0" value="${existing?.openingCash??0}" oninput="calcShiftReport()" ${existing?'disabled':''}></label>
+    <label>Dibayar tunai (Rp)<input id="srCash" type="number" min="0" value="${existing?.cash??0}" oninput="calcShiftReport()" ${existing?'disabled':''}></label>
+    <label>Dibayar QRIS (Rp)<input id="srQris" type="number" min="0" value="${existing?.qris??0}" oninput="calcShiftReport()" ${existing?'disabled':''}></label>
+    <label>Pengeluaran kas shift (Rp)<input id="srExpense" type="number" min="0" value="${existing?.cashExpense??0}" oninput="calcShiftReport()" ${existing?'disabled':''}></label>
+    <label>Uang fisik akhir di kasir (Rp)<input id="srPhysical" type="number" min="0" value="${existing?.physicalCash??0}" oninput="calcShiftReport()" ${existing?'disabled':''}></label>
+   </div>
+
+   <div class="card" style="margin-top:12px;background:#0b0e12">
+    <div class="metricLine" style="display:flex;justify-content:space-between;padding:9px 0"><span class="muted">Total pembayaran</span><b id="srTotalPayment">${rupiah(existing?.totalPayment||0)}</b></div>
+    <div class="metricLine" style="display:flex;justify-content:space-between;padding:9px 0"><span class="muted">Kas akhir seharusnya</span><b id="srExpectedCash">${rupiah(existing?.expectedCash||0)}</b></div>
+    <div class="metricLine" style="display:flex;justify-content:space-between;padding:9px 0"><span class="muted">Selisih kasir</span><b id="srDifference">${rupiah(existing?.cashDifference||0)}</b></div>
+    <div class="subtle" style="margin-top:7px">Kas akhir seharusnya = Kas awal + Tunai − Pengeluaran kas. QRIS tidak masuk uang fisik kasir.</div>
+   </div>
+
+   <h3 style="margin-top:18px">Layanan</h3>
+   <div id="shiftServices">
+    ${services.filter(s=>s.active!==false).map((s,i)=>{
+      const old=(existing?.services||[]).find(x=>x.serviceId===s.id);
+      return `<div class="feature" style="display:grid;grid-template-columns:1.4fr 80px 100px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #20242b">
+       <span><b>${s.name}</b><small class="muted"> ${rupiah(s.price)}</small></span>
+       <input class="sr-service-qty" data-service="${s.id}" data-price="${s.price}" type="number" min="0" value="${old?.qty||0}" oninput="calcShiftReport()" ${existing?'disabled':''}>
+       <b class="sr-service-total" data-total="${s.id}">${rupiah((old?.qty||0)*s.price)}</b>
+      </div>`;
+    }).join('')}
+   </div>
+
+   <h3 style="margin-top:18px">Penjualan Produk</h3>
+   <div id="shiftProducts">
+    ${(existing?.products||[]).map((p,i)=>productRowHTML(p,i,true)).join('')}
+   </div>
+   ${existing?'':'<button class="btn small" onclick="addShiftProduct()">＋ Tambah Produk</button>'}
+
+   <label style="display:grid;gap:6px;margin-top:12px;color:#b2b7bf;font-size:12px">Catatan shift (opsional)
+    <textarea id="srNote" rows="3" ${existing?'disabled':''}>${existing?.note||''}</textarea>
+   </label>
+
+   <div class="card" style="margin-top:12px;background:#16130c;border-color:#4e3b17">
+    <b>Total omzet shift: <span id="srTotalOmzet">${rupiah(existing?.totalOmzet||0)}</span></b>
+   </div>
+
+   ${existing?'<div class="pill gold">Laporan shift sudah tersimpan.</div>':'<button type="button" id="saveShiftReportBtn" class="btn primary" style="margin-top:12px;width:100%" onclick="saveShiftReport()">Simpan Laporan Shift</button>'}
+  </section>
+
+  <section class="card">
+   <div class="panel-title"><h3>Petunjuk Karyawan</h3></div>
+   <div class="insight">1. Pilih nama karyawan ✓</div>
+   <div class="insight">2. Isi total pelanggan ✓</div>
+   <div class="insight">3. Isi jumlah tiap layanan ✓</div>
+   <div class="insight">4. Isi produk yang terjual ✓</div>
+   <div class="insight">5. Isi pembayaran Cash & QRIS ✓</div>
+   <div class="insight">6. Simpan saat shift selesai ✓</div>
+   <div class="subtle" style="margin-top:12px">Laporan ini diisi manual berdasarkan hasil shift. POS tetap tersedia untuk pencatatan transaksi satu per satu.</div>
+  </section>
+ </div>`;
+
+ calcShiftReport();
+}
+
+function productRowHTML(p={},i=0,disabled=false){
+ return `<div class="shift-product" style="display:grid;grid-template-columns:1fr 85px 110px 90px;gap:8px;align-items:center;padding:7px 0">
+  <input class="sr-product-name" placeholder="Nama produk" value="${String(p.name||'').replaceAll('"','&quot;')}" ${disabled?'disabled':''}>
+  <input class="sr-product-qty" type="number" min="0" placeholder="Jumlah" value="${p.qty||0}" oninput="calcShiftReport()" ${disabled?'disabled':''}>
+  <input class="sr-product-price" type="number" min="0" placeholder="Harga/unit" value="${p.price||0}" oninput="calcShiftReport()" ${disabled?'disabled':''}>
+  <b class="sr-product-total">${rupiah((p.qty||0)*(p.price||0))}</b>
+  ${disabled?'':'<button class="btn small danger" onclick="this.parentElement.remove();calcShiftReport()">Hapus</button>'}
+ </div>`;
+}
+function addShiftProduct(){
+ const wrap=document.getElementById('shiftProducts');
+ if(wrap)wrap.insertAdjacentHTML('beforeend',productRowHTML({},wrap.children.length,false));
+}
+function calcShiftReport(){
+ const cash=Number(document.getElementById('srCash')?.value||0);
+ const qris=Number(document.getElementById('srQris')?.value||0);
+ const opening=Number(document.getElementById('srOpening')?.value||0);
+ const expense=Number(document.getElementById('srExpense')?.value||0);
+ const physical=Number(document.getElementById('srPhysical')?.value||0);
+ const totalPayment=cash+qris;
+ const expected=opening+cash-expense;
+ const difference=physical-expected;
+ const money=document.getElementById('srTotalPayment'); if(money)money.textContent=rupiah(totalPayment);
+ const ex=document.getElementById('srExpectedCash'); if(ex)ex.textContent=rupiah(expected);
+ const dif=document.getElementById('srDifference'); if(dif)dif.textContent=rupiah(difference);
+
+ let serviceTotal=0;
+ document.querySelectorAll('.sr-service-qty').forEach(inp=>{
+  const qty=Number(inp.value||0),price=Number(inp.dataset.price||0);
+  serviceTotal+=qty*price;
+  const out=document.querySelector(`.sr-service-total[data-total="${inp.dataset.service}"]`);
+  if(out)out.textContent=rupiah(qty*price);
+ });
+ let productTotal=0;
+ document.querySelectorAll('.shift-product').forEach(row=>{
+  const qty=Number(row.querySelector('.sr-product-qty')?.value||0);
+  const price=Number(row.querySelector('.sr-product-price')?.value||0);
+  productTotal+=qty*price;
+  const out=row.querySelector('.sr-product-total'); if(out)out.textContent=rupiah(qty*price);
+ });
+ const omzet=serviceTotal+productTotal;
+ const om=document.getElementById('srTotalOmzet'); if(om)om.textContent=rupiah(omzet);
+ return {cash,qris,opening,expense,physical,totalPayment,expected,difference,serviceTotal,productTotal,omzet};
+}
+function saveShiftReport(){
+ const calc=calcShiftReport();
+
+ // VALIDASI WAJIB LAPORAN TUTUP SHIFT
+ // Minimal harus ada 1 layanan dan omzet/pembayaran harus > 0.
+ if(Number(calc.serviceTotal||0)<=0){
+   toast('Laporan belum bisa disimpan. Isi minimal 1 layanan terlebih dahulu.');
+   return;
+ }
+ if(Number(calc.totalPayment||0)<=0){
+   toast('Laporan belum bisa disimpan. Total pembayaran harus lebih dari Rp0.');
+   return;
+ }
+ if(Math.abs(calc.difference)>0.001){
+  alert('Laporan belum dapat disimpan karena masih ada selisih kasir. Pastikan Uang fisik akhir di kasir sesuai dengan Kas akhir seharusnya (selisih Rp 0).');
+  const dif=document.getElementById('srDifference');
+  if(dif) dif.scrollIntoView({behavior:'smooth',block:'center'});
+  return;
+ }
+ const emp=db.employees.find(e=>e.id===currentUser.employeeId)||db.employees.find(e=>e.name===currentUser.name)||db.employees.find(e=>e.id===document.getElementById('srEmployee').value);
+ if(!emp)return alert('Karyawan tidak ditemukan.');
+
+ const products=[...document.querySelectorAll('.shift-product')].map(row=>({
+  name:row.querySelector('.sr-product-name')?.value.trim()||'',
+  qty:Number(row.querySelector('.sr-product-qty')?.value||0),
+  price:Number(row.querySelector('.sr-product-price')?.value||0)
+ })).filter(p=>p.name||p.qty||p.price);
+ const services=[...document.querySelectorAll('.sr-service-qty')].map(inp=>{
+  const svc=(db.services||[]).find(s=>s.id===inp.dataset.service);
+  return {
+   serviceId:inp.dataset.service,
+   serviceName:svc?.name||inp.closest('.feature')?.querySelector('b')?.textContent?.trim()||'Layanan',
+   qty:Number(inp.value||0),
+   price:Number(inp.dataset.price||0)
+  };
+ }).filter(x=>x.qty>0);
+ const report={
+  id:window.__wzShiftStableId||('SHIFT'+Date.now()),
+  date:document.getElementById('srDate').value,
+  employeeId:emp.id,
+  employeeName:emp.name,
+  shiftType:document.getElementById('srShift').value,
+  customers:Number(document.getElementById('srCustomers').value||0),
+  openingCash:calc.opening,
+  cash:calc.cash,
+  qris:calc.qris,
+  cashExpense:calc.expense,
+  physicalCash:calc.physical,
+  totalPayment:calc.totalPayment,
+  expectedCash:calc.expected,
+  cashDifference:calc.difference,
+  services,
+  products,
+  serviceTotal:calc.serviceTotal,
+  productTotal:calc.productTotal,
+  totalOmzet:calc.omzet,
+  note:document.getElementById('srNote').value.trim(),
+  savedAt:new Date().toISOString()
+ };
+ db.shiftReports=db.shiftReports||[];
+ db.shiftReports.push(report);
+ db.notifications.push({id:'N'+Date.now(),date:dateNow(),title:'Laporan shift tersimpan',message:`${emp.name} menyimpan laporan shift ${report.date}`,read:false});
+ save();render();toast(`Laporan dari ${emp.name} masuk.`);
+}
+
+
+/* PAYROLL ENGINE — PERIODE 24–24
+   Aturan:
+   - Gaji pokok Rp2.000.000
+   - Haircut: bonus hanya setelah 156 Haircut; setiap Haircut ke-157 dst = Rp10.000
+   - Hairwash: Rp2.000/transaksi
+   - Hairstyling: Rp2.000/transaksi
+   - Shaving: Rp2.000/transaksi
+   - Haircoloring: Rp20.000/transaksi
+*/
+const PAYROLL_RULES={
+ baseSalary:2000000,
+ haircut:{threshold:157,bonus:10000},
+ hairwash:{threshold:1,bonus:2000},
+ hairstyling:{threshold:1,bonus:2000},
+ shaving:{threshold:1,bonus:2000},
+ haircoloring:{threshold:1,bonus:20000}
+};
+function payrollPeriodFor(dateStr){
+ const d=dashboardDateObj(dateStr||dateNow()), y=d.getUTCFullYear(),m=d.getUTCMonth(),day=d.getUTCDate();
+ let start,end;
+ if(day>=24){start=new Date(Date.UTC(y,m,24));end=new Date(Date.UTC(y,m+1,24));}
+ else{start=new Date(Date.UTC(y,m-1,24));end=new Date(Date.UTC(y,m,24));}
+ return {start:dashboardIso(start),end:dashboardIso(end)};
+}
+function payrollServiceKey(service){
+ const n=String(service?.name||'').toLowerCase().replace(/[^a-z]/g,'');
+ if(n.includes('haircolor'))return 'haircoloring';
+ if(n.includes('hairwash'))return 'hairwash';
+ if(n.includes('hairstyl'))return 'hairstyling';
+ if(n.includes('shav'))return 'shaving';
+ if(n.includes('haircut'))return 'haircut';
+ return null;
+}
+function payrollCounts(employeeId,start,end){
+ const counts={haircut:0,hairwash:0,hairstyling:0,shaving:0,haircoloring:0};
+ (db.transactions||[]).filter(t=>t.employeeId===employeeId&&t.status==='SELESAI'&&dashboardInRange(t.date,start,end)).forEach(t=>{
+  const key=payrollServiceKey(getService(t.serviceId)); if(key)counts[key]++;
+ });
+ (db.shiftReports||[]).filter(r=>r.employeeId===employeeId&&dashboardInRange(r.date,start,end)).forEach(r=>{
+  (r.services||[]).forEach(x=>{
+   const key=payrollServiceKey(getService(x.serviceId)||{name:x.serviceName});
+   if(key)counts[key]+=Number(x.qty||0);
+  });
+ });
+ return counts;
+}
+function calculatePayroll(employeeId,periodDate){
+ const e=getEmployee(employeeId); if(!e)return null;
+ const period=payrollPeriodFor(periodDate||dateNow()), counts=payrollCounts(employeeId,period.start,period.end);
+ const rules=PAYROLL_RULES;
+ const detail={};
+ Object.keys(counts).forEach(key=>{
+  const rule=rules[key];
+  const bonusCustomers=key==='haircut'
+   ? Math.max(0,counts[key]-156)
+   : counts[key];
+  detail[key]={customers:counts[key],threshold:rule.threshold,bonusCustomers,rate:rule.bonus,bonus:bonusCustomers*rule.bonus};
+ });
+ const totalBonus=Object.values(detail).reduce((s,x)=>s+x.bonus,0);
+ const baseSalary=Number(e.salary||rules.baseSalary||2000000);
+ return {employeeId,periodStart:period.start,periodEnd:period.end,baseSalary,counts:detail,totalBonus,totalPay:baseSalary+totalBonus};
+}
+function payrollSummaryHtml(pay){
+ const names={haircut:'Haircut',hairwash:'Hairwash',hairstyling:'Hairstyling',shaving:'Shaving',haircoloring:'Haircoloring'};
+ return `<div class="detail-grid">${box('Gaji Pokok',rupiah(pay.baseSalary))}${box('Total Bonus',rupiah(pay.totalBonus))}${box('Total Upah',rupiah(pay.totalPay))}${box('Periode',pay.periodStart+' → '+pay.periodEnd)}</div>
+ <div class="feature" style="margin-top:12px"><b>Rincian Bonus</b>${Object.entries(pay.counts).map(([k,x])=>`<div style="display:grid;grid-template-columns:1.3fr .7fr .8fr .9fr;gap:6px;padding:8px 0;border-bottom:1px solid #20242b"><span>${names[k]}</span><span>${x.customers} pelanggan</span><span>${x.bonusCustomers} bonus</span><b style="text-align:right">${rupiah(x.bonus)}</b></div>`).join('')}</div>`;
+}
+
+function employees(){
+ if(!guard('employees'))return;
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">EMPLOYEE</span><h1>Karyawan & KPI</h1><p>Kelola karyawan, akun login, password, dan laporan.</p></div><button class="btn primary" onclick="openEmployee()">＋ Tambah Karyawan</button></div><div class="grid">${db.employees.map(e=>{
+ const tx=db.transactions.filter(t=>t.employeeId===e.id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===e.id),branch=db.branches.find(b=>b.id===e.branchId),rev=tx.reduce((s,t)=>s+Number(t.total||0),0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),ach=e.target?Math.min(100,rev/e.target*100):0,acc=accountForEmployee(e.id),pay=calculatePayroll(e.id);
+ return `<div class="card"><span class="gold-label">${e.role}</span><h3 style="margin-top:7px">${e.name}</h3><p class="muted">${e.id} · ${e.active?'Aktif':'Nonaktif'} · Cabang: ${branch?.name||'Belum dipilih'}</p><div class="bar-row" style="grid-template-columns:70px 1fr 45px"><span>KPI</span><div class="bar"><i style="width:${ach}%"></i></div><span class="bar-num">${ach.toFixed(0)}%</span></div><p>Aktivitas <b>${tx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0)}</b> · Omzet <b class="payroll-revenue">${rupiah(rev)}</b></p><p>Upah periode berjalan <b class="payroll-wage">${rupiah(pay.totalPay)}</b> · Bonus <b class="payroll-bonus">${rupiah(pay.totalBonus)}</b></p><p class="muted">Login: <b>${acc?'karyawan':'Belum dibuat'}</b></p><div class="dialog-actions"><button class="btn small" onclick="employeeDetail('${e.id}')">Lihat laporan</button><button class="btn small" onclick="openEmployee('${e.id}')">Ubah</button><button class="btn small danger" onclick="deleteEmployee('${e.id}')">Hapus</button></div></div>`}).join('')}</div>`;
+}
+function deleteEmployee(id){
+ if(!guard('employees'))return;const e=getEmployee(id);if(!e)return;
+ if(!confirm('Hapus karyawan '+e.name+' beserta akun login karyawan ini?'))return;
+ db.employees=db.employees.filter(x=>x.id!==id);
+ db.attendance=(db.attendance||[]).filter(x=>x.employeeId!==id);
+ db.shiftReports=(db.shiftReports||[]).filter(x=>x.employeeId!==id);
+ db.transactions=(db.transactions||[]).filter(x=>x.employeeId!==id);
+ saveAccounts(getAccounts().filter(a=>!(a.role==='employee'&&a.employeeId===id)));
+ save();closeModal();toast('Karyawan dan akun login dihapus.');render();
+}
+function employeeDetail(id){if(!currentUser||currentUser.role==='employee'){toast('Detail upah hanya dapat dilihat Owner/Manager.');return}const e=getEmployee(id),branch=db.branches.find(b=>b.id===e?.branchId),ptx=db.transactions.filter(t=>t.employeeId===id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===id),rev=ptx.reduce((s,t)=>s+t.total,0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),pay=calculatePayroll(id),comm=pay?.totalBonus||0,att=db.attendance.filter(a=>a.employeeId===id),late=att.filter(a=>a.status==='Terlambat').length;show(`<span class="gold-label">LAPORAN KARYAWAN</span><h2>${e.name}</h2><p class="muted">${e.role} · ${e.id} · Cabang: ${branch?.name||'Belum dipilih'}</p><div class="detail-grid">${box('Hadir',e.attendance)}${box('Terlambat',late)}${box('Aktivitas',ptx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0))}${box('Pendapatan',rupiah(rev))}${box('Komisi',rupiah(comm))}${box('Payroll',rupiah(pay))}${box('Target',rupiah(e.target))}${box('Realisasi',e.target?((rev/e.target)*100).toFixed(1)+'%':'-')}${box('Evaluasi',e.eval+'/100')}</div><div class="goldline"></div><h3>Riwayat Transaksi POS</h3>${ptx.map(txRow).join('')||'<div class="empty">Belum ada transaksi POS.</div>'}<h3 style="margin-top:18px">Laporan Tutup Shift</h3>${srs.map(r=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${r.date} · ${r.shiftType||'-'} · ${r.customers||0} pelanggan</span><b>${rupiah(r.totalOmzet||0)}</b></div>`).join('')||'<div class="empty">Belum ada laporan tutup shift.</div>'}<h3 style="margin-top:18px">Rincian Perhitungan Upah</h3>${pay?payrollSummaryHtml(pay):'<div class="empty">Belum ada data payroll.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+function openEmployee(id){
+ if(!guard('employees'))return;
+ const e=id?getEmployee(id):null,a=e?accountForEmployee(id):null;
+ const name=e?e.name:'',role=e?e.role:'Barber',salary=e?e.salary:0,comm=e?e.commission:10,target=e?e.target:0;
+ const password=a?a.password:defaultEmployeePassword(name);
+ show(`<span class="gold-label">KARYAWAN</span><h2>${e?'Ubah Karyawan':'Tambah Karyawan'}</h2><div class="form">
+ <label>Nama<input id="eName" value="${name.replaceAll('"','&quot;')}"></label>
+ <label>Role<select id="eRole"><option ${role==='Barber'?'selected':''}>Barber</option><option ${role==='Kasir'?'selected':''}>Kasir</option><option ${role==='Manager'?'selected':''}>Manager</option></select></label>
+ <label>Cabang<select id="eBranch">${db.branches.filter(b=>b.active!==false).map(b=>`<option value="${b.id}" ${((e&&e.branchId)||defaultBranchId)===b.id?'selected':''}>${b.name}</option>`).join('')}</select></label>
+ <label>Gaji Pokok<input id="eSalary" type="number" value="${salary||2000000}"></label><label>Komisi %<input id="eComm" type="number" value="0" readonly></label><label>Target<input id="eTarget" type="number" value="${target}"></label>
+ <div class="goldline"></div><h3>Aturan Bonus Upah</h3>
+ <p class="muted">Periode penggajian: <b>tanggal 24 sampai tanggal 24 bulan berikutnya</b>.</p>
+ <div class="detail-grid">${box('Haircut','Ke-157 dan seterusnya · Rp10.000')}${box('Hairwash','Setiap pelanggan · Rp2.000')}${box('Hairstyling','Setiap pelanggan · Rp2.000')}${box('Shaving','Setiap pelanggan · Rp2.000')}${box('Haircoloring','Setiap pelanggan · Rp20.000')}</div>
+<div class="goldline"></div><h3>Akun Login Karyawan</h3>
+ <label>Username<input value="${e?defaultEmployeeUsername(e.name):defaultEmployeeUsername(name)}" readonly></label><label>Password<input id="ePassword" type="text" value="${password}"></label>
+ <p class="muted">Username akun dibuat otomatis dari nama karyawan. Password dapat dibuat atau diubah Owner/Manager.</p>
+ </div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveEmployee('${id||''}')">Simpan</button></div>`)
+}
+function saveEmployee(id){
+ if(!guard('employees'))return;
+ const name=eName.value.trim(),role=eRole.value,password=ePassword.value.trim(),branchId=eBranch.value;
+ if(!name)return alert('Isi nama karyawan');if(!password)return alert('Isi password login');
+ if(!branchId)return alert('Pilih cabang karyawan');
+ let e=id?getEmployee(id):null;
+ if(e){e.name=name;e.role=role;e.branchId=branchId;e.salary=Number(eSalary.value)||0;e.commission=0;e.target=Number(eTarget.value)||0}
+ else{const next=Math.max(0,...db.employees.map(x=>Number(String(x.id).replace(/\D/g,''))||0))+1;e={id:'E'+String(next).padStart(3,'0'),name,role,branchId,salary:Number(eSalary.value)||0,commission:0,target:Number(eTarget.value)||0,attendance:0,eval:0,active:true};db.employees.push(e)}
+ const accounts=getAccounts();let acc=accounts.find(a=>a.role==='employee'&&a.employeeId===e.id);
+ const username=defaultEmployeeUsername(e.name);
+ if(acc){acc.password=password;acc.username=username;acc.name=e.name;acc.role='employee'}else accounts.push({username,password,role:'employee',name:e.name,employeeId:e.id});
+ saveAccounts(accounts);save();closeModal();toast(id?'Data karyawan & password diperbarui.':'Karyawan & akun login dibuat.');render();
+}
+function customers(){
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">CUSTOMER</span><h1>Pelanggan</h1><p>Data pelanggan, kunjungan dan nilai transaksi.</p></div><button class="btn primary" onclick="openCustomer()">＋ Tambah Pelanggan</button></div>
+ <section class="card toolbar"><input id="cuSearch" placeholder="Cari nama/telepon..." oninput="filterRows('cuBody','cuSearch')"></section>
+ <section class="card table-wrap"><table class="table"><thead><tr><th>ID</th><th>Nama</th><th>Telepon</th><th>Kunjungan</th><th>Total Nilai</th><th>Status</th><th></th></tr></thead><tbody id="cuBody">${db.customers.map(c=>`<tr><td>${c.id}</td><td>${c.name}</td><td>${c.phone||'-'}</td><td>${c.visits||0}</td><td>${rupiah(c.total)}</td><td><span class="pill">${c.status||'Aktif'}</span></td><td><button class="btn small" onclick="customerDetail('${c.id}')">Detail</button></td></tr>`).join('')}</tbody></table></section>`;
+}
+function filterRows(body,inp){const q=document.getElementById(inp).value.toLowerCase();document.querySelectorAll('#'+body+' tr').forEach(r=>r.style.display=r.textContent.toLowerCase().includes(q)?'':'none')}
+function openCustomer(){show(`<span class="gold-label">PELANGGAN</span><h2>Tambah Pelanggan</h2><div class="form"><label>Nama<input id="cName"></label><label>Telepon<input id="cPhone"></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveCustomer()">Simpan</button></div>`)}
+function saveCustomer(){const c={id:'C'+String(db.customers.length+1).padStart(3,'0'),name:cName.value,phone:cPhone.value,visits:0,total:0,status:'Aktif'};if(!c.name)return alert('Isi nama pelanggan');db.customers.push(c);save();closeModal();toast('Pelanggan ditambahkan.');render()}
+function customerDetail(id){const c=getCustomer(id),tx=db.transactions.filter(t=>t.customerId===id);show(`<span class="gold-label">PELANGGAN</span><h2>${c.name}</h2><div class="detail-grid">${box('Telepon',c.phone||'-')}${box('Kunjungan',c.visits||0)}${box('Total Nilai',rupiah(c.total))}</div><h3 style="margin-top:18px">Riwayat</h3>${tx.map(txRow).join('')||'<div class="empty">Belum ada transaksi.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+
+function services(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SERVICE</span><h1>Layanan & Promo</h1><p>Kelola daftar layanan dan harga.</p></div><button class="btn primary" onclick="openService()">＋ Tambah Layanan</button></div><div class="grid">${db.services.map(s=>`<div class="card"><span class="gold-label">${s.category}</span><h3>${s.name}</h3><div class="value">${rupiah(s.price)}</div><p class="muted">${s.duration} menit</p><span class="pill">${s.active?'Aktif':'Nonaktif'}</span><div class="dialog-actions" style="margin-top:12px"><button type="button" class="btn small" onclick="editService('${s.id}')">Edit</button></div></div>`).join('')}</div>`}
+function openService(){show(`<span class="gold-label">LAYANAN</span><h2>Tambah Layanan</h2><div class="form"><label>Nama<input id="sName"></label><label>Kategori<input id="sCat"></label><label>Harga<input id="sPrice" type="number"></label><label>Durasi (menit)<input id="sDur" type="number" value="45"></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveService()">Simpan</button></div>`)}
+function saveService(){const s={id:'S'+String(db.services.length+1).padStart(3,'0'),name:sName.value.trim(),category:sCat.value.trim()||'Umum',price:Number(sPrice.value)||0,duration:Number(sDur.value)||45,active:true};if(!s.name)return alert('Isi nama layanan');db.services.push(s);save();closeModal();toast('Layanan ditambahkan.');render()}
+function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
+function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return alert('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return alert('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return alert('Durasi layanan tidak valid.');s.name=name;s.category=category;s.price=price;s.duration=duration;s.active=esActive.checked;save();closeModal();toast('Layanan berhasil diperbarui.');render()}
+
+function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',rupiah(revenue()),'finance')}${kpi('💸','Pengeluaran',rupiah(expenses()),'finance')}${kpi('📈','Laba',rupiah(profit()),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${e.date} · ${e.category} · ${e.note||''}</span><b>${rupiah(e.amount)}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
+function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('tCustomer');if(c)c.value='';},50)}
+function openExpense(){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat"></label><label>Nominal<input id="xAmount" type="number"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}
+function saveExpense(){if(!guard('finance'))return;const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:xDate.value,category:xCat.value||'Operasional',amount:Number(xAmount.value)||0,note:xNote.value||''};db.expenses.push(x);save();closeModal();toast('Pengeluaran tersimpan.');render()}
+
+function reports(){
+ const u=ownerBusinessTotals(),feed=ownerBusinessFeed(),posCount=feed.filter(x=>x.source==='POS').length,shiftCount=feed.filter(x=>x.source==='TUTUP_SHIFT').length;
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">REPORTS</span><h1>Laporan</h1><p>POS dan Laporan Tutup Shift menggunakan satu jalur data bisnis.</p></div></div><div class="grid">${quick('🧾','Laporan Transaksi',feed.length+' data','reports')}${quick('💰','Laporan Keuangan',rupiah(u.omzet)+' omzet','finance')}${quick('👥','Laporan Karyawan',db.employees.length+' karyawan','employees')}${quick('✂️','Laporan Operasional',db.attendance.length+' absensi · '+shiftCount+' tutup shift','operations')}</div><section class="card section"><h3>Ringkasan</h3><div class="detail-grid">${box('Omzet',rupiah(u.omzet))}${box('Pelanggan',u.pelanggan)}${box('Cash',rupiah(u.cash))}${box('QRIS',rupiah(u.qris))}${box('POS',posCount)}${box('Tutup Shift',shiftCount)}</div></section>`;
+}
+function exportCSV(type){let rows=[];if(type==='transactions'){rows=db.transactions.map(t=>[t.id,t.date,getCustomer(t.customerId)?.name||'',getService(t.serviceId)?.name||'',getEmployee(t.employeeId)?.name||'',t.total,t.payment,t.status]);rows.unshift(['ID','Tanggal','Pelanggan','Layanan','Barber','Total','Pembayaran','Status'])}else{rows=db.employees.map(e=>[e.id,e.name,e.role,e.target,e.commission]);rows.unshift(['ID','Nama','Role','Target','Komisi'])}const out=rows.map(row=>row.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join(String.fromCharCode(10));const blob=new Blob([out],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='wz-'+type+'.csv';a.click();URL.revokeObjectURL(a.href)}
+function attendance(emp,status){const today=dateNow();let a=db.attendance.find(x=>x.employeeId===emp&&x.date===today);if(!a){a={id:'A'+Date.now(),date:today,employeeId:emp,status,in:new Date().toTimeString().slice(0,5),out:''};db.attendance.push(a)}else{a.status=status}const e=getEmployee(emp);if(status==='Hadir'&&e)e.attendance=(e.attendance||0)+1;save();toast('Absensi diperbarui.');render()}
+
+function operations(){
+ const today=dateNow();
+ const shifts=(db.shiftReports||[]).filter(r=>r.date===today);
+ const tx=(db.transactions||[]).filter(t=>t.date===today&&t.status==='SELESAI');
+ const feed=ownerBusinessFeed().filter(x=>x.date===today);
+ const customers=feed.reduce((s,x)=>s+Number(x.customers||0),0);
+ const active=(db.employees||[]).filter(e=>e.active!==false);
+ const omzet=feed.reduce((s,x)=>s+Number(x.amount||0),0);
+ const cash=feed.reduce((s,x)=>s+Number(x.cash||0),0);
+ const qris=feed.reduce((s,x)=>s+Number(x.qris||0),0);
+ document.getElementById('content').innerHTML=`
+ <div class="section-head"><div><span class="gold-label">OPERATIONS</span><h1>Operasional</h1><p>Ringkasan operasional hari ini dari POS dan Laporan Tutup Shift.</p></div></div>
+ <div class="grid">
+ ${boxCard('Pelanggan Hari Ini',customers)}
+ ${boxCard('Barber Aktif',active.length)}
+ ${boxCard('Transaksi POS',tx.length)}
+ ${boxCard('Tutup Shift',shifts.length)}
+ </div>
+ <section class="card section"><h3>Ringkasan Hari Ini</h3>
+ <div class="detail-grid">${box('Omzet',rupiah(omzet))}${box('Cash',rupiah(cash))}${box('QRIS',rupiah(qris))}${box('Pelanggan',customers)}</div></section>
+ <section class="card section"><h3>Laporan Tutup Shift Hari Ini</h3>
+ ${shifts.length?shifts.map(r=>`<div class="schedule-item"><div><b>${r.employeeName||r.employeeId||'-'}</b><div class="subtle">${r.shiftType||'Shift'} · ${Number(r.customers||0)} pelanggan</div></div><strong>${rupiah(r.totalOmzet||0)}</strong></div>`).join(''):'<div class="empty">Belum ada laporan tutup shift hari ini.</div>'}
+ </section>
+ <section class="card section"><h3>Transaksi POS Hari Ini</h3>
+ ${tx.length?tx.map(t=>`<div class="schedule-item"><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'} · ${getEmployee(t.employeeId)?.name||'-'}</div></div><strong>${rupiah(t.total||0)}</strong></div>`).join(''):'<div class="empty">Belum ada transaksi POS hari ini.</div>'}
+ </section>`;
+}
+
+function analyticsRange(){
+ const to=dateNow(),from=new Date(`${to}T00:00:00`),days=Number(db.profile.analyticsPeriod||7);from.setDate(from.getDate()-(days-1));
+ return {from:dashboardIso(from),to};
+}
+function analyticsServiceStats(from,to){
+ const map={};
+ ownerBusinessFeed().filter(x=>x.date>=from&&x.date<=to).forEach(row=>{if(row.source==='POS'){const tx=db.transactions.find(x=>x.id===row.id),id=tx?.serviceId||'other',name=getService(id)?.name||'Layanan';map[id]??={name,count:0,rev:0};map[id].count++;map[id].rev+=row.amount}else{const report=db.shiftReports.find(x=>x.id===row.id);(report?.services||[]).forEach(x=>{const id=x.serviceId||'other',name=x.serviceName||getService(id)?.name||'Layanan';map[id]??={name,count:0,rev:0};map[id].count+=Number(x.qty||0);map[id].rev+=Number(x.qty||0)*Number(x.price||0)})}});
+ return Object.values(map).sort((a,b)=>b.rev-a.rev);
+}
+function analyticsEmployeeStats(from,to){
+ const feed=ownerBusinessFeed().filter(x=>x.date>=from&&x.date<=to),map={};
+ feed.forEach(x=>{const e=getEmployee(x.employeeId);if(!e)return;map[e.id]??={name:e.name,tx:0,value:0};map[e.id].tx+=Number(x.customers||0);map[e.id].value+=Number(x.amount||0)});
+ return Object.values(map).sort((a,b)=>b.value-a.value);
+}
+function analyticsChartItems(from,to,feed){
+ const dates=[];for(const row of feed){if(!dates.includes(row.date))dates.push(row.date)}dates.sort();
+ return dates.map(date=>{const rows=feed.filter(x=>x.date===date);return {key:date,label:date,shortLabel:date.slice(5),value:rows.reduce((s,x)=>s+Number(x.amount||0),0)}});
+}
+function exportOwnerAnalytics(){
+ if(!guard('analytics'))return;
+ const from=document.getElementById('analyticsFrom')?.value||analyticsRange().from,to=document.getElementById('analyticsTo')?.value||dateNow();
+ const rows=ownerBusinessFeed().filter(x=>x.date>=from&&x.date<=to),header=['Tanggal','Sumber','Karyawan','Pelanggan','Pendapatan','Pengeluaran','Cash','QRIS'];
+ const csv=[header,...rows.map(x=>[x.date,x.source,getEmployee(x.employeeId)?.name||x.employeeId||'',x.customers,x.amount,x.expense,x.cash,x.qris])].map(row=>row.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(',')).join('\n');
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));a.download=`wz-analisis-${from}-${to}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function analytics(){
+ const range=analyticsRange(),from=document.getElementById('analyticsFrom')?.value||range.from,to=document.getElementById('analyticsTo')?.value||range.to,feed=ownerBusinessFeed().filter(x=>x.date>=from&&x.date<=to),revenueValue=feed.reduce((s,x)=>s+Number(x.amount||0),0),expenseValue=feed.reduce((s,x)=>s+Number(x.expense||0),0)+db.expenses.filter(x=>x.date>=from&&x.date<=to).reduce((s,x)=>s+Number(x.amount||0),0),serviceStats=analyticsServiceStats(from,to),employees=analyticsEmployeeStats(from,to),avg=feed.length?revenueValue/feed.length:0,chartItems=analyticsChartItems(from,to,feed),expenseItems=chartItems.map(x=>({...x,value:feed.filter(r=>r.date===x.key).reduce((s,r)=>s+Number(r.expense||0),0)+db.expenses.filter(r=>r.date===x.key).reduce((s,r)=>s+Number(r.amount||0),0)})),profitItems=chartItems.map((x,i)=>({...x,value:x.value-expenseItems[i].value}));
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">ANALYTICS</span><h1>Analisis Bisnis</h1><p>Panel statistik OWNER untuk membaca performa, tren, dan kesehatan bisnis.</p></div><button class="btn" onclick="exportOwnerAnalytics()">Download CSV</button></div><section class="card section"><div class="panel-title"><h3>Periode Analisis</h3><span class="subtle">${from} sampai ${to}</span></div><div class="form"><label>Dari<input id="analyticsFrom" type="date" value="${from}" onchange="analytics()"></label><label>Sampai<input id="analyticsTo" type="date" value="${to}" onchange="analytics()"></label></div></section><div class="grid">${boxCard('Pendapatan',rupiah(revenueValue))}${boxCard('Pengeluaran',rupiah(expenseValue))}${boxCard('Laba Bersih',rupiah(revenueValue-expenseValue))}${boxCard('Rata-rata Data',rupiah(avg))}</div><div class="dashboard-grid" style="margin-top:14px"><section class="card"><div class="panel-title"><h3>TREND PENDAPATAN</h3><span class="subtle">Klik titik untuk detail</span></div>${ownerLineChart('revenue',chartItems,'blue','Pendapatan')}</section><section class="card"><div class="panel-title"><h3>TREND LABA</h3><span class="subtle">Pendapatan dikurangi biaya</span></div>${ownerLineChart('profit',profitItems,'green','Laba Bersih')}</section></div><section class="card section"><h3>Performa Layanan</h3>${serviceStats.map(x=>`<div class="bar-row"><span>${x.name}</span><div class="bar"><i style="width:${serviceStats[0]?.rev?(x.rev/serviceStats[0].rev)*100:0}%"></i></div><span class="bar-num">${rupiah(x.rev)}</span></div>`).join('')||'<div class="empty">Belum ada data layanan.</div>'}</section><section class="card section"><h3>Top Karyawan</h3>${employees.slice(0,5).map((x,i)=>`<div class="schedule-item"><div><b>${i+1}. ${x.name}</b><div class="subtle">${x.tx} pelanggan/transaksi</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada data karyawan.</div>'}</section><section class="card section"><h3>Sumber Data</h3><div class="detail-grid">${box('POS',rupiah(feed.filter(x=>x.source==='POS').reduce((s,x)=>s+x.amount,0)))}${box('Tutup Shift',rupiah(feed.filter(x=>x.source==='TUTUP_SHIFT').reduce((s,x)=>s+x.amount,0)))}${box('Pelanggan',feed.reduce((s,x)=>s+Number(x.customers||0),0))}${box('Periode',`${from} - ${to}`)}</div></section>`;
+}
+function boxCard(a,b){return `<div class="card"><div class="label">${a}</div><div class="value">${b}</div></div>`}
+
+function notifications(){const n=(db.notifications||[]).slice().reverse();document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">NOTIFICATIONS</span><h1>Notifikasi</h1><p>${n.filter(x=>!x.read).length} belum dibaca.</p></div><button class="btn" onclick="markRead()">Tandai semua dibaca</button></div><section class="card">${n.map(x=>`<div class="feature" style="padding:13px 0;border-bottom:1px solid #20242b;${x.read?'opacity:.65':''}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${x.title}</b><div class="muted">${x.message}</div><small class="muted">${x.date}</small></div>${x.read?'':'<button class="btn small" onclick="markNotificationRead(\''+x.id+'\')">Tandai dibaca</button>'}</div></div>`).join('')||'<div class="empty">Belum ada notifikasi.</div>'}</section>`}
+function markNotificationRead(id){const item=(db.notifications||[]).find(x=>String(x.id)===String(id));if(!item)return;item.read=true;save();render()}
+function markRead(){(db.notifications||[]).forEach(x=>x.read=true);save();render()}
+
+function branches(){
+ if(!guard('branches'))return;
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">BRANCHES</span><h1>Cabang</h1><p>Kelola cabang bisnis.</p></div><button class="btn primary" onclick="openBranch()">＋ Tambah Cabang</button></div><div class="grid">${db.branches.map(b=>`<div class="card"><h3>${b.name}</h3><p class="muted">${b.address||'-'}</p><span class="pill">${b.active?'Aktif':'Nonaktif'}</span><div class="dialog-actions"><button class="btn small" onclick="openBranch('${b.id}')">Ubah Cabang</button></div></div>`).join('')}</div>`;
+}
+function openBranch(id){
+ if(!guard('branches'))return;
+ const b=id?db.branches.find(x=>x.id===id):null;
+ show(`<span class="gold-label">CABANG</span><h2>${b?'Ubah Cabang':'Tambah Cabang'}</h2><div class="form"><label>Nama<input id="bName" value="${b?(b.name||'').replaceAll('"','&quot;'):''}"></label><label>Alamat<input id="bAddress" value="${b?(b.address||'').replaceAll('"','&quot;'):''}"></label><label>Status<select id="bActive"><option value="true" ${!b||b.active?'selected':''}>Aktif</option><option value="false" ${b&&b.active===false?'selected':''}>Nonaktif</option></select></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveBranch('${id||''}')">Simpan</button></div>`);
+}
+function saveBranch(id){
+ if(!guard('branches'))return;
+ const name=bName.value.trim(),address=bAddress.value.trim(),active=bActive.value==='true';
+ if(!name)return alert('Isi nama cabang');
+ if(id){
+  const b=db.branches.find(x=>x.id===id);
+  if(!b)return alert('Cabang tidak ditemukan');
+  b.name=name;b.address=address;b.active=active;
+  (db.employees||[]).forEach(e=>{if(e.branchId===id)e.branchId=id});
+ }else{
+  const next=Math.max(0,...db.branches.map(x=>Number(String(x.id).replace(/\D/g,''))||0))+1;
+  db.branches.push({id:'B'+String(next).padStart(3,'0'),name,address,active});
+ }
+ save();closeModal();toast(id?'Cabang diperbarui.':'Cabang ditambahkan.');render();
+}
+function profile(){
+ if(!currentUser){return}
+ const emp=currentUser.employeeId?getEmployee(currentUser.employeeId):null;
+ const branch=emp?db.branches.find(b=>b.id===emp.branchId):null;
+ const roleLabel=currentUser.role==='owner'?'Owner':currentUser.role==='manager'?'Manager':'Karyawan';
+ const username=currentUser.username||'-';
+ const phone=currentUser.phone||emp?.phone||'';
+ const email=currentUser.email||emp?.email||'';
+ const avatar=currentUser.avatar||'';
+ const contact=phone||email?`${phone?`<div>📞 ${phone}</div>`:''}${email?`<div>✉️ ${email}</div>`:''}`:'<span class="muted">Belum diisi</span>';
+ const photo=avatar?`<img src="${avatar}" alt="Foto profil" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">`:`<div class="profile-avatar">${String(currentUser.name||'?').trim().charAt(0).toUpperCase()}</div>`;
+ document.getElementById('content').innerHTML=`
+ <div class="section-head"><div><span class="gold-label">AKUN</span><h1>Profil Saya</h1><p>Informasi akun yang sedang login.</p></div></div>
+ <section class="card profile-card">
+  <div class="profile-top">${photo}<div><h2 style="margin:0">${currentUser.name||'-'}</h2><div class="subtle">${roleLabel}</div><span class="pill gold" style="margin-top:8px">AKTIF</span></div></div>
+  <div class="detail-grid">
+   ${box('Nama',currentUser.name||'-')}
+   ${box('Username',username)}
+   ${box('Role',roleLabel)}
+   ${box('ID Karyawan',emp?.id||'—')}
+   ${box('Cabang',branch?.name||'—')}
+   ${box('Status Akun','Aktif')}
+  </div>
+  <div class="feature" style="margin-top:14px"><b>Informasi Kontak</b><div style="margin-top:8px">${contact}</div></div>
+  <div class="dialog-actions" style="margin-top:16px">
+   <button class="btn primary" type="button" onclick="editMyProfile()">Ubah Profil</button>
+   <button class="btn" type="button" onclick="changeMyPassword()">Ubah Password</button>
+  </div>
+ </section>`;
+}
+function editMyProfile(){
+ if(!currentUser)return;
+ const emp=currentUser.employeeId?getEmployee(currentUser.employeeId):null;
+ show(`<span class="gold-label">PROFIL AKUN</span><h2>Ubah Profil</h2>
+ <div class="form">
+  <label>Nama<input id="pName" value="${String(currentUser.name||'').replaceAll('"','&quot;')}" ${currentUser.role==='employee'?'readonly':''}></label>
+  <label>Username<input value="${currentUser.username||''}" readonly></label>
+  <label>Informasi Kontak<input id="pContact" value="${String(currentUser.phone||emp?.phone||'').replaceAll('"','&quot;')}" placeholder="Nomor telepon"></label>
+  <label>Foto Profil<input id="pAvatar" type="file" accept="image/*"></label>
+ </div>
+ <div class="dialog-actions"><button class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveMyProfile()">Simpan</button></div>`);
+}
+async function saveMyProfile(){
+ if(!currentUser)return;
+ const f=document.getElementById('pAvatar');
+ const finish=async(avatar)=>{
+  const name=currentUser.role==='employee'?currentUser.name:(document.getElementById('pName')?.value.trim()||currentUser.name);
+  const phone=document.getElementById('pContact')?.value.trim()||'';
+  try{
+   const r=await window.WZOnlineEmployee.api('profile',{method:'PUT',body:JSON.stringify({name,phone,avatar})});
+   currentUser={...currentUser,...(r?.user||{}),phone:r?.profile?.phone??phone,avatar:r?.profile?.avatar??avatar};
+   db.profile=db.profile||{};db.profile.name=currentUser.name||db.profile.name;window.WZOnlineStateSave?.queue?.();
+   closeModal();render();toast('Profil berhasil diperbarui online.');
+  }catch(e){alert('Profil gagal disimpan online: '+(e.message||e));}
+ };
+ if(!f?.files?.[0]){await finish(undefined);return}
+ const file=f.files[0];
+ if(!file.type.startsWith('image/')){alert('File foto harus berupa gambar.');return}
+ if(file.size>2*1024*1024){alert('Ukuran foto maksimal 2 MB.');return}
+ const reader=new FileReader();
+ reader.onerror=()=>alert('Foto gagal dibaca. Coba pilih foto lain.');
+ reader.onload=()=>{
+  const img=new Image();img.onerror=()=>alert('Foto tidak dapat diproses.');
+  img.onload=()=>{const max=800,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));const ctx=c.getContext('2d');ctx.drawImage(img,0,0,c.width,c.height);finish(c.toDataURL('image/jpeg',0.82));};
+  img.src=reader.result;
+ };
+ reader.readAsDataURL(file);
+}
+
+function changeMyPassword(){
+ if(!currentUser)return;
+ show(`<span class="gold-label">KEAMANAN</span><h2>Ubah Password</h2>
+ <div class="form">
+  <label>Password Lama<input id="oldPass" type="password"></label>
+  <label>Password Baru<input id="newPass" type="password"></label>
+  <label>Konfirmasi Password<input id="newPass2" type="password"></label>
+ </div>
+ <div class="dialog-actions"><button class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveMyPassword()">Simpan</button></div>`);
+}
+async function saveMyPassword(){
+ const old=document.getElementById('oldPass')?.value||'',newP=document.getElementById('newPass')?.value||'',confirmP=document.getElementById('newPass2')?.value||'';
+ if(newP.length<4)return alert('Password baru minimal 4 karakter.');
+ if(newP!==confirmP)return alert('Konfirmasi password tidak sama.');
+ try{
+  await window.WZOnlineEmployee.api('password',{method:'POST',body:JSON.stringify({oldPassword:old,newPassword:newP})});
+  closeModal();toast('Password berhasil diubah online.');
+ }catch(e){alert('Password gagal diubah: '+(e.message||e));}
+}
+
+async function exportBackup(){
+ if(!currentUser||!['owner','manager'].includes(currentUser.role)){toast('Backup hanya tersedia untuk Owner/Manager.');return;}
+ try{
+  const [business,employees,state]=await Promise.all([
+   window.WZOnlineEmployee.api('business'),
+   window.WZOnlineEmployee.api('employees'),
+   window.WZOnlineEmployee.api('app-state')
+  ]);
+  const payload={version:2,exportedAt:new Date().toISOString(),source:'WZ MANAGE PRO ONLINE',business,employees:employees?.employees||[],appState:state?.data||{}};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=`wz-manage-pro-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Backup online berhasil dibuat.');
+ }catch(e){alert('Backup online gagal: '+(e.message||e));}
+}
+async function importBackup(event){
+ const file=event?.target?.files?.[0];if(!file)return;
+ try{
+  if(!currentUser||!['owner','manager'].includes(currentUser.role))throw new Error('Restore hanya tersedia untuk Owner/Manager.');
+  const payload=JSON.parse(await file.text());
+  if(!payload||payload.version!==2||!payload.appState||!payload.business)throw new Error('File backup WZ tidak valid.');
+  if(!confirm('Restore backup online? Data pengaturan/master akan diganti, sedangkan transaksi dan laporan shift akan ditambahkan/diperbarui dari backup.'))return;
+  await window.WZOnlineEmployee.api('app-state',{method:'PUT',body:JSON.stringify({data:payload.appState})});
+  const tx=Array.isArray(payload.business.transactions)?payload.business.transactions:[],sh=Array.isArray(payload.business.shiftReports)?payload.business.shiftReports:[];
+  if(tx.length||sh.length)await window.WZOnlineEmployee.api('sync-business',{method:'POST',body:JSON.stringify({transactions:tx,shiftReports:sh})});
+  if(Array.isArray(payload.employees)){
+   for(const e of payload.employees){
+    const password=defaultEmployeePassword(e.name||'employee');
+    await window.WZOnlineEmployee.api('employees',{method:'PUT',body:JSON.stringify({id:e.id,name:e.name,role:e.role,password,username:defaultEmployeeUsername(e.name),branchId:e.branchId,salary:e.salary,target:e.target})});
+   }
+  }
+  await (window.WZOnlineBusiness?.sync?.()||Promise.resolve());
+  await (window.WZOnlineEmployee?.syncEmployeesFromServer?.()||Promise.resolve());
+  render();toast('Restore online selesai. Password akun karyawan dipulihkan ke pola default nama+123.');
+ }catch(e){alert('Restore online gagal: '+(e.message||e));}
+ finally{if(event?.target)event.target.value='';}
+}
+function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${db.profile.name}"></label><label>Jabatan<input id="pRole" value="${db.profile.role}"></label><label class="full">Brand<input id="pBrand" value="${db.profile.brand}"></label><label class="full">Fokus<input id="pFocus" value="${db.profile.focus}"></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><label style="display:flex;align-items:center;gap:8px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
+function testNotificationSound(){const wasEnabled=db.profile.notificationSoundEnabled;db.profile.notificationSoundEnabled=true;playNotificationSound();db.profile.notificationSoundEnabled=wasEnabled;toast('Suara notifikasi diuji.',true);}
+function saveSettings(){if(!guard('settings'))return;db.profile.name=pName.value;db.profile.role=pRole.value;db.profile.brand=pBrand.value;db.profile.focus=pFocus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;save();toast('Pengaturan disimpan.');render()}
+
+
+function show(content){
+ const modal=document.getElementById('modal');
+ const dialog=document.getElementById('dialog');
+ if(!modal||!dialog)return;
+ dialog.innerHTML=content;
+ modal.classList.add('open');
+}
+function closeModal(){
+ const modal=document.getElementById('modal');
+ if(modal) modal.classList.remove('open');
+}
+
+async function shiftTestReset(){
+ if(!guard('system'))return;
+ const txCount=(db.transactions||[]).length;
+ const shiftCount=(db.shiftReports||[]).length;
+  const total=txCount+shiftCount;
+ if(!confirm(`Hapus seluruh data transaksi (${txCount}) dan seluruh laporan tutup shift (${shiftCount})? Data karyawan, cabang, pelanggan, layanan, pengeluaran, dan pengaturan lain TIDAK akan dihapus.`))return;
+ if(typeof window.WZOnlineBusiness?.reset!=='function'){alert('Reset online belum siap. Pastikan koneksi ke server tersedia.');return;}
+ const result=await window.WZOnlineBusiness.reset();
+ if(!result)return;
+ closeModal();
+ toast(`Berhasil menghapus ${result.transactions} transaksi dan ${result.shiftReports} laporan tutup shift.`);
+ render();
+}
+
+function auth(){if(!guard('auth'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SECURITY</span><h1>Keamanan</h1><p>Aplikasi menggunakan autentikasi server dan data bisnis online.</p></div></div><div class="grid">${boxCard('Mode','Online')}${boxCard('Storage','Neon PostgreSQL')}${boxCard('Backup','JSON')}${boxCard('Session','Server')}</div><section class="card section"><h3>Peringatan</h3><p class="muted">Jangan membuka file backup JSON di tempat umum. Data bisnis disimpan pada server dan dapat diakses dari perangkat lain.</p></section>`}
+function systemPage(){if(!guard('system'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SYSTEM & DATA</span><h1>Sistem & Data</h1><p>Perawatan data online dan informasi sistem.</p></div></div><div class="grid">${boxCard('Transaksi',db.transactions.length)}${boxCard('Karyawan',db.employees.length)}${boxCard('Pelanggan',db.customers.length)}${boxCard('Layanan',db.services.length)}${boxCard('Pengeluaran',db.expenses.length)}${boxCard('Absensi',db.attendance.length)}</div><section class="card section"><h3>Backup & Restore</h3><p class="muted">Backup disimpan sebagai JSON dan dapat dipindahkan ke perangkat lain.</p><div class="actions"><button class="btn primary" onclick="exportBackup()">Download Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore Backup</button></div></section><section id="shift-test-reset-card" class="card section" style="margin-top:16px"><span class="gold-label">TESTING</span><h3 style="margin-top:8px">Reset Laporan Tutup Shift</h3><p class="muted">Khusus Manager/Owner. Hapus seluruh data transaksi dan seluruh laporan tutup shift untuk memulai pengujian dari kondisi kosong.</p><button type="button" id="resetShiftTestingBtn" class="btn">Hapus Semua Transaksi & Laporan Tutup Shift</button></section>`}
+
+document.addEventListener('click',function(e){
+ const btn=e.target.closest('#resetShiftTestingBtn');
+ if(btn){e.preventDefault();e.stopPropagation();shiftTestReset();}
+});
+
+function ownerSettingsPanel(){
+ if(location.hash!=='#settings'||currentUser?.role!=='owner')return;
+ const content=document.getElementById('content');if(!content||document.getElementById('ownerAnalyticsPeriod'))return;
+ content.insertAdjacentHTML('beforeend',`<section class="card section" id="ownerSettingsPanel"><h3>Kontrol OWNER</h3><p class="muted">Kontrol pusat untuk pemantauan, backup, dan data bisnis.</p><div class="form"><label>Periode analisis default<select id="ownerAnalyticsPeriod"><option value="7">7 hari terakhir</option><option value="30">30 hari terakhir</option><option value="90">90 hari terakhir</option></select></label></div><div class="actions"><button class="btn primary" type="button" onclick="saveOwnerSettings()">Simpan Preferensi</button><button class="btn" type="button" onclick="go('analytics')">Buka Analisis</button><button class="btn" type="button" onclick="exportBackup()">Backup Data</button><button class="btn" type="button" onclick="exportOwnerAnalytics()">Export CSV</button><button class="btn" type="button" onclick="ownerRefreshBusiness()">Refresh Online</button><button class="btn danger" type="button" onclick="go('system')">Kelola Reset Bisnis</button></div></section>`);
+ document.getElementById('ownerAnalyticsPeriod').value=db.profile.analyticsPeriod||'7';
+}
+function saveOwnerSettings(){
+ if(!currentUser||currentUser.role!=='owner')return;
+ db.profile.analyticsPeriod=document.getElementById('ownerAnalyticsPeriod')?.value||'7';save();toast('Preferensi OWNER disimpan.');
+}
+async function ownerRefreshBusiness(){
+ if(!currentUser||currentUser.role!=='owner')return;
+ if(typeof window.WZOnlineBusiness?.sync!=='function')return toast('Sinkronisasi online belum siap.',true);
+ const ok=await window.WZOnlineBusiness.sync();if(ok){toast('Data bisnis berhasil diperbarui dari server.');render()}
+}
+const baseRender=render;
+render=function(){baseRender();ownerSettingsPanel()};
+currentUser=null
+render();
+</script>
+
+
+
+<script>
+/* WZ MANAGE PRO — FULL ONLINE BRIDGE
+   Server/Neon is authoritative. No browser storage is used for business state. */
+(function(){
+'use strict';
+
+async function api(path,options={}){
+  const res=await fetch('/api/'+path,{
+    credentials:'include',
+    headers:{'Content-Type':'application/json',...(options.headers||{})},
+    ...options
+  });
+  const text=await res.text();
+  let data=null;
+  try{data=text?JSON.parse(text):null}catch{}
+  if(!res.ok)throw new Error(data?.error||data?.message||('HTTP '+res.status));
+  return data;
+}
+window.WZOnlineEmployee={api};
+
+const NON_BUSINESS_KEYS=new Set([
+  'transactions','shiftReports','employees','__onlineStateLoaded','__onlineStateSaving',
+  '__onlineSaveTimer','__rosterVersion','__kyongShiftImport'
+]);
+
+async function hydrateAppState(){
+  if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+  try{
+    const r=await api('app-state');
+    const state=(r?.data&&typeof r.data==='object'&&!Array.isArray(r.data))?r.data:{};
+    const hasState=Object.keys(state).length>0;
+    if(hasState)Object.assign(db,state);
+    db.__onlineStateLoaded=true;
+    return hasState;
+  }catch(e){
+    console.warn('Online app-state load failed:',e.message||e);
+    return false;
+  }
+}
+
+let saveTimer=null;
+async function persistAppState(){
+  if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+  const snapshot={};
+  for(const [key,value] of Object.entries(db||{})){
+    if(NON_BUSINESS_KEYS.has(key))continue;
+    snapshot[key]=value;
+  }
+  try{
+    await api('app-state',{method:'PUT',body:JSON.stringify({data:snapshot})});
+    const el=document.getElementById('saveState');
+    if(el)el.textContent='● Tersimpan online';
+    return true;
+  }catch(e){
+    console.warn('Online app-state save failed:',e.message||e);
+    const el=document.getElementById('saveState');
+    if(el)el.textContent='● Belum tersimpan ke server';
+    return false;
+  }
+}
+function queueAppStateSave(){
+  if(!currentUser || !['owner','manager'].includes(currentUser.role))return;
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>persistAppState(),250);
+}
+window.WZOnlineStateSave={persist:persistAppState,queue:queueAppStateSave};
+
+function applyBusinessData(data){
+  if(!data||typeof data!=='object')return;
+  if(Array.isArray(data.transactions)){
+    db.transactions=data.transactions.map(t=>({
+      ...t,
+      date:String(t.date||'').slice(0,10),
+      servicePrice:Number(t.servicePrice||0),
+      total:Number(t.total||0),
+      discount:Number(t.discount||0)
+    }));
+  }
+  if(Array.isArray(data.shiftReports)){
+    db.shiftReports=data.shiftReports.map(r=>({
+      ...r,
+      date:String(r.date||'').slice(0,10),
+      customers:Number(r.customers||0),
+      openingCash:Number(r.openingCash||0),
+      cash:Number(r.cash||0),
+      qris:Number(r.qris||0),
+      cashExpense:Number(r.cashExpense||0),
+      physicalCash:Number(r.physicalCash||0),
+      totalPayment:Number(r.totalPayment||0),
+      expectedCash:Number(r.expectedCash||0),
+      cashDifference:Number(r.cashDifference||0),
+      serviceTotal:Number(r.serviceTotal||0),
+      productTotal:Number(r.productTotal||0),
+      totalOmzet:Number(r.totalOmzet||0),
+      services:Array.isArray(r.services)?r.services:[],
+      products:Array.isArray(r.products)?r.products:[]
+    }));
+  }
+}
+
+async function syncBusiness(){
+  if(!currentUser)return false;
+  try{
+    const beforeTx=new Map((db.transactions||[]).map(x=>[String(x.id),x]));
+    const beforeSh=new Map((db.shiftReports||[]).map(x=>[String(x.id),x]));
+    const first=await api('business');
+    const serverTx=Array.isArray(first?.transactions)?first.transactions:[];
+    const serverSh=Array.isArray(first?.shiftReports)?first.shiftReports:[];
+    const conflicts=[];
+    const sameFields=(a,b,fields)=>fields.every(field=>{
+      const left=String(a?.[field]??''),right=String(b?.[field]??'');
+      return field==='date'?left.slice(0,10)===right.slice(0,10):left===right;
+    });
+    for(const t of serverTx){
+      const local=beforeTx.get(String(t.id));
+      if(local&&!sameFields(local,t,['date','customerId','serviceId','servicePrice','employeeId','total','payment','status','discount']))
+        conflicts.push({type:'transaction',id:String(t.id),resolution:'server'});
+    }
+    for(const r of serverSh){
+      const local=beforeSh.get(String(r.id));
+      if(local&&!sameFields(local,r,['date','employeeId','shiftType','customers','openingCash','cash','qris','cashExpense','physicalCash','totalPayment','expectedCash','cashDifference','serviceTotal','productTotal','totalOmzet','note']))
+        conflicts.push({type:'shiftReport',id:String(r.id),resolution:'server'});
+    }
+    applyBusinessData({transactions:serverTx,shiftReports:serverSh});
+    if(conflicts.length&&typeof toast==='function')toast(`${conflicts.length} konflik data terdeteksi; versi server digunakan.`);
+    if(typeof render==='function')render();
+    return true;
+  }catch(e){
+    console.warn('Online business sync failed:',e.message||e);
+    if(typeof toast==='function' && /401|Belum login/i.test(String(e.message||'')))toast('Sesi login sudah berakhir. Silakan login kembali.');
+    return false;
+  }
+}
+window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[]};
+
+async function fullHydrate(){
+  if(!currentUser)return false;
+  await hydrateAppState();
+  if(['owner','manager'].includes(currentUser.role))await syncEmployeesFromServer();
+  else{
+    const e=(db.employees||[]).find(x=>String(x.id)===String(currentUser.employeeId));
+    if(e){e.name=currentUser.name||e.name;e.branchId=currentUser.branchId||e.branchId;e.active=true;}
+  }
+  try{const r=await api('profile');currentUser={...currentUser,...(r?.user||{}),...(r?.profile||{})};}catch{}
+  return syncBusiness();
+}
+
+async function syncEmployeesFromServer(){
+  if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+  try{
+    const r=await api('employees');
+    const server=Array.isArray(r?.employees)?r.employees:[];
+    if(!Array.isArray(db.employees))db.employees=[];
+    db.employees=server.map(se=>({
+      id:se.id,name:se.name,role:se.role||'Barber',branchId:se.branchId||null,
+      salary:Number(se.salary)||0,commission:Number(se.commission)||0,target:Number(se.target)||0,
+      attendance:Number(se.attendance)||0,eval:Number(se.eval)||0,active:se.active!==false
+    }));
+    if(typeof render==='function')render();
+    queueAppStateSave();
+    return true;
+  }catch(e){console.warn('Online employee sync failed:',e.message||e);return false;}
+}
+window.WZOnlineEmployee.syncEmployeesFromServer=syncEmployeesFromServer;
+
+const localLogin=window.login;
+window.login=async function(ev){
+  ev.preventDefault();
+  const u=(document.getElementById('loginUser')?.value||'').trim();
+  const p=(document.getElementById('loginPass')?.value||'');
+  const err=document.getElementById('loginError');
+  try{
+    const r=await api('auth/login',{method:'POST',body:JSON.stringify({username:u,password:p})});
+    if(err)err.style.display='none';
+    currentUser=r.user;
+    const screen=document.getElementById('loginScreen');if(screen)screen.style.display='none';
+    const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
+    await fullHydrate();
+    if(typeof render==='function')render();
+  }catch(e){
+    if(err){err.textContent=e.message||'Login gagal.';err.style.display='block';}
+    else alert(e.message||'Login gagal.');
+    void localLogin; // kept only to avoid shadowing legacy code; no offline fallback.
+  }
+};
+
+window.logout=async function(){
+  try{await api('auth/logout',{method:'POST'})}catch{}
+  currentUser=null;
+  const screen=document.getElementById('loginScreen');if(screen)screen.style.display='flex';
+  const u=document.getElementById('loginUser'),pw=document.getElementById('loginPass');
+  if(u)u.value='';if(pw)pw.value='';
+};
+
+async function restoreSession(){
+  try{
+    const r=await api('auth/me');
+    currentUser=r.user;
+    const screen=document.getElementById('loginScreen');if(screen)screen.style.display='none';
+    const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
+    await fullHydrate();
+    if(typeof render==='function')render();
+  }catch{}
+}
+restoreSession();
+
+const legacySaveEmployee=window.saveEmployee;
+window.saveEmployee=async function(id){
+  if(!guard('employees'))return;
+  const name=(document.getElementById('eName')?.value||'').trim();
+  const role=document.getElementById('eRole')?.value||'Barber';
+  const password=(document.getElementById('ePassword')?.value||'').trim();
+  const branchId=document.getElementById('eBranch')?.value||'';
+  const salary=Number(document.getElementById('eSalary')?.value||0);
+  const target=Number(document.getElementById('eTarget')?.value||0);
+  if(!name)return alert('Isi nama karyawan');
+  if(!password)return alert('Isi password login');
+  if(!branchId)return alert('Pilih cabang karyawan');
+  let employeeId=id||'';
+  if(!employeeId){
+    const next=Math.max(0,...(db.employees||[]).map(x=>Number(String(x.id).replace(/\D/g,''))||0))+1;
+    employeeId='E'+String(next).padStart(3,'0');
+  }
+  const username=(name.trim().toLowerCase().replace(/[^a-z0-9]+/g,''))||'employee';
+  try{
+    const result=await api('employees',{method:id?'PUT':'POST',body:JSON.stringify({id:employeeId,name,role,password,username,branchId,salary,target})});
+    if(result?.employee){
+      const existing=(db.employees||[]).find(e=>e.id===result.employee.id);
+      if(existing)Object.assign(existing,result.employee); else db.employees.push(result.employee);
+    }
+    await syncEmployeesFromServer();
+    toast(id?'Data karyawan & akun online diperbarui.':'Karyawan & akun login online dibuat.');
+  }catch(e){alert('Gagal menyimpan ke server: '+e.message);}
+  void legacySaveEmployee;
+};
+
+const legacyDeleteEmployee=window.deleteEmployee;
+window.deleteEmployee=async function(id){
+  if(!guard('employees'))return;
+  const e=getEmployee(id);if(!e)return;
+  if(!confirm('Hapus karyawan '+e.name+' beserta akun login karyawan ini?'))return;
+  try{
+    await api('employees?id='+encodeURIComponent(id),{method:'DELETE'});
+    await syncEmployeesFromServer();
+  }catch(err){alert('Gagal menghapus dari server: '+err.message);}
+  void legacyDeleteEmployee;
+};
+
+const legacySaveTransaction=window.saveTransaction;
+window.saveTransaction=async function(){
+  const customerId=document.getElementById('fCustomer')?.value||'';
+  const serviceId=document.getElementById('fService')?.value||'';
+  const employeeEl=document.getElementById('fEmployee');
+  const employeeId=currentUser?.role==='employee'?(currentUser.employeeId||''):(employeeEl?.value||'');
+  if(currentUser?.role==='employee'&&(!employeeId||!getEmployee(employeeId))){alert('Akun karyawan tidak memiliki ID karyawan yang valid.');return;}
+  if(currentUser?.role==='employee'&&employeeEl)employeeEl.value=employeeId;
+  const svc=getService(serviceId),emp=getEmployee(employeeId),customer=getCustomer(customerId);
+  const discount=Number(document.getElementById('fDiscount')?.value||0);
+  const total=Math.max(0,Number(svc?.price||0)-discount);
+  const id='TRX'+Date.now();
+  const payload={id,date:dateNow(),customerId,customerName:customer?.name||null,serviceId,serviceName:svc?.name||null,servicePrice:Number(svc?.price||0),employeeId,employeeName:emp?.name||null,total,payment:document.getElementById('fPayment')?.value||'Tunai',discount,status:'SELESAI'};
+  try{
+    await api('transaction',{method:'POST',body:JSON.stringify(payload)});
+    await syncBusiness();
+    toast('Transaksi berhasil tersimpan online.');
+  }catch(e){toast('Transaksi gagal disimpan: '+e.message);}
+  void legacySaveTransaction;
+};
+
+const legacyVoidTx=window.voidTx;
+window.voidTx=async function(id){
+  try{
+    await api('transaction/void',{method:'POST',body:JSON.stringify({id})});
+    await syncBusiness();
+  }catch(e){alert('Gagal void online: '+e.message);}
+  void legacyVoidTx;
+};
+
+const legacySaveShiftReport=window.saveShiftReport;
+window.saveShiftReport=async function(){
+  const c=typeof calcShiftReport==='function'?calcShiftReport():null;
+  if(c){
+    if(Number(c.serviceTotal||0)<=0){toast('Laporan belum bisa disimpan. Isi minimal 1 layanan terlebih dahulu.');return;}
+    if(Number(c.totalPayment||0)<=0){toast('Laporan belum bisa disimpan. Total pembayaran harus lebih dari Rp0.');return;}
+    if(Math.abs(Number(c.difference||0))>0.001){toast('Laporan belum bisa disimpan. Selisih kasir harus Rp0.');return;}
+  }
+  const emp=(db.employees||[]).find(e=>e.id===currentUser?.employeeId)|| (db.employees||[]).find(e=>e.name===currentUser?.name);
+  if(!emp)return alert('Karyawan tidak ditemukan.');
+  const products=[...document.querySelectorAll('.shift-product')].map(row=>({
+    name:row.querySelector('.sr-product-name')?.value.trim()||'',qty:Number(row.querySelector('.sr-product-qty')?.value||0),
+    price:Number(row.querySelector('.sr-product-price')?.value||0)
+  })).filter(x=>x.name||x.qty||x.price);
+  const services=[...document.querySelectorAll('.sr-service-qty')].map(inp=>({
+    serviceId:inp.dataset.service,serviceName:getService(inp.dataset.service)?.name||'Layanan',
+    qty:Number(inp.value||0),price:Number(inp.dataset.price||0)
+  })).filter(x=>x.qty>0);
+  const stableShiftId='SHIFT'+Date.now();
+  const payload={
+    id:stableShiftId,date:document.getElementById('srDate')?.value||dateNow(),
+    employeeId:emp.id,employeeName:emp.name,shiftType:document.getElementById('srShift')?.value||'Full Shift',
+    customers:Number(document.getElementById('srCustomers')?.value||0),openingCash:Number(document.getElementById('srOpening')?.value||0),
+    cash:Number(document.getElementById('srCash')?.value||0),qris:Number(document.getElementById('srQris')?.value||0),
+    cashExpense:Number(document.getElementById('srExpense')?.value||0),physicalCash:Number(document.getElementById('srPhysical')?.value||0),
+    totalPayment:c?.totalPayment||0,expectedCash:c?.expected||0,cashDifference:c?.difference||0,serviceTotal:c?.serviceTotal||0,
+    productTotal:c?.productTotal||0,totalOmzet:c?.omzet||0,services,products,
+    note:document.getElementById('srNote')?.value.trim()||'',savedAt:new Date().toISOString()
+  };
+  try{
+    await api('shift-report',{method:'POST',body:JSON.stringify(payload)});
+    await syncBusiness();
+    toast('Laporan tutup shift berhasil tersimpan online.');
+    if(typeof closeModal==='function')closeModal();
+  }catch(e){toast('Laporan shift gagal disimpan: '+e.message);}
+  void legacySaveShiftReport;
+};
+
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>

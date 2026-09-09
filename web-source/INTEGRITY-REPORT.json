@@ -1,0 +1,33 @@
+{
+  "project": "WZ MANAGE PRO",
+  "mode": "FULL ONLINE",
+  "checked_at": "2026-09-05",
+  "client_persistence": "disabled",
+  "server_source_of_truth": "Neon PostgreSQL",
+  "business_online_endpoints": [
+    "auth/login",
+    "auth/me",
+    "auth/logout",
+    "business",
+    "transaction",
+    "transaction/void",
+    "shift-report",
+    "sync-business",
+    "employees",
+    "app-state",
+    "reset-business"
+  ],
+  "qa": {
+    "javascript_syntax": "PASS",
+    "html_script_balance": "PASS",
+    "browser_storage_api_references": "PASS — none in source files",
+    "api_app_state_route": "PASS",
+    "server_first_business_hydration": "PASS",
+    "owner_cross_device_shift_read": "PASS by code-path verification",
+    "offline_transaction_fallback": "REMOVED"
+  },
+  "notes": [
+    "Actual Neon/Vercel live credentials were not available inside this local QA run, so live network/database execution was not claimed.",
+    "The repository now uses server state plus in-memory runtime state; the PWA service worker never caches /api/ responses."
+  ]
+}
