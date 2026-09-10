@@ -158,6 +158,12 @@ async function authUser(req){
   const r=await p.query(`SELECT u.id,u.username,u.role,u.name,u.employee_id,u.business_id,e.branch_id FROM wz_sessions s JOIN wz_users u ON u.id=s.user_id LEFT JOIN wz_employees e ON e.id=u.employee_id AND e.business_id=u.business_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND u.active=true`,[tokenHash(decodeURIComponent(m[1]))]);
   return r.rows[0]||null;
 }
+function normalizeBusinessId(value){
+  const v=String(value||'').trim();
+  if(!v)return '';
+  const normalized=v.toUpperCase().replace(/[^A-Z0-9]/g,'');
+  return normalized;
+}
 function cookie(name,value,maxAge){return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.NODE_ENV==='production'?'; Secure':''}`}
 function send(res,status,data,headers={}){res.statusCode=status;for(const [k,v] of Object.entries(headers))res.setHeader(k,v);res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));}
 async function body(req){let s='';for await(const c of req)s+=c;return s?JSON.parse(s):{};}
@@ -197,7 +203,9 @@ async function handler(req,res){
     if(path==='auth/login' && req.method==='POST'){
       const b=await body(req),username=String(b.username||'').trim(),password=String(b.password||'');
       if(!username||!password)return send(res,400,{ok:false,error:'Username dan password wajib diisi.'});
-      const businessId=String(b.businessId||'').trim(); const p=getPool(); const r=await p.query(`SELECT u.*,e.branch_id FROM wz_users u LEFT JOIN wz_employees e ON e.id=u.employee_id AND e.business_id=u.business_id WHERE u.username=$1 AND u.active=true ${businessId?'AND u.business_id=$2':''} ORDER BY u.id`,businessId?[username,businessId]:[username]); if(!businessId && r.rowCount>1)return send(res,400,{ok:false,error:'Kode Bisnis wajib diisi karena username digunakan di lebih dari satu bisnis.'}); const u=r.rows[0];
+      const businessId=normalizeBusinessId(b.businessId);
+      if(b.businessId && !businessId)return send(res,400,{ok:false,error:'Kode Bisnis tidak valid.'});
+      const p=getPool(); const r=await p.query(`SELECT u.*,e.branch_id FROM wz_users u LEFT JOIN wz_employees e ON e.id=u.employee_id AND e.business_id=u.business_id WHERE u.username=$1 AND u.active=true ${businessId?'AND u.business_id=$2':''} ORDER BY u.id`,businessId?[username,businessId]:[username]); if(!businessId && r.rowCount>1)return send(res,400,{ok:false,error:'Kode Bisnis wajib diisi karena username digunakan di lebih dari satu bisnis.'}); const u=r.rows[0];
       if(!u||!verifyPassword(password,u.password_hash))return send(res,401,{ok:false,error:'Username atau password salah.'});
       const t=token(); await p.query('DELETE FROM wz_sessions WHERE expires_at<=NOW()');
       await p.query('INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL \'30 days\')',[tokenHash(t),u.id]);
