@@ -1724,7 +1724,7 @@ async function submitRegisterBusiness(ev){ev.preventDefault();const err=document
 const localLogin=window.login;
 window.login=async function(ev){
   ev.preventDefault();
-  const u=(document.getElementById('loginUser')?.value||'').trim();
+  const u=(document.getElementById('loginUser')?.value||'').trim().toLowerCase();
   const p=(document.getElementById('loginPass')?.value||'');
   const err=document.getElementById('loginError');
   try{

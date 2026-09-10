@@ -201,7 +201,7 @@ async function handler(req,res){
       }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
     }
     if(path==='auth/login' && req.method==='POST'){
-      const b=await body(req),username=String(b.username||'').trim(),password=String(b.password||'');
+      const b=await body(req),username=String(b.username||'').trim().toLowerCase(),password=String(b.password||'');
       if(!username||!password)return send(res,400,{ok:false,error:'Username dan password wajib diisi.'});
       const businessId=normalizeBusinessId(b.businessId);
       if(b.businessId && !businessId)return send(res,400,{ok:false,error:'Kode Bisnis tidak valid.'});
