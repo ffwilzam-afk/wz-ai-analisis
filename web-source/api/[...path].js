@@ -106,6 +106,12 @@ async function schema(){
   `);
   await p.query(`
     ALTER TABLE wz_branches ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
+    ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS salary NUMERIC NOT NULL DEFAULT 0;
+    ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS commission NUMERIC NOT NULL DEFAULT 0;
+    ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS target NUMERIC NOT NULL DEFAULT 0;
+    ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS attendance NUMERIC NOT NULL DEFAULT 0;
+    ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS eval NUMERIC NOT NULL DEFAULT 0;
+    ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS active BOOLEAN NOT NULL DEFAULT TRUE;
     ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
     ALTER TABLE wz_users ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
     ALTER TABLE wz_transactions ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
