@@ -104,7 +104,7 @@ async function schema(){
     );
   `);
   await p.query(`
-    ALTER TABLE wz_branches ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
+    ALTER TABLE wz_branches ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '';\n    ALTER TABLE wz_branches ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
     ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS salary NUMERIC NOT NULL DEFAULT 0;
     ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS commission NUMERIC NOT NULL DEFAULT 0;
     ALTER TABLE wz_employees ADD COLUMN IF NOT EXISTS target NUMERIC NOT NULL DEFAULT 0;
@@ -235,6 +235,106 @@ async function handler(req,res){
         branches:branches.rows
       });
     }
+
+    if(path==='branches' && req.method==='GET'){
+      const u=await authUser(req);
+      if(!u||!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Akses ditolak.'});
+
+      const r=await getPool().query(
+        'SELECT id,name,address,active FROM wz_branches WHERE business_id=$1 ORDER BY id',
+        [u.business_id]
+      );
+
+      return send(res,200,{ok:true,branches:r.rows});
+    }
+
+    if(path==='branches' && req.method==='POST'){
+      const u=await authUser(req);
+      if(!u||!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengelola cabang.'});
+
+      const b=await body(req);
+      const name=String(b.name||'').trim();
+      const address=String(b.address||'').trim();
+
+      if(name.length<2)
+        return send(res,400,{ok:false,error:'Nama cabang wajib diisi.'});
+
+      if(name.length>100)
+        return send(res,400,{ok:false,error:'Nama cabang terlalu panjang.'});
+
+      const id='B'+crypto.randomBytes(5).toString('hex').toUpperCase();
+
+      const r=await getPool().query(
+        `INSERT INTO wz_branches(id,name,address,active,business_id)
+         VALUES($1,$2,$3,true,$4)
+         RETURNING id,name,address,active`,
+        [id,name,address,u.business_id]
+      );
+
+      return send(res,201,{ok:true,branch:r.rows[0]});
+    }
+
+    if(path==='branches' && req.method==='PUT'){
+      const u=await authUser(req);
+      if(!u||!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengelola cabang.'});
+
+      const b=await body(req);
+      const id=String(b.id||'').trim();
+      const name=String(b.name||'').trim();
+      const address=String(b.address||'').trim();
+      const active=b.active!==false;
+
+      if(!id)
+        return send(res,400,{ok:false,error:'ID cabang wajib diisi.'});
+
+      if(name.length<2)
+        return send(res,400,{ok:false,error:'Nama cabang wajib diisi.'});
+
+      const r=await getPool().query(
+        `UPDATE wz_branches
+         SET name=$1,address=$2,active=$3
+         WHERE id=$4 AND business_id=$5
+         RETURNING id,name,address,active`,
+        [name,address,active,id,u.business_id]
+      );
+
+      if(!r.rowCount)
+        return send(res,404,{ok:false,error:'Cabang tidak ditemukan pada bisnis ini.'});
+
+      return send(res,200,{ok:true,branch:r.rows[0]});
+    }
+
+    if(path==='branches' && req.method==='DELETE'){
+      const u=await authUser(req);
+      if(!u||!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengelola cabang.'});
+
+      const id=new URL(req.url,'http://localhost').searchParams.get('id');
+      if(!id)
+        return send(res,400,{ok:false,error:'ID cabang wajib diisi.'});
+
+      const emp=await getPool().query(
+        'SELECT COUNT(*)::int AS count FROM wz_employees WHERE branch_id=$1 AND business_id=$2 AND active=true',
+        [id,u.business_id]
+      );
+
+      if(Number(emp.rows[0]?.count||0)>0)
+        return send(res,400,{ok:false,error:'Cabang masih memiliki karyawan aktif. Nonaktifkan karyawan atau cabang terlebih dahulu.'});
+
+      const r=await getPool().query(
+        'DELETE FROM wz_branches WHERE id=$1 AND business_id=$2 RETURNING id',
+        [id,u.business_id]
+      );
+
+      if(!r.rowCount)
+        return send(res,404,{ok:false,error:'Cabang tidak ditemukan pada bisnis ini.'});
+
+      return send(res,200,{ok:true});
+    }
+
     if(path==='app-state' && req.method==='GET'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       const r=await getPool().query('SELECT data,updated_at AS "updatedAt" FROM wz_app_states WHERE business_id=$1',[u.business_id]);
@@ -321,10 +421,10 @@ async function handler(req,res){
       try{
         await client.query('BEGIN');
         for(const t of txs){
-          await client.query(`INSERT INTO wz_transactions(id,date,customer_id,customer_name,service_id,service_name,service_price,employee_id,employee_name,total,payment,status,discount,business_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW()) ON CONFLICT(id) DO UPDATE SET date=EXCLUDED.date,customer_id=EXCLUDED.customer_id,customer_name=EXCLUDED.customer_name,service_id=EXCLUDED.service_id,service_name=EXCLUDED.service_name,service_price=EXCLUDED.service_price,employee_id=EXCLUDED.employee_id,employee_name=EXCLUDED.employee_name,total=EXCLUDED.total,payment=EXCLUDED.payment,status=EXCLUDED.status,discount=EXCLUDED.discount,updated_at=NOW()`,[t.id,t.date,t.customerId||null,t.customerName||null,t.serviceId||null,t.serviceName||null,Number(t.servicePrice||0),t.employeeId||null,t.employeeName||null,Number(t.total||0),t.payment||'Tunai',t.status||'SELESAI',Number(t.discount||0),u.business_id]);
+          await client.query(`INSERT INTO wz_transactions(id,date,customer_id,customer_name,service_id,service_name,service_price,employee_id,employee_name,total,payment,status,discount,business_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW()) ON CONFLICT(id) DO UPDATE SET date=EXCLUDED.date,customer_id=EXCLUDED.customer_id,customer_name=EXCLUDED.customer_name,service_id=EXCLUDED.service_id,service_name=EXCLUDED.service_name,service_price=EXCLUDED.service_price,employee_id=EXCLUDED.employee_id,employee_name=EXCLUDED.employee_name,total=EXCLUDED.total,payment=EXCLUDED.payment,status=EXCLUDED.status,discount=EXCLUDED.discount,updated_at=NOW() WHERE wz_transactions.business_id=EXCLUDED.business_id`,[t.id,t.date,t.customerId||null,t.customerName||null,t.serviceId||null,t.serviceName||null,Number(t.servicePrice||0),t.employeeId||null,t.employeeName||null,Number(t.total||0),t.payment||'Tunai',t.status||'SELESAI',Number(t.discount||0),u.business_id]);
         }
         for(const r of shifts){
-          await client.query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22,NOW()) ON CONFLICT(id) DO UPDATE SET date=EXCLUDED.date,employee_id=EXCLUDED.employee_id,employee_name=EXCLUDED.employee_name,shift_type=EXCLUDED.shift_type,customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW()`,[r.id,r.date,r.employeeId||null,r.employeeName||null,r.shiftType||null,Number(r.customers||0),Number(r.openingCash||0),Number(r.cash||0),Number(r.qris||0),Number(r.cashExpense||0),Number(r.physicalCash||0),Number(r.totalPayment||0),Number(r.expectedCash||0),Number(r.cashDifference||0),Number(r.serviceTotal||0),Number(r.productTotal||0),Number(r.totalOmzet||0),JSON.stringify(r.services||[]),JSON.stringify(r.products||[]),r.note||null,r.savedAt||null,u.business_id]);
+          await client.query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22,NOW()) ON CONFLICT(id) DO UPDATE SET date=EXCLUDED.date,employee_id=EXCLUDED.employee_id,employee_name=EXCLUDED.employee_name,shift_type=EXCLUDED.shift_type,customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW() WHERE wz_shift_reports.business_id=EXCLUDED.business_id`,[r.id,r.date,r.employeeId||null,r.employeeName||null,r.shiftType||null,Number(r.customers||0),Number(r.openingCash||0),Number(r.cash||0),Number(r.qris||0),Number(r.cashExpense||0),Number(r.physicalCash||0),Number(r.totalPayment||0),Number(r.expectedCash||0),Number(r.cashDifference||0),Number(r.serviceTotal||0),Number(r.productTotal||0),Number(r.totalOmzet||0),JSON.stringify(r.services||[]),JSON.stringify(r.products||[]),r.note||null,r.savedAt||null,u.business_id]);
         }
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
@@ -339,7 +439,7 @@ async function handler(req,res){
       const te=await employeeFor(t.employeeId,u.business_id);if(!te)return send(res,400,{ok:false,error:'Karyawan tidak terdaftar.'});
       if(te.active===false)return send(res,400,{ok:false,error:'Karyawan sudah nonaktif.'});
       const servicePrice=Number(t.servicePrice||0),discount=Number(t.discount||0),total=Number(t.total||0);
-      const c=await getPool().connect();try{await c.query('BEGIN');await c.query(`INSERT INTO wz_transactions(id,date,customer_id,customer_name,service_id,service_name,service_price,employee_id,employee_name,total,payment,status,discount,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,total=EXCLUDED.total,updated_at=NOW()`,[t.id,t.date,t.customerId||null,t.customerName||null,t.serviceId||null,t.serviceName||null,servicePrice,t.employeeId,te.name,total,t.payment||'Tunai',t.status||'SELESAI',discount,u.business_id]);await c.query('COMMIT');return send(res,200,{ok:true,id:t.id});}catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
+      const c=await getPool().connect();try{await c.query('BEGIN');await c.query(`INSERT INTO wz_transactions(id,date,customer_id,customer_name,service_id,service_name,service_price,employee_id,employee_name,total,payment,status,discount,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,total=EXCLUDED.total,updated_at=NOW() WHERE wz_transactions.business_id=EXCLUDED.business_id`,[t.id,t.date,t.customerId||null,t.customerName||null,t.serviceId||null,t.serviceName||null,servicePrice,t.employeeId,te.name,total,t.payment||'Tunai',t.status||'SELESAI',discount,u.business_id]);await c.query('COMMIT');return send(res,200,{ok:true,id:t.id});}catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
     }
     if(path==='transaction/void' && req.method==='POST'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});const b=await body(req);const r=await getPool().query("UPDATE wz_transactions SET status='VOID',updated_at=NOW() WHERE id=$1 AND business_id=$4 AND ($2<>'employee' OR employee_id=$3) RETURNING id",[b.id,u.role,u.employee_id,u.business_id]);if(!r.rowCount)return send(res,404,{ok:false,error:'Transaksi tidak ditemukan atau tidak boleh diubah.'});return send(res,200,{ok:true});
@@ -348,7 +448,7 @@ async function handler(req,res){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});const r=await body(req);if(!r.id||!r.date||!r.employeeId)return send(res,400,{ok:false,error:'Data shift tidak lengkap.'});
       if(Number(r.serviceTotal||0)<=0)return send(res,400,{ok:false,error:'Laporan shift wajib memiliki minimal 1 layanan.'});
       if(Number(r.totalPayment||0)<=0)return send(res,400,{ok:false,error:'Total pembayaran laporan shift harus lebih dari Rp0.'});if(u.role==='employee'&&String(r.employeeId)!==String(u.employee_id))return send(res,403,{ok:false,error:'Karyawan hanya boleh menyimpan shift miliknya.'});const re=await employeeFor(r.employeeId,u.business_id);if(!re)return send(res,400,{ok:false,error:'Karyawan tidak terdaftar.'});if(re.active===false)return send(res,400,{ok:false,error:'Karyawan sudah nonaktif.'});const cash=Number(r.cash||0),qris=Number(r.qris||0),opening=Number(r.openingCash||0),expense=Number(r.cashExpense||0),physical=Number(r.physicalCash||0);if([cash,qris,opening,expense,physical].some(n=>!validMoney(n)))return send(res,400,{ok:false,error:'Nilai kas shift tidak valid.'});const expected=opening+cash-expense,difference=physical-expected;if(Math.abs(difference)>0.001)return send(res,400,{ok:false,error:'Selisih kasir harus Rp 0.'});
-      await getPool().query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22) ON CONFLICT(id) DO UPDATE SET customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW()`,[r.id,r.date,r.employeeId,r.employeeName||u.name,r.shiftType||null,Number(r.customers||0),Number(r.openingCash||0),Number(r.cash||0),Number(r.qris||0),Number(r.cashExpense||0),Number(r.physicalCash||0),Number(r.totalPayment||0),Number(r.expectedCash||0),Number(r.cashDifference||0),Number(r.serviceTotal||0),Number(r.productTotal||0),Number(r.totalOmzet||0),JSON.stringify(r.services||[]),JSON.stringify(r.products||[]),r.note||null,r.savedAt||new Date().toISOString(),u.business_id]);
+      await getPool().query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22) ON CONFLICT(id) DO UPDATE SET customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW() WHERE wz_shift_reports.business_id=EXCLUDED.business_id`,[r.id,r.date,r.employeeId,r.employeeName||u.name,r.shiftType||null,Number(r.customers||0),Number(r.openingCash||0),Number(r.cash||0),Number(r.qris||0),Number(r.cashExpense||0),Number(r.physicalCash||0),Number(r.totalPayment||0),Number(r.expectedCash||0),Number(r.cashDifference||0),Number(r.serviceTotal||0),Number(r.productTotal||0),Number(r.totalOmzet||0),JSON.stringify(r.services||[]),JSON.stringify(r.products||[]),r.note||null,r.savedAt||new Date().toISOString(),u.business_id]);
       await sendShiftPushes({...r,businessId:u.business_id},u.id).catch(()=>{});
       return send(res,200,{ok:true,id:r.id});
     }
@@ -360,17 +460,26 @@ async function handler(req,res){
     if(path==='employees' && (req.method==='POST'||req.method==='PUT')){
       const u=await authUser(req);if(!u||!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengelola karyawan.'});
       const b=await body(req);const p=getPool();
+      const requestedId=String(b.id||'').trim();
+      if(req.method==='PUT' && requestedId){
+        const ownEmployee=await p.query(
+          'SELECT id FROM wz_employees WHERE id=$1 AND business_id=$2',
+          [requestedId,u.business_id]
+        );
+        if(!ownEmployee.rowCount)
+          return send(res,404,{ok:false,error:'Karyawan tidak ditemukan pada bisnis ini.'});
+      }
       const name=String(b.name||'').trim(),branchId=String(b.branchId||'').trim(),password=String(b.password||'').trim();
       if(!name)return send(res,400,{ok:false,error:'Nama karyawan wajib diisi.'});
       if(!branchId)return send(res,400,{ok:false,error:'Cabang wajib dipilih.'});
       const branchOk=await p.query('SELECT id FROM wz_branches WHERE id=$1 AND business_id=$2 AND active=true',[branchId,u.business_id]);if(!branchOk.rowCount)return send(res,400,{ok:false,error:'Cabang tidak ditemukan pada bisnis ini.'});
       if(!password)return send(res,400,{ok:false,error:'Password login wajib diisi.'});
-      const id=String(b.id||'').trim() || `E${String((await p.query("SELECT COALESCE(MAX(CAST(SUBSTRING(id,2) AS INTEGER)),0)+1 n FROM wz_employees WHERE id LIKE 'E%'")).rows[0].n).padStart(3,'0')}`;
+      const id=String(b.id||'').trim() || `E${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
       const role=String(b.role||'Barber'),salary=Number(b.salary)||0,target=Number(b.target)||0,username=String(b.username||defaultUsername(name)).trim();
       const client=await p.connect();
       try{
         await client.query('BEGIN');
-        await client.query(`INSERT INTO wz_employees(id,name,role,branch_id,salary,commission,target,active,business_id,updated_at) VALUES($1,$2,$3,$4,$5,0,$6,true,$7,NOW()) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,role=EXCLUDED.role,branch_id=EXCLUDED.branch_id,salary=EXCLUDED.salary,target=EXCLUDED.target,updated_at=NOW()`,[id,name,role,branchId,salary,target,u.business_id]);
+        await client.query(`INSERT INTO wz_employees(id,name,role,branch_id,salary,commission,target,active,business_id,updated_at) VALUES($1,$2,$3,$4,$5,0,$6,true,$7,NOW()) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,role=EXCLUDED.role,branch_id=EXCLUDED.branch_id,salary=EXCLUDED.salary,target=EXCLUDED.target,updated_at=NOW() WHERE wz_employees.business_id=EXCLUDED.business_id WHERE wz_employees.business_id=EXCLUDED.business_id`,[id,name,role,branchId,salary,target,u.business_id]);
         const existing=await client.query('SELECT id FROM wz_users WHERE employee_id=$1 AND business_id=$2',[id,u.business_id]);
         const ph=hashPassword(password);
         if(existing.rowCount) await client.query('UPDATE wz_users SET username=$1,password_hash=$2,name=$3,role=\'employee\',active=true,updated_at=NOW() WHERE employee_id=$4 AND business_id=$5',[username,ph,name,id,u.business_id]);

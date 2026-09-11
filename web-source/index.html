@@ -172,17 +172,7 @@ const initial={
 const ANDROID_NOTIFICATION_TITLE='WZ MANAGE PRO';
 const ANDROID_NOTIFICATION_ICON='/public/notification-icon-96.png';
 const androidNotificationKeys=new Map();
-const AUTH_DEFAULTS=[]
-const ACCESS={
- owner:['dashboard','transactions','shiftReports','employees','customers','services','finance','reports','operations','analytics','notifications','branches','profile','settings','system','auth'],
- manager:['dashboard','transactions','shiftReports','employees','customers','services','finance','reports','operations','analytics','notifications','branches','settings','system','auth'],
- employee:['dashboard','transactions','shiftReports','customers','services','operations','notifications','profile']
-};
-const menu=[
- ['dashboard','⌂','Dashboard'],['transactions','🧾','Transaksi'],['shiftReports','📋','Tutup Shift'],['employees','👥','Karyawan'],['customers','👤','Pelanggan'],
- ['services','✂','Layanan & Promo'],['finance','💰','Keuangan'],['reports','📊','Laporan'],['operations','🕘','Operasional'],['analytics','📈','Analisis Bisnis'],
- ['notifications','🔔','Notifikasi'],['branches','🏢','Cabang'],['profile','👤','Profil Saya'],['settings','⚙','Pengaturan'],['system','🛠','Sistem & Data'],['auth','🔐','Keamanan']
-];
+const AUTH_DEFAULTS=[];
 function can(key){return !!currentUser&&Array.isArray(ACCESS[currentUser.role])&&ACCESS[currentUser.role].includes(key)}
 function guard(key){if(!currentUser){toast('Silakan login terlebih dahulu.',true);return false}if(!can(key)){toast('Akses menu tidak diizinkan untuk role ini.',true);return false}return true}
 function dateNow(){return new Date().toISOString().slice(0,10)}
@@ -216,18 +206,7 @@ function login(ev){ev.preventDefault();return window.login?.(ev)}
 function logout(){return window.logout?.()};
 let db=load(); db.shiftReports=db.shiftReports||[];
 /* NO DEFAULT WZ ROSTER */
-/* KYONG SHIFT REPORT IMPORT — approved raw service/expense data only. */
-(function importKyongShiftReports(){
- return;
- const marker='kyong-shift-import-2026-09-01-v1';
- if(db.__kyongShiftImport===marker)return;
- const imported=[{"id":"KYONGSHIFT001","date":"2026-07-24","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":14,"openingCash":0,"cash":0,"qris":0,"cashExpense":190000,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":12,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":250000,"productTotal":0,"totalOmzet":250000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT002","date":"2026-07-25","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-HS","serviceName":"Hairstyling","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":195000,"productTotal":0,"totalOmzet":195000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT003","date":"2026-07-27","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":7,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":7,"price":20000}],"products":[],"serviceTotal":140000,"productTotal":0,"totalOmzet":140000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT004","date":"2026-07-28","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":9,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000}],"products":[],"serviceTotal":180000,"productTotal":0,"totalOmzet":180000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT005","date":"2026-07-29","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":11,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":2,"price":5000}],"products":[],"serviceTotal":190000,"productTotal":0,"totalOmzet":190000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT006","date":"2026-07-30","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":210000,"productTotal":0,"totalOmzet":210000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT007","date":"2026-07-31","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":5,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":4,"price":20000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":85000,"productTotal":0,"totalOmzet":85000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT008","date":"2026-08-01","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":13,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":11,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":230000,"productTotal":0,"totalOmzet":230000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT009","date":"2026-08-02","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":8,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000}],"products":[],"serviceTotal":160000,"productTotal":0,"totalOmzet":160000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT010","date":"2026-08-03","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000}],"products":[],"serviceTotal":200000,"productTotal":0,"totalOmzet":200000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT011","date":"2026-08-04","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":10000,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":2,"price":5000}],"products":[],"serviceTotal":210000,"productTotal":0,"totalOmzet":210000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT012","date":"2026-08-05","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":210000,"productTotal":0,"totalOmzet":210000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT013","date":"2026-08-06","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":12,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":210000,"productTotal":0,"totalOmzet":210000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT014","date":"2026-08-07","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":13,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":11,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":230000,"productTotal":0,"totalOmzet":230000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT015","date":"2026-08-08","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":7,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":6,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000}],"products":[],"serviceTotal":125000,"productTotal":0,"totalOmzet":125000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT016","date":"2026-08-11","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":8,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000}],"products":[],"serviceTotal":160000,"productTotal":0,"totalOmzet":160000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT017","date":"2026-08-12","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":7,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":7,"price":20000}],"products":[],"serviceTotal":140000,"productTotal":0,"totalOmzet":140000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT018","date":"2026-08-13","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":11,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":1,"price":5000}],"products":[],"serviceTotal":190000,"productTotal":0,"totalOmzet":190000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT019","date":"2026-08-14","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":9,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000}],"products":[],"serviceTotal":165000,"productTotal":0,"totalOmzet":165000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT020","date":"2026-08-15","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":6,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":6,"price":20000}],"products":[],"serviceTotal":120000,"productTotal":0,"totalOmzet":120000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT021","date":"2026-08-16","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":9,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000}],"products":[],"serviceTotal":185000,"productTotal":0,"totalOmzet":185000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT022","date":"2026-08-17","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":2,"price":5000}],"products":[],"serviceTotal":170000,"productTotal":0,"totalOmzet":170000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT023","date":"2026-08-18","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":16000,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":8,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":1,"price":5000},{"serviceId":"KYONG-HS","serviceName":"Hairstyling","qty":1,"price":5000}],"products":[],"serviceTotal":170000,"productTotal":0,"totalOmzet":170000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT024","date":"2026-08-19","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000}],"products":[],"serviceTotal":200000,"productTotal":0,"totalOmzet":200000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT025","date":"2026-08-21","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":8,"openingCash":0,"cash":0,"qris":0,"cashExpense":0,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":6,"price":20000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":2,"price":5000}],"products":[],"serviceTotal":130000,"productTotal":0,"totalOmzet":130000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT026","date":"2026-08-22","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":10,"openingCash":0,"cash":0,"qris":0,"cashExpense":13000,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":10,"price":20000}],"products":[],"serviceTotal":200000,"productTotal":0,"totalOmzet":200000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"},{"id":"KYONGSHIFT027","date":"2026-08-23","employeeId":"E003","employeeName":"KYONG","shiftType":"Full Shift","customers":16,"openingCash":0,"cash":0,"qris":0,"cashExpense":579800,"physicalCash":0,"totalPayment":0,"expectedCash":0,"cashDifference":0,"services":[{"serviceId":"KYONG-HC","serviceName":"Haircut","qty":11,"price":20000},{"serviceId":"KYONG-HW","serviceName":"Hairwash","qty":2,"price":5000},{"serviceId":"KYONG-SH","serviceName":"Shaving","qty":3,"price":5000}],"products":[],"serviceTotal":245000,"productTotal":0,"totalOmzet":245000,"note":"","savedAt":"2026-09-01T00:00:00.000Z"}];
- db.shiftReports=(db.shiftReports||[]).filter(r=>r.__kyongImport!==marker);
- imported.forEach(r=>r.__kyongImport=marker);
- db.shiftReports.push(...imported);
- db.__kyongShiftImport=marker;
- save();
-})();
+
 
 if(!Array.isArray(db.branches))db.branches=[];
 const defaultBranchId=db.branches[0]?.id||null;
@@ -1103,19 +1082,53 @@ function openEmployee(id){
  <p class="muted">Username akun dibuat otomatis dari nama karyawan. Password dapat dibuat atau diubah Owner/Manager.</p>
  </div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveEmployee('${id||''}')">Simpan</button></div>`)
 }
-function saveEmployee(id){
+async function saveEmployee(id){
  if(!guard('employees'))return;
- const name=eName.value.trim(),role=eRole.value,password=ePassword.value.trim(),branchId=eBranch.value;
- if(!name)return alert('Isi nama karyawan');if(!password)return alert('Isi password login');
+
+ const name=document.getElementById('eName')?.value.trim()||'';
+ const role=document.getElementById('eRole')?.value||'Barber';
+ const password=document.getElementById('ePassword')?.value.trim()||'';
+ const branchId=document.getElementById('eBranch')?.value||'';
+ const salary=Number(document.getElementById('eSalary')?.value)||0;
+ const target=Number(document.getElementById('eTarget')?.value)||0;
+
+ if(!name)return alert('Isi nama karyawan');
+ if(!password)return alert('Isi password login');
  if(!branchId)return alert('Pilih cabang karyawan');
- let e=id?getEmployee(id):null;
- if(e){e.name=name;e.role=role;e.branchId=branchId;e.salary=Number(eSalary.value)||0;e.commission=0;e.target=Number(eTarget.value)||0}
- else{const next=Math.max(0,...db.employees.map(x=>Number(String(x.id).replace(/\D/g,''))||0))+1;e={id:'E'+String(next).padStart(3,'0'),name,role,branchId,salary:Number(eSalary.value)||0,commission:0,target:Number(eTarget.value)||0,attendance:0,eval:0,active:true};db.employees.push(e)}
- const accounts=getAccounts();let acc=accounts.find(a=>a.role==='employee'&&a.employeeId===e.id);
- const username=defaultEmployeeUsername(e.name);
- if(acc){acc.password=password;acc.username=username;acc.name=e.name;acc.role='employee'}else accounts.push({username,password,role:'employee',name:e.name,employeeId:e.id});
- saveAccounts(accounts);save();closeModal();toast(id?'Data karyawan & password diperbarui.':'Karyawan & akun login dibuat.');render();
+
+ const username=defaultEmployeeUsername(name);
+
+ try{
+   const payload={
+     id:id||undefined,
+     name,
+     role,
+     password,
+     username,
+     branchId,
+     salary,
+     target
+   };
+
+   await window.WZOnlineEmployee.api(
+     'employees',
+     {
+       method:id?'PUT':'POST',
+       body:JSON.stringify(payload)
+     }
+   );
+
+   await window.WZOnlineEmployee.syncEmployeesFromServer();
+
+   closeModal();
+   toast(id?'Data karyawan & akun diperbarui.':'Karyawan & akun login dibuat.');
+   render();
+ }catch(e){
+   console.error('saveEmployee online failed:',e);
+   alert('Gagal menyimpan karyawan: '+(e.message||e));
+ }
 }
+
 function customers(){
  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">CUSTOMER</span><h1>Pelanggan</h1><p>Data pelanggan, kunjungan dan nilai transaksi.</p></div><button class="btn primary" onclick="openCustomer()">＋ Tambah Pelanggan</button></div>
  <section class="card toolbar"><input id="cuSearch" placeholder="Cari nama/telepon..." oninput="filterRows('cuBody','cuSearch')"></section>
@@ -1267,21 +1280,38 @@ function openBranch(id){
  const b=id?db.branches.find(x=>x.id===id):null;
  show(`<span class="gold-label">CABANG</span><h2>${b?'Ubah Cabang':'Tambah Cabang'}</h2><div class="form"><label>Nama<input id="bName" value="${b?(b.name||'').replaceAll('"','&quot;'):''}"></label><label>Alamat<input id="bAddress" value="${b?(b.address||'').replaceAll('"','&quot;'):''}"></label><label>Status<select id="bActive"><option value="true" ${!b||b.active?'selected':''}>Aktif</option><option value="false" ${b&&b.active===false?'selected':''}>Nonaktif</option></select></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveBranch('${id||''}')">Simpan</button></div>`);
 }
-function saveBranch(id){
+async function saveBranch(id){
  if(!guard('branches'))return;
- const name=bName.value.trim(),address=bAddress.value.trim(),active=bActive.value==='true';
+
+ const name=document.getElementById('bName')?.value.trim()||'';
+ const address=document.getElementById('bAddress')?.value.trim()||'';
+ const active=document.getElementById('bActive')?.value==='true';
+
  if(!name)return alert('Isi nama cabang');
- if(id){
-  const b=db.branches.find(x=>x.id===id);
-  if(!b)return alert('Cabang tidak ditemukan');
-  b.name=name;b.address=address;b.active=active;
-  (db.employees||[]).forEach(e=>{if(e.branchId===id)e.branchId=id});
- }else{
-  const next=Math.max(0,...db.branches.map(x=>Number(String(x.id).replace(/\D/g,''))||0))+1;
-  db.branches.push({id:'B'+String(next).padStart(3,'0'),name,address,active});
+
+ try{
+   if(id){
+     await WZOnlineEmployee.api('branches',{
+       method:'PUT',
+       body:JSON.stringify({id,name,address,active})
+     });
+   }else{
+     await WZOnlineEmployee.api('branches',{
+       method:'POST',
+       body:JSON.stringify({name,address})
+     });
+   }
+
+   await syncBusiness();
+   closeModal();
+   toast(id?'Cabang diperbarui.':'Cabang ditambahkan.');
+   render();
+ }catch(e){
+   console.error(e);
+   alert(e.message||'Gagal menyimpan cabang');
  }
- save();closeModal();toast(id?'Cabang diperbarui.':'Cabang ditambahkan.');render();
 }
+
 function profile(){
  if(!currentUser){return}
  const emp=currentUser.employeeId?getEmployee(currentUser.employeeId):null;
@@ -1494,8 +1524,27 @@ window.WZOnlineEmployee={api};
 
 const NON_BUSINESS_KEYS=new Set([
   'transactions','shiftReports','employees','notifications','__onlineStateLoaded','__onlineStateSaving',
-  '__onlineSaveTimer','__rosterVersion','__kyongShiftImport'
 ]);
+
+function resetTenantState(){
+  db.branches=[];
+  db.employees=[];
+  db.customers=[];
+  db.services=[];
+  db.transactions=[];
+  db.shiftReports=[];
+  db.expenses=[];
+  db.attendance=[];
+  db.notifications=[];
+  db.profile={
+    name:currentUser?.name||'',
+    role:currentUser?.role||'',
+    brand:'',
+    focus:'',
+    notificationSoundEnabled:true,
+    analyticsPeriod:'7'
+  };
+}
 
 async function hydrateAppState(){
   if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
@@ -1552,6 +1601,16 @@ window.WZOnlineStateSave={persist:persistAppState,queue:queueAppStateSave};
 
 function applyBusinessData(data){
   if(!data||typeof data!=='object')return;
+  if(Array.isArray(data.branches)){
+    db.branches=data.branches.map(b=>({
+      id:String(b.id),
+      name:String(b.name||'Cabang'),
+      address:String(b.address||''),
+      active:b.active!==false
+    }));
+  }
+
+  if(!data||typeof data!=='object')return;
   if(Array.isArray(data.transactions)){
     db.transactions=data.transactions.map(t=>({
       ...t,
@@ -1592,6 +1651,7 @@ async function syncBusiness(){
     const first=await api('business');
     const serverTx=Array.isArray(first?.transactions)?first.transactions:[];
     const serverSh=Array.isArray(first?.shiftReports)?first.shiftReports:[];
+    const serverBranches=Array.isArray(first?.branches)?first.branches:[];
     const conflicts=[];
     const sameFields=(a,b,fields)=>fields.every(field=>{
       const left=String(a?.[field]??''),right=String(b?.[field]??'');
@@ -1607,7 +1667,12 @@ async function syncBusiness(){
       if(local&&!sameFields(local,r,['date','employeeId','shiftType','customers','openingCash','cash','qris','cashExpense','physicalCash','totalPayment','expectedCash','cashDifference','serviceTotal','productTotal','totalOmzet','note']))
         conflicts.push({type:'shiftReport',id:String(r.id),resolution:'server'});
     }
-    applyBusinessData({transactions:serverTx,shiftReports:serverSh,notifications:first?.notifications});
+    applyBusinessData({
+      transactions:serverTx,
+      shiftReports:serverSh,
+      branches:serverBranches,
+      notifications:first?.notifications
+    });
     if(conflicts.length&&typeof toast==='function')toast(`${conflicts.length} konflik data terdeteksi; versi server digunakan.`);
     if(typeof render==='function')render();
     return true;
