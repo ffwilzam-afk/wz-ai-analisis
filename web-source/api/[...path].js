@@ -50,7 +50,6 @@ async function schema(){
   const p=getPool();
   await p.query(`
     CREATE TABLE IF NOT EXISTS wz_businesses(id TEXT PRIMARY KEY,name TEXT NOT NULL,active BOOLEAN NOT NULL DEFAULT TRUE,created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-    INSERT INTO wz_businesses(id,name) VALUES('WZ001','WZ MANAGE PRO') ON CONFLICT(id) DO NOTHING;
     CREATE TABLE IF NOT EXISTS wz_branches(
       id TEXT PRIMARY KEY,name TEXT NOT NULL,active BOOLEAN NOT NULL DEFAULT TRUE,business_id TEXT REFERENCES wz_businesses(id)
     );
@@ -117,11 +116,6 @@ async function schema(){
     ALTER TABLE wz_transactions ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
     ALTER TABLE wz_shift_reports ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
     ALTER TABLE wz_push_subscriptions ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
-    UPDATE wz_branches SET business_id='WZ001' WHERE business_id IS NULL;
-    UPDATE wz_employees SET business_id='WZ001' WHERE business_id IS NULL;
-    UPDATE wz_users SET business_id='WZ001' WHERE business_id IS NULL;
-    UPDATE wz_transactions SET business_id='WZ001' WHERE business_id IS NULL;
-    UPDATE wz_shift_reports SET business_id='WZ001' WHERE business_id IS NULL;
     UPDATE wz_push_subscriptions s SET business_id=u.business_id FROM wz_users u WHERE u.id=s.user_id AND s.business_id IS NULL;
     CREATE UNIQUE INDEX IF NOT EXISTS wz_users_business_username_uq ON wz_users(business_id,username);
     CREATE UNIQUE INDEX IF NOT EXISTS wz_users_business_employee_uq ON wz_users(business_id,employee_id) WHERE employee_id IS NOT NULL;
@@ -131,28 +125,9 @@ async function schema(){
     CREATE INDEX IF NOT EXISTS wz_transactions_business_idx ON wz_transactions(business_id);
     CREATE INDEX IF NOT EXISTS wz_shift_reports_business_idx ON wz_shift_reports(business_id);
     CREATE TABLE IF NOT EXISTS wz_app_states(business_id TEXT PRIMARY KEY REFERENCES wz_businesses(id) ON DELETE CASCADE,data JSONB NOT NULL DEFAULT '{}'::jsonb,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
-    INSERT INTO wz_app_states(business_id,data,updated_at) SELECT 'WZ001',data,updated_at FROM wz_app_state WHERE id=1 ON CONFLICT(business_id) DO NOTHING;
-    INSERT INTO wz_app_states(business_id,data) VALUES('WZ001','{}'::jsonb) ON CONFLICT(business_id) DO NOTHING;
   `);
-  await p.query(`
-    INSERT INTO wz_branches(id,name,active,business_id) VALUES
-    ('B001','WZBARBERSHOP MASBAGIK',true,'WZ001'),('B002','WZBARBERSHOP MONJOK',true,'WZ001'),
-    ('B003','WZBARBERSHOP GUNUNGSARI',true,'WZ001'),('B004','WZBARBERSHOP KURANJI',true,'WZ001'),
-    ('B005','WZBARBERSHOP LEMBAR',true,'WZ001')
-    ON CONFLICT (id) DO NOTHING;
-  `);
-  const employees=[
-    ['E001','Rizky','B001'],['E002','ALVIN','B002'],['E003','KYONG','B003'],['E004','IWAN','B004'],['E005','DIKA','B005']
-  ];
-  for(const [id,name,branch] of employees){
-    await p.query(`INSERT INTO wz_employees(id,name,role,branch_id,salary,active,business_id) VALUES($1,$2,'Barber',$3,2000000,true,'WZ001') ON CONFLICT(id) DO NOTHING`,[id,name,branch]);
-    const username=defaultUsername(name), password=defaultPassword(name);
-    await p.query(`INSERT INTO wz_users(username,password_hash,role,name,employee_id,business_id) VALUES($1,$2,'employee',$3,$4,'WZ001') ON CONFLICT DO NOTHING`,[username,hashPassword(password),name,id]);
-  }
-  for(const [username,password,name,role] of [['owner','owner123','OWNER','owner'],['manager','manager123','MANAGER','manager']]){
-    const exists=await p.query("SELECT id FROM wz_users WHERE business_id='WZ001' AND username=$1",[username]);
-    if(!exists.rowCount) await p.query("INSERT INTO wz_users(username,password_hash,role,name,business_id) VALUES($1,$2,$3,$4,'WZ001')",[username,hashPassword(password),role,name]);
-  }
+  // NO DEFAULT WZ TENANT DATA. Semua bisnis dimulai dari data miliknya sendiri.
+
 }
 
 async function ensureSchema(){ if(!schemaPromise) schemaPromise=schema().catch(e=>{schemaPromise=null;throw e}); return schemaPromise; }
@@ -249,7 +224,16 @@ async function handler(req,res){
       const params=u.role==='employee'?[u.business_id,u.employee_id]:[u.business_id];
       const tx=await p.query(txSql,params);
       const sh=await p.query(shSql,params);
-      return send(res,200,{ok:true,transactions:tx.rows,shiftReports:sh.rows});
+      const branches=await p.query(
+        'SELECT id,name,active FROM wz_branches WHERE business_id=$1 ORDER BY id',
+        [u.business_id]
+      );
+      return send(res,200,{
+        ok:true,
+        transactions:tx.rows,
+        shiftReports:sh.rows,
+        branches:branches.rows
+      });
     }
     if(path==='app-state' && req.method==='GET'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});

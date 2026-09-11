@@ -66,6 +66,14 @@ window.WZOnlineStateSave={persist:persistAppState,queue:queueAppStateSave};
 
 function applyBusinessData(data){
   if(!data||typeof data!=='object')return;
+  if(Array.isArray(data.branches)){
+    db.branches=data.branches.map(b=>({
+      id:String(b.id),
+      name:String(b.name||'Cabang'),
+      address:String(b.address||''),
+      active:b.active!==false
+    }));
+  }
   if(Array.isArray(data.transactions)){
     db.transactions=data.transactions.map(t=>({
       ...t,

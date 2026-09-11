@@ -150,44 +150,29 @@ footer{text-align:center;color:#5e646d;font-size:10px;padding:34px 0 10px}
 <script>
 let currentUser=null;
 const initial={
-  branches:[
-    {id:'B001',name:'WZBARBERSHOP MASBAGIK',address:'Indonesia',active:true},
-    {id:'B002',name:'WZBARBERSHOP MONJOK',address:'Indonesia',active:true},
-    {id:'B003',name:'WZBARBERSHOP GUNUNGSARI',address:'Indonesia',active:true},
-    {id:'B004',name:'WZBARBERSHOP KURANJI',address:'Indonesia',active:true},
-    {id:'B005',name:'WZBARBERSHOP LEMBAR',address:'Indonesia',active:true}
-  ],
-  employees:[
-    {id:'E001',name:'Rizky',role:'Barber',branchId:'B001',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true},
-    {id:'E002',name:'ALVIN',role:'Barber',branchId:'B002',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true},
-    {id:'E003',name:'KYONG',role:'Barber',branchId:'B003',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true},
-    {id:'E004',name:'IWAN',role:'Barber',branchId:'B004',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true},
-    {id:'E005',name:'DIKA',role:'Barber',branchId:'B005',salary:2000000,commission:0,target:4500000,attendance:0,eval:0,active:true}
-  ],
+  branches:[],
+  employees:[],
   customers:[],
-  services:[
-    {id:'S001',name:'Haircut',category:'Hair',price:20000,duration:45,active:true},
-    {id:'S002',name:'Hairwash',category:'Hair',price:5000,duration:15,active:true},
-    {id:'S003',name:'Hairstyling',category:'Hair',price:5000,duration:20,active:true},
-    {id:'S004',name:'Haircoloring',category:'Hair',price:75000,duration:90,active:true},
-    {id:'S005',name:'Shaving',category:'Hair',price:5000,duration:15,active:true}
-  ],
-  transactions:[],shiftReports:[],expenses:[],attendance:[],notifications:[],
-  profile:{name:'OWNER',role:'Direktur',brand:'WZ BARBERSHOP',focus:'Management System',notificationSoundEnabled:true,analyticsPeriod:'7'}
+  services:[],
+  transactions:[],
+  shiftReports:[],
+  expenses:[],
+  attendance:[],
+  notifications:[],
+  profile:{
+    name:'',
+    role:'',
+    brand:'',
+    focus:'',
+    notificationSoundEnabled:true,
+    analyticsPeriod:'7'
+  }
 };
 
 const ANDROID_NOTIFICATION_TITLE='WZ MANAGE PRO';
 const ANDROID_NOTIFICATION_ICON='/public/notification-icon-96.png';
 const androidNotificationKeys=new Map();
-const AUTH_DEFAULTS=[
- {username:'owner',password:'owner123',role:'owner',name:'OWNER'},
- {username:'manager',password:'manager123',role:'manager',name:'MANAGER'},
- {username:'rizky',password:'rizky123',role:'employee',name:'Rizky',employeeId:'E001'},
- {username:'alvin',password:'alvin123',role:'employee',name:'ALVIN',employeeId:'E002'},
- {username:'kyong',password:'kyong123',role:'employee',name:'KYONG',employeeId:'E003'},
- {username:'iwan',password:'iwan123',role:'employee',name:'IWAN',employeeId:'E004'},
- {username:'dika',password:'dika123',role:'employee',name:'DIKA',employeeId:'E005'}
-];
+const AUTH_DEFAULTS=[]
 const ACCESS={
  owner:['dashboard','transactions','shiftReports','employees','customers','services','finance','reports','operations','analytics','notifications','branches','profile','settings','system','auth'],
  manager:['dashboard','transactions','shiftReports','employees','customers','services','finance','reports','operations','analytics','notifications','branches','settings','system','auth'],
@@ -230,34 +215,7 @@ function getSession(){return null}
 function login(ev){ev.preventDefault();return window.login?.(ev)}
 function logout(){return window.logout?.()};
 let db=load(); db.shiftReports=db.shiftReports||[];
-/* CURRENT ROSTER LOCK — preserves the exact 5 employee/branch assignments.
-   Only roster fields requested by the owner are normalized; transactions, reports,
-   customers, expenses and other stored records are retained. */
-(function normalizeCurrentRoster(){
- const roster=[
-  {id:'E001',name:'Rizky',role:'Barber',branchId:'B001',target:4500000,salary:2000000},
-  {id:'E002',name:'ALVIN',role:'Barber',branchId:'B002',target:4500000,salary:2000000},
-  {id:'E003',name:'KYONG',role:'Barber',branchId:'B003',target:4500000,salary:2000000},
-  {id:'E004',name:'IWAN',role:'Barber',branchId:'B004',target:4500000,salary:2000000},
-  {id:'E005',name:'DIKA',role:'Barber',branchId:'B005',target:4500000,salary:2000000}
- ];
- const branchList=[
-  {id:'B001',name:'WZBARBERSHOP MASBAGIK',address:'Indonesia',active:true},
-  {id:'B002',name:'WZBARBERSHOP MONJOK',address:'Indonesia',active:true},
-  {id:'B003',name:'WZBARBERSHOP GUNUNGSARI',address:'Indonesia',active:true},
-  {id:'B004',name:'WZBARBERSHOP KURANJI',address:'Indonesia',active:true},
-  {id:'B005',name:'WZBARBERSHOP LEMBAR',address:'Indonesia',active:true}
- ];
- const oldEmployees=Array.isArray(db.employees)?db.employees:[];
- db.employees=roster.map(r=>{
-  const old=oldEmployees.find(e=>e.id===r.id)||{};
-  return {...old,...r};
- });
- db.branches=branchList;
- db.employees.forEach(e=>{e.salary=2000000;e.target=4500000;e.branchId=roster.find(r=>r.id===e.id).branchId});
- db.__rosterVersion='2026-09-01-5branch';
- save();
-})();
+/* NO DEFAULT WZ ROSTER */
 /* KYONG SHIFT REPORT IMPORT — approved raw service/expense data only. */
 (function importKyongShiftReports(){
  return;
