@@ -198,6 +198,26 @@ const ACCESS={
     'operations','notifications','profile'
   ]
 };
+
+const menu=[
+  ['dashboard','📊','Dashboard'],
+  ['transactions','🛒','Transaksi'],
+  ['shiftReports','📋','Laporan Tutup Shift'],
+  ['employees','👥','Karyawan'],
+  ['customers','👤','Pelanggan'],
+  ['services','💈','Layanan & Promo'],
+  ['finance','💰','Keuangan'],
+  ['reports','📑','Laporan'],
+  ['operations','🕘','Operasional'],
+  ['analytics','📈','Analisis Bisnis'],
+  ['notifications','🔔','Notifikasi'],
+  ['branches','🏢','Cabang'],
+  ['profile','👤','Profil'],
+  ['settings','⚙️','Pengaturan'],
+  ['system','🛠️','Sistem & Data'],
+  ['auth','🔐','Keamanan']
+];
+
 function can(key){return !!currentUser&&Array.isArray(ACCESS[currentUser.role])&&ACCESS[currentUser.role].includes(key)}
 function guard(key){if(!currentUser){toast('Silakan login terlebih dahulu.',true);return false}if(!can(key)){toast('Akses menu tidak diizinkan untuk role ini.',true);return false}return true}
 function dateNow(){return new Date().toISOString().slice(0,10)}
