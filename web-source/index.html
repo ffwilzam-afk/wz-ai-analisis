@@ -632,7 +632,7 @@ function dashboard(branchId){
  const branchEmployees=active;
  document.getElementById('content').innerHTML=`
  <div class="dashboard-head">
-  <div><span class="gold-label">OWNER CONTROL CENTER</span><div class="greeting">GOOD AFTERNOON, WILZAM! 👋</div><div class="subtle">Dashboard ${branchLabel} · ${today}</div></div>
+  <div><span class="gold-label">OWNER CONTROL CENTER</span><div class="greeting">GOOD AFTERNOON, ${String(currentUser?.name||"OWNER").toUpperCase()}! 👋</div><div class="subtle">Dashboard ${branchLabel} · ${today}</div></div>
   <button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button>
  </div>
  <section class="card section" style="margin-bottom:14px"><div class="panel-title"><h3>PILIH CABANG</h3><span class="subtle">Data Dashboard mengikuti data server</span></div><select class="select" onchange="dashboard(this.value)"><option value="ALL" ${selected==='ALL'?'selected':''}>Semua Cabang</option>${db.branches.filter(b=>b.active!==false).map(b=>`<option value="${b.id}" ${selected===b.id?'selected':''}>${b.name}</option>`).join('')}</select></section>
