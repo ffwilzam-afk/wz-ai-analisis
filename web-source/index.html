@@ -173,6 +173,31 @@ const ANDROID_NOTIFICATION_TITLE='WZ MANAGE PRO';
 const ANDROID_NOTIFICATION_ICON='/public/notification-icon-96.png';
 const androidNotificationKeys=new Map();
 const AUTH_DEFAULTS=[];
+
+const ACCESS={
+  owner:[
+    'dashboard','transactions','shiftReports','employees','customers',
+    'services','finance','reports','operations','analytics',
+    'notifications','branches','profile','settings','system','auth'
+  ],
+  manager:[
+    'dashboard','transactions','shiftReports','employees','customers',
+    'services','finance','reports','operations','analytics',
+    'notifications','branches','settings','system','auth'
+  ],
+  employee:[
+    'dashboard','transactions','shiftReports','customers','services',
+    'operations','notifications','profile'
+  ],
+  barber:[
+    'dashboard','transactions','shiftReports','customers','services',
+    'operations','notifications','profile'
+  ],
+  kasir:[
+    'dashboard','transactions','shiftReports','customers','services',
+    'operations','notifications','profile'
+  ]
+};
 function can(key){return !!currentUser&&Array.isArray(ACCESS[currentUser.role])&&ACCESS[currentUser.role].includes(key)}
 function guard(key){if(!currentUser){toast('Silakan login terlebih dahulu.',true);return false}if(!can(key)){toast('Akses menu tidak diizinkan untuk role ini.',true);return false}return true}
 function dateNow(){return new Date().toISOString().slice(0,10)}
