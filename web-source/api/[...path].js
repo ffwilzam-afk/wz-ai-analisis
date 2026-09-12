@@ -90,6 +90,8 @@ async function schema(){
       business_id TEXT NOT NULL UNIQUE REFERENCES wz_businesses(id),
       plan TEXT NOT NULL DEFAULT 'TRIAL'
         CHECK (plan IN ('TRIAL','PRO','PRO_MAX')),
+      billing_period TEXT
+        CHECK (billing_period IS NULL OR billing_period IN ('MONTH','YEAR')),
       status TEXT NOT NULL DEFAULT 'ACTIVE'
         CHECK (status IN ('ACTIVE','EXPIRED','CANCELLED','SUSPENDED')),
       trial_started_at TIMESTAMPTZ,
@@ -102,10 +104,76 @@ async function schema(){
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE wz_subscriptions
+      ADD COLUMN IF NOT EXISTS billing_period TEXT;
+
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'wz_subscriptions_billing_period_check'
+      ) THEN
+        ALTER TABLE wz_subscriptions
+          ADD CONSTRAINT wz_subscriptions_billing_period_check
+          CHECK (
+            billing_period IS NULL
+            OR billing_period IN ('MONTH','YEAR')
+          );
+      END IF;
+    END $$;
+
     CREATE INDEX IF NOT EXISTS wz_subscriptions_status_idx
       ON wz_subscriptions(status);
     CREATE INDEX IF NOT EXISTS wz_subscriptions_period_end_idx
       ON wz_subscriptions(current_period_end);
+
+    CREATE TABLE IF NOT EXISTS wz_subscription_orders(
+      id BIGSERIAL PRIMARY KEY,
+      business_id TEXT NOT NULL REFERENCES wz_businesses(id),
+      order_id TEXT NOT NULL UNIQUE,
+      plan TEXT NOT NULL
+        CHECK (plan IN ('PRO','PRO_MAX')),
+      billing_period TEXT NOT NULL
+        CHECK (billing_period IN ('MONTH','YEAR')),
+      amount NUMERIC NOT NULL CHECK (amount >= 0),
+      currency TEXT NOT NULL DEFAULT 'IDR',
+      status TEXT NOT NULL DEFAULT 'PENDING'
+        CHECK (status IN ('PENDING','PAID','FAILED','EXPIRED','CANCELLED')),
+      payment_provider TEXT,
+      external_id TEXT,
+      payment_session_id TEXT,
+      payment_url TEXT,
+      xendit_customer_id TEXT,
+      xendit_payment_token_id TEXT,
+      xendit_payment_id TEXT,
+      xendit_recurring_plan_id TEXT,
+      paid_at TIMESTAMPTZ,
+      expires_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS wz_subscription_orders_business_idx
+      ON wz_subscription_orders(business_id);
+
+    CREATE INDEX IF NOT EXISTS wz_subscription_orders_status_idx
+      ON wz_subscription_orders(status);
+
+    CREATE INDEX IF NOT EXISTS wz_subscription_orders_external_idx
+      ON wz_subscription_orders(external_id);
+
+    ALTER TABLE wz_subscription_orders
+      ADD COLUMN IF NOT EXISTS xendit_customer_id TEXT;
+    ALTER TABLE wz_subscription_orders
+      ADD COLUMN IF NOT EXISTS xendit_payment_token_id TEXT;
+    ALTER TABLE wz_subscription_orders
+      ADD COLUMN IF NOT EXISTS xendit_payment_id TEXT;
+    ALTER TABLE wz_subscription_orders
+      ADD COLUMN IF NOT EXISTS xendit_recurring_plan_id TEXT;
+
+    ALTER TABLE wz_subscriptions
+      ADD COLUMN IF NOT EXISTS last_recurring_cycle_number INTEGER NOT NULL DEFAULT 0;
+
 
     CREATE TABLE IF NOT EXISTS wz_subscription_plans(
       plan TEXT PRIMARY KEY
@@ -196,6 +264,66 @@ function normalizeBusinessId(value){
 function cookie(name,value,maxAge){return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.NODE_ENV==='production'?'; Secure':''}`}
 function send(res,status,data,headers={}){res.statusCode=status;for(const [k,v] of Object.entries(headers))res.setHeader(k,v);res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));}
 async function body(req){let s='';for await(const c of req)s+=c;return s?JSON.parse(s):{};}
+
+async function xenditRequest(path,payload){
+  const secret=String(process.env.XENDIT_SECRET_KEY||'').trim();
+  if(!secret)throw new Error('XENDIT_SECRET_KEY belum dikonfigurasi di server.');
+
+  const auth=Buffer.from(`${secret}:`).toString('base64');
+
+  const response=await fetch(`https://api.xendit.co${path}`,{
+    method:'POST',
+    headers:{
+      'Authorization':`Basic ${auth}`,
+      'Content-Type':'application/json',
+      'api-version':'2026-01-01'
+    },
+    body:JSON.stringify(payload)
+  });
+
+  const text=await response.text();
+  let data=null;
+  try{data=text?JSON.parse(text):null}catch{}
+
+  if(!response.ok){
+    const message=data?.message||data?.error_code||`HTTP ${response.status}`;
+    throw new Error(`Xendit: ${message}`);
+  }
+
+  return data||{};
+}
+
+function xenditWebhookValid(req){
+  const expected=String(process.env.XENDIT_WEBHOOK_TOKEN||'').trim();
+  const received=String(req.headers['x-callback-token']||'').trim();
+
+  if(!expected||!received)return false;
+
+  const a=Buffer.from(expected);
+  const b=Buffer.from(received);
+
+  return a.length===b.length && crypto.timingSafeEqual(a,b);
+}
+
+function publicAppUrl(){
+  const custom=String(process.env.WZ_PUBLIC_URL||'').trim().replace(/\/+$/,'');
+  if(custom)return custom;
+
+  const production=String(process.env.VERCEL_PROJECT_PRODUCTION_URL||'').trim();
+  if(production)return `https://${production}`;
+
+  return 'https://wz-ai-analisis-rust.vercel.app';
+}
+
+function xenditSafeName(name){
+  const cleaned=String(name||'OWNER')
+    .normalize('NFKD')
+    .replace(/[^A-Za-z0-9]/g,'')
+    .replace(/\s+/g,' ')
+    .trim();
+
+  return cleaned||'OWNER';
+}
 async function employeeFor(id,businessId){
   if(!id||!businessId)return null;
   const r=await getPool().query('SELECT id,name,branch_id AS "branchId",active FROM wz_employees WHERE id=$1 AND business_id=$2',[String(id),String(businessId)]);
@@ -208,6 +336,7 @@ async function getSubscriptionAccess(businessId){
     SELECT
       s.business_id AS "businessId",
       s.plan,
+      s.billing_period AS "billingPeriod",
       CASE
         WHEN s.status IN ('CANCELLED','SUSPENDED') THEN s.status
         WHEN s.plan='TRIAL'
@@ -353,6 +482,422 @@ async function handler(req,res){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       const b=await body(req);if(b.endpoint)await getPool().query('DELETE FROM wz_push_subscriptions WHERE user_id=$1 AND endpoint=$2',[u.id,String(b.endpoint)]);return send(res,200,{ok:true});
     }
+    if(path==='subscription/webhook' && req.method==='POST'){
+      if(!xenditWebhookValid(req))
+        return send(res,401,{ok:false,error:'Webhook Xendit tidak terverifikasi.'});
+
+      const b=await body(req);
+      const event=String(b.event||'').trim();
+      const d=b.data||{};
+      const referenceId=String(d.reference_id||'').trim();
+
+      if(!referenceId)
+        return send(res,400,{ok:false,error:'reference_id webhook tidak ditemukan.'});
+
+      const p=getPool();
+
+      if(event==='payment_session.completed'){
+        const r=await p.query(`
+          UPDATE wz_subscription_orders
+          SET
+            status='PAID',
+            payment_session_id=COALESCE($1,payment_session_id),
+            xendit_customer_id=COALESCE($2,xendit_customer_id),
+            xendit_payment_token_id=COALESCE($3,xendit_payment_token_id),
+            xendit_payment_id=COALESCE($4,xendit_payment_id),
+            xendit_recurring_plan_id=COALESCE($5,xendit_recurring_plan_id),
+            paid_at=COALESCE(paid_at,NOW()),
+            updated_at=NOW()
+          WHERE order_id=$6
+          RETURNING business_id,plan,billing_period
+        `,[
+          d.payment_session_id||null,
+          d.customer_id||null,
+          d.payment_token_id||null,
+          d.payment_id||null,
+          d.recurring_plan_id||null,
+          referenceId
+        ]);
+
+        if(r.rowCount && r.rows[0].billing_period==='YEAR'){
+          await p.query(`
+            UPDATE wz_subscriptions
+            SET
+              plan=$1,
+              billing_period='YEAR',
+              status='ACTIVE',
+              current_period_start=NOW(),
+              current_period_end=NOW()+INTERVAL '365 days',
+              payment_provider='XENDIT',
+              payment_customer_id=$2,
+              payment_subscription_id=NULL,
+              updated_at=NOW()
+            WHERE business_id=$3
+          `,[
+            r.rows[0].plan,
+            d.customer_id||null,
+            r.rows[0].business_id
+          ]);
+        }
+      }
+
+      if(event==='payment_session.expired'){
+        await p.query(`
+          UPDATE wz_subscription_orders
+          SET status='EXPIRED',updated_at=NOW()
+          WHERE order_id=$1 AND status='PENDING'
+        `,[referenceId]);
+      }
+
+      if(event==='payment.capture'){
+        const paymentReference=String(
+          d.reference_id||d.external_id||referenceId
+        ).trim();
+
+        if(paymentReference){
+          await p.query(`
+            UPDATE wz_subscription_orders
+            SET
+              status='PAID',
+              xendit_payment_id=COALESCE($1,xendit_payment_id),
+              paid_at=COALESCE(paid_at,NOW()),
+              updated_at=NOW()
+            WHERE order_id=$2
+          `,[
+            d.id||d.payment_id||null,
+            paymentReference
+          ]);
+        }
+      }
+
+      if(event==='recurring.plan.activated'){
+        const r=await p.query(`
+          UPDATE wz_subscription_orders
+          SET
+            status='PAID',
+            xendit_customer_id=COALESCE($1,xendit_customer_id),
+            xendit_recurring_plan_id=COALESCE($2,xendit_recurring_plan_id),
+            updated_at=NOW()
+          WHERE order_id=$3
+          RETURNING business_id,plan,billing_period
+        `,[
+          d.customer_id||null,
+          d.id||null,
+          referenceId
+        ]);
+
+        if(r.rowCount){
+          await p.query(`
+            UPDATE wz_subscriptions
+            SET
+              plan=$1,
+              billing_period='MONTH',
+              status='ACTIVE',
+              current_period_start=NOW(),
+              current_period_end=NOW()+INTERVAL '30 days',
+              payment_provider='XENDIT',
+              payment_customer_id=$2,
+              payment_subscription_id=$3,
+              last_recurring_cycle_number=0,
+              updated_at=NOW()
+            WHERE business_id=$4
+          `,[
+            r.rows[0].plan,
+            d.customer_id||null,
+            d.id||null,
+            r.rows[0].business_id
+          ]);
+        }
+      }
+
+      if(event==='recurring.plan.inactivated'){
+        const r=await p.query(`
+          SELECT business_id
+          FROM wz_subscription_orders
+          WHERE order_id=$1
+          LIMIT 1
+        `,[referenceId]);
+
+        if(r.rowCount){
+          await p.query(`
+            UPDATE wz_subscriptions
+            SET status='EXPIRED',updated_at=NOW()
+            WHERE business_id=$1
+              AND payment_subscription_id=$2
+          `,[r.rows[0].business_id,d.id||null]);
+        }
+      }
+
+      if(event==='recurring.cycle.succeeded'){
+        const cycleNumber=Number(d.cycle_number||0);
+
+        if(cycleNumber>0){
+          const r=await p.query(`
+            SELECT business_id
+            FROM wz_subscription_orders
+            WHERE order_id=$1
+            LIMIT 1
+          `,[referenceId]);
+
+          if(r.rowCount){
+            await p.query(`
+              UPDATE wz_subscriptions
+              SET
+                status='ACTIVE',
+                current_period_start=GREATEST(COALESCE(current_period_end,NOW()),NOW()),
+                current_period_end=GREATEST(COALESCE(current_period_end,NOW()),NOW())+INTERVAL '30 days',
+                last_recurring_cycle_number=$2,
+                updated_at=NOW()
+              WHERE business_id=$1
+                AND plan IN ('PRO','PRO_MAX')
+                AND billing_period='MONTH'
+                AND last_recurring_cycle_number < $2
+            `,[r.rows[0].business_id,cycleNumber]);
+          }
+        }
+      }
+
+
+      if(event==='payment.failure'){
+        console.warn(
+          'Xendit payment.failure:',
+          d.id||d.payment_id||'unknown'
+        );
+      }
+
+      if(event==='recurring.cycle.failed'){
+        const r=await p.query(`
+          SELECT business_id
+          FROM wz_subscription_orders
+          WHERE order_id=$1
+          LIMIT 1
+        `,[referenceId]);
+
+        if(r.rowCount){
+          await p.query(`
+            UPDATE wz_subscriptions
+            SET status='EXPIRED',updated_at=NOW()
+            WHERE business_id=$1
+              AND billing_period='MONTH'
+          `,[r.rows[0].business_id]);
+        }
+      }
+
+      return send(res,200,{ok:true});
+    }
+
+    if(path==='subscription/order' && req.method==='POST'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+
+      if(!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat membuat order subscription.'});
+
+      const b=await body(req);
+      const plan=String(b.plan||'').trim().toUpperCase();
+      const billingPeriod=String(b.billingPeriod||'').trim().toUpperCase();
+
+      if(!['PRO','PRO_MAX'].includes(plan))
+        return send(res,400,{ok:false,error:'Paket subscription tidak valid.'});
+
+      if(!['MONTH','YEAR'].includes(billingPeriod))
+        return send(res,400,{ok:false,error:'Periode subscription tidak valid.'});
+
+      const p=getPool();
+
+      const planRow=await p.query(`
+        SELECT
+          plan,
+          price_monthly AS "priceMonthly",
+          price_yearly AS "priceYearly",
+          active
+        FROM wz_subscription_plans
+        WHERE plan=$1
+        LIMIT 1
+      `,[plan]);
+
+      if(!planRow.rowCount||!planRow.rows[0].active)
+        return send(res,400,{ok:false,error:'Paket subscription tidak tersedia.'});
+
+      const selected=planRow.rows[0];
+
+      const amount=Number(
+        billingPeriod==='YEAR'
+          ? selected.priceYearly
+          : selected.priceMonthly
+      );
+
+      if(!Number.isFinite(amount)||amount<=0)
+        return send(res,400,{ok:false,error:'Harga subscription tidak valid.'});
+
+      const orderId=
+        'WZ-'+
+        Date.now().toString(36).toUpperCase()+
+        '-'+
+        crypto.randomBytes(4).toString('hex').toUpperCase();
+
+      const expiresAt=new Date(Date.now()+30*60*1000);
+      const appUrl=publicAppUrl();
+      const safeName=xenditSafeName(u.name);
+
+      const order=await p.query(`
+        INSERT INTO wz_subscription_orders
+          (business_id,order_id,plan,billing_period,amount,currency,status,payment_provider,expires_at)
+        VALUES
+          ($1,$2,$3,$4,$5,'IDR','PENDING','XENDIT',$6)
+        RETURNING
+          id,
+          order_id AS "orderId",
+          business_id AS "businessId",
+          plan,
+          billing_period AS "billingPeriod",
+          amount,
+          currency,
+          status,
+          payment_provider AS "paymentProvider",
+          expires_at AS "expiresAt",
+          created_at AS "createdAt"
+      `,[
+        u.business_id,
+        orderId,
+        plan,
+        billingPeriod,
+        amount,
+        expiresAt
+      ]);
+
+      const customer={
+        reference_id:String(`${u.business_id}${orderId}`).replace(/[^A-Za-z0-9]/g,''),
+        type:'INDIVIDUAL',
+        individual_detail:{
+          given_names:safeName
+        }
+      };
+
+      let sessionPayload;
+
+      if(billingPeriod==='MONTH'){
+        const now=new Date();
+        const day=Math.min(now.getUTCDate(),28);
+
+        sessionPayload={
+          reference_id:orderId,
+          session_type:'SUBSCRIPTION',
+          mode:'PAYMENT_LINK',
+          amount,
+          currency:'IDR',
+          country:'ID',
+          customer,
+          locale:'id',
+          description:`WZ MANAGE PRO ${plan} - 30 Hari`,
+          subscription:{
+            schedule:{
+              interval:'MONTH',
+              interval_count:1,
+              anchor_date:new Date(Date.UTC(
+                now.getUTCFullYear(),
+                now.getUTCMonth()+1,
+                day,
+                0,0,0
+              )).toISOString(),
+              retry_interval:'DAY',
+              retry_interval_count:1,
+              total_retry:3,
+              failed_attempt_notifications:[1,2,3]
+            },
+            failed_cycle_action:'RESUME'
+          },
+          success_return_url:`${appUrl}/#subscription`,
+          cancel_return_url:`${appUrl}/#subscription`
+        };
+      }else{
+        sessionPayload={
+          reference_id:orderId,
+          session_type:'PAY',
+          mode:'PAYMENT_LINK',
+          amount,
+          currency:'IDR',
+          country:'ID',
+          customer,
+          locale:'id',
+          description:`WZ MANAGE PRO ${plan} - 12 Bulan`,
+          items:[
+            {
+              reference_id:orderId,
+              type:'DIGITAL_SERVICE',
+              name:`WZ MANAGE PRO ${plan}`,
+              description:'Langganan WZ MANAGE PRO selama 12 bulan',
+              category:'SOFTWARE',
+              net_unit_amount:amount,
+              quantity:1,
+              currency:'IDR'
+            }
+          ],
+          success_return_url:`${appUrl}/#subscription`,
+          cancel_return_url:`${appUrl}/#subscription`
+        };
+      }
+
+      try{
+        const session=await xenditRequest('/sessions',sessionPayload);
+
+        const saved=await p.query(`
+          UPDATE wz_subscription_orders
+          SET
+            payment_session_id=$1,
+            payment_url=$2,
+            xendit_customer_id=$3,
+            xendit_payment_token_id=$4,
+            xendit_payment_id=$5,
+            xendit_recurring_plan_id=$6,
+            updated_at=NOW()
+          WHERE order_id=$7 AND business_id=$8
+          RETURNING
+            id,
+            order_id AS "orderId",
+            business_id AS "businessId",
+            plan,
+            billing_period AS "billingPeriod",
+            amount,
+            currency,
+            status,
+            payment_provider AS "paymentProvider",
+            payment_session_id AS "paymentSessionId",
+            payment_url AS "paymentUrl",
+            expires_at AS "expiresAt",
+            created_at AS "createdAt"
+        `,[
+          session.payment_session_id||null,
+          session.payment_link_url||null,
+          session.customer_id||null,
+          session.payment_token_id||null,
+          session.payment_id||null,
+          session.recurring_plan_id||null,
+          orderId,
+          u.business_id
+        ]);
+
+        return send(res,201,{
+          ok:true,
+          order:saved.rows[0]||order.rows[0],
+          paymentUrl:session.payment_link_url||null,
+          message:'Order berhasil dibuat. Silakan lanjutkan pembayaran melalui Xendit.'
+        });
+      }catch(error){
+        await p.query(`
+          UPDATE wz_subscription_orders
+          SET status='FAILED',updated_at=NOW()
+          WHERE order_id=$1 AND business_id=$2
+        `,[orderId,u.business_id]);
+
+        return send(res,502,{
+          ok:false,
+          error:safeServerError(error)
+        });
+      }
+    }
+
+
     if(path==='subscription' && req.method==='GET'){
       const u=await authUser(req);
       if(!u)return send(res,401,{ok:false,error:'Unauthorized'});
@@ -361,6 +906,7 @@ async function handler(req,res){
         SELECT
           s.business_id AS "businessId",
           s.plan,
+          s.billing_period AS "billingPeriod",
           CASE
             WHEN s.plan='TRIAL'
               AND s.trial_ends_at IS NOT NULL

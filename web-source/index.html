@@ -422,7 +422,7 @@ async function subscriptionPage(){
   app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p>Memuat informasi subscription...</p></div>';
 
   try{
-    const r=await api('/subscription');
+    const r=await api('subscription');
     if(!r.ok)throw new Error(r.error||'Gagal mengambil data subscription.');
 
     const s=r.subscription||{};
@@ -436,6 +436,8 @@ async function subscriptionPage(){
     const branchLimit=s.maxBranches===null?'Unlimited':s.maxBranches;
     const employeeLimit=s.maxEmployees===null?'Unlimited':s.maxEmployees;
 
+    const active=status==='ACTIVE';
+
     app.innerHTML=`
       <div class="card">
         <h2>💳 Berlangganan</h2>
@@ -444,6 +446,7 @@ async function subscriptionPage(){
         <div class="detail-grid" style="margin-top:18px">
           <div><strong>Paket</strong><span>${plan}</span></div>
           <div><strong>Status</strong><span>${status}</span></div>
+          <div><strong>Periode</strong><span>${s.billingPeriod==='YEAR'?'12 Bulan':s.billingPeriod==='MONTH'?'30 Hari':'Trial'}</span></div>
           <div><strong>Berlaku sampai</strong><span>${fmtDate(s.currentPeriodEnd)}</span></div>
           <div><strong>Mulai Trial</strong><span>${fmtDate(s.trialStartedAt)}</span></div>
         </div>
@@ -459,30 +462,53 @@ async function subscriptionPage(){
 
       <div class="card" style="margin-top:16px">
         <h3>Pilih Paket</h3>
+        <p style="color:var(--muted);margin-bottom:18px">
+          Pilih paket dan periode pembayaran. Pembayaran diproses melalui Xendit.
+        </p>
 
         <div class="detail-grid">
+
           <div>
             <h3>TRIAL</h3>
-            <p>35 hari</p>
+            <p><strong>35 hari</strong></p>
             <p>1 cabang · 10 karyawan</p>
-            <button class="btn small" disabled>Trial</button>
+            <button class="btn small" disabled>
+              ${plan==='TRIAL'&&active?'Paket Aktif':'Trial'}
+            </button>
           </div>
 
           <div>
             <h3>PRO</h3>
-            <p>${fmtMoney(s.priceMonthly)} / 30 hari</p>
-            <p>${fmtMoney(s.priceYearly)} / 12 bulan</p>
+            <p><strong>${fmtMoney(49000)}</strong> / 30 hari</p>
+            <p><strong>${fmtMoney(490000)}</strong> / 12 bulan</p>
             <p>3 cabang · 21 karyawan</p>
-            <button class="btn small" disabled>Segera tersedia</button>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <button class="btn small" onclick="selectSubscriptionPlan('PRO','MONTH')">
+                PRO · 30 Hari
+              </button>
+              <button class="btn small" onclick="selectSubscriptionPlan('PRO','YEAR')">
+                PRO · 12 Bulan
+              </button>
+            </div>
           </div>
 
           <div>
             <h3>PRO MAX</h3>
-            <p>${fmtMoney(149000)} / 30 hari</p>
-            <p>${fmtMoney(1490000)} / 12 bulan</p>
+            <p><strong>${fmtMoney(149000)}</strong> / 30 hari</p>
+            <p><strong>${fmtMoney(1490000)}</strong> / 12 bulan</p>
             <p>Unlimited cabang · Unlimited karyawan</p>
-            <button class="btn small" disabled>Segera tersedia</button>
+
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+              <button class="btn small" onclick="selectSubscriptionPlan('PRO_MAX','MONTH')">
+                PRO MAX · 30 Hari
+              </button>
+              <button class="btn small" onclick="selectSubscriptionPlan('PRO_MAX','YEAR')">
+                PRO MAX · 12 Bulan
+              </button>
+            </div>
           </div>
+
         </div>
       </div>
     `;
@@ -490,6 +516,51 @@ async function subscriptionPage(){
     app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p style="color:#f66">'+String(e.message||e)+'</p></div>';
   }
 }
+
+window.selectSubscriptionPlan=async function(plan,period){
+  const prices={
+    PRO:{MONTH:49000,YEAR:490000},
+    PRO_MAX:{MONTH:149000,YEAR:1490000}
+  };
+
+  const amount=prices?.[plan]?.[period];
+  if(!amount){
+    alert('Paket atau periode subscription tidak valid.');
+    return;
+  }
+
+  const label=plan==='PRO_MAX'?'PRO MAX':'PRO';
+  const periodLabel=period==='YEAR'?'12 Bulan':'30 Hari';
+
+  const confirmed=confirm(
+    `Berlangganan ${label} ${periodLabel}\\n\\n`+
+    `Harga: Rp ${amount.toLocaleString('id-ID')}\\n\\n`+
+    `Lanjut ke pembayaran Xendit?`
+  );
+
+  if(!confirmed)return;
+
+  try{
+    const r=await api('subscription/order',{
+      method:'POST',
+      body:JSON.stringify({
+        plan,
+        billingPeriod:period
+      })
+    });
+
+    const paymentUrl=r?.paymentUrl||r?.order?.paymentUrl;
+
+    if(!paymentUrl){
+      throw new Error('Payment Link Xendit tidak diterima dari server.');
+    }
+
+    window.location.href=paymentUrl;
+  }catch(error){
+    console.error('Subscription order error:',error);
+    alert(`Gagal membuat pembayaran:\\n${error?.message||error}`);
+  }
+};
 
 function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){go(b.dataset.nav);document.getElementById('sidebar').classList.remove('open')}});window.onhashchange=render;
