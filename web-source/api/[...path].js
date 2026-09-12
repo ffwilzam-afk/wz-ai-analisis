@@ -85,6 +85,54 @@ async function schema(){
     );
     CREATE INDEX IF NOT EXISTS wz_shift_reports_date_idx ON wz_shift_reports(date);
     CREATE INDEX IF NOT EXISTS wz_shift_reports_employee_idx ON wz_shift_reports(employee_id);
+    CREATE TABLE IF NOT EXISTS wz_subscriptions(
+      id BIGSERIAL PRIMARY KEY,
+      business_id TEXT NOT NULL UNIQUE REFERENCES wz_businesses(id),
+      plan TEXT NOT NULL DEFAULT 'TRIAL'
+        CHECK (plan IN ('TRIAL','PRO','PRO_MAX')),
+      status TEXT NOT NULL DEFAULT 'ACTIVE'
+        CHECK (status IN ('ACTIVE','EXPIRED','CANCELLED','SUSPENDED')),
+      trial_started_at TIMESTAMPTZ,
+      trial_ends_at TIMESTAMPTZ,
+      current_period_start TIMESTAMPTZ,
+      current_period_end TIMESTAMPTZ,
+      payment_provider TEXT,
+      payment_customer_id TEXT,
+      payment_subscription_id TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS wz_subscriptions_status_idx
+      ON wz_subscriptions(status);
+    CREATE INDEX IF NOT EXISTS wz_subscriptions_period_end_idx
+      ON wz_subscriptions(current_period_end);
+
+    CREATE TABLE IF NOT EXISTS wz_subscription_plans(
+      plan TEXT PRIMARY KEY
+        CHECK (plan IN ('TRIAL','PRO','PRO_MAX')),
+      duration_days INTEGER,
+      max_branches INTEGER,
+      max_employees INTEGER,
+      price_monthly NUMERIC NOT NULL DEFAULT 0,
+      price_yearly NUMERIC NOT NULL DEFAULT 0,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    INSERT INTO wz_subscription_plans
+      (plan,duration_days,max_branches,max_employees,price_monthly,price_yearly)
+    VALUES
+      ('TRIAL',35,1,10,0,0),
+      ('PRO',30,3,21,49000,490000),
+      ('PRO_MAX',30,NULL,NULL,149000,1490000)
+    ON CONFLICT (plan) DO UPDATE SET
+      duration_days=EXCLUDED.duration_days,
+      max_branches=EXCLUDED.max_branches,
+      max_employees=EXCLUDED.max_employees,
+      price_monthly=EXCLUDED.price_monthly,
+      price_yearly=EXCLUDED.price_yearly,
+      updated_at=NOW();
+
     CREATE TABLE IF NOT EXISTS wz_push_subscriptions(
       id BIGSERIAL PRIMARY KEY,user_id BIGINT NOT NULL REFERENCES wz_users(id) ON DELETE CASCADE,
       endpoint TEXT NOT NULL,business_id TEXT REFERENCES wz_businesses(id),p256dh TEXT NOT NULL,auth TEXT NOT NULL,
@@ -153,6 +201,88 @@ async function employeeFor(id,businessId){
   const r=await getPool().query('SELECT id,name,branch_id AS "branchId",active FROM wz_employees WHERE id=$1 AND business_id=$2',[String(id),String(businessId)]);
   return r.rows[0]||null;
 }
+async function getSubscriptionAccess(businessId){
+  const p=getPool();
+
+  const r=await p.query(`
+    SELECT
+      s.business_id AS "businessId",
+      s.plan,
+      CASE
+        WHEN s.status IN ('CANCELLED','SUSPENDED') THEN s.status
+        WHEN s.plan='TRIAL'
+          AND s.trial_ends_at IS NOT NULL
+          AND s.trial_ends_at <= NOW()
+        THEN 'EXPIRED'
+        WHEN s.current_period_end IS NOT NULL
+          AND s.current_period_end <= NOW()
+        THEN 'EXPIRED'
+        ELSE s.status
+      END AS status,
+      s.trial_started_at AS "trialStartedAt",
+      s.trial_ends_at AS "trialEndsAt",
+      s.current_period_start AS "currentPeriodStart",
+      s.current_period_end AS "currentPeriodEnd",
+      p.duration_days AS "durationDays",
+      p.max_branches AS "maxBranches",
+      p.max_employees AS "maxEmployees",
+      p.price_monthly AS "priceMonthly",
+      p.price_yearly AS "priceYearly"
+    FROM wz_subscriptions s
+    LEFT JOIN wz_subscription_plans p ON p.plan=s.plan
+    WHERE s.business_id=$1
+    LIMIT 1
+  `,[businessId]);
+
+  if(!r.rowCount){
+    return {
+      plan:null,
+      status:'EXPIRED',
+      maxBranches:0,
+      maxEmployees:0,
+      activeBranches:0,
+      activeEmployees:0,
+      canCreateBranch:false,
+      canCreateEmployee:false,
+      isReadOnly:true
+    };
+  }
+
+  const sub=r.rows[0];
+
+  const usage=await p.query(`
+    SELECT
+      (SELECT COUNT(*)::int
+         FROM wz_branches
+        WHERE business_id=$1
+          AND active=true) AS "activeBranches",
+      (SELECT COUNT(*)::int
+         FROM wz_employees
+        WHERE business_id=$1
+          AND active=true) AS "activeEmployees"
+  `,[businessId]);
+
+  const u=usage.rows[0];
+  const activeBranches=Number(u.activeBranches||0);
+  const activeEmployees=Number(u.activeEmployees||0);
+
+  const maxBranches=sub.maxBranches===null ? null : Number(sub.maxBranches);
+  const maxEmployees=sub.maxEmployees===null ? null : Number(sub.maxEmployees);
+
+  const isActive=sub.status==='ACTIVE';
+
+  return {
+    ...sub,
+    maxBranches,
+    maxEmployees,
+    activeBranches,
+    activeEmployees,
+    canCreateBranch:isActive && (maxBranches===null || activeBranches<maxBranches),
+    canCreateEmployee:isActive && (maxEmployees===null || activeEmployees<maxEmployees),
+    isReadOnly:!isActive
+  };
+}
+
 function validMoney(n){return Number.isFinite(Number(n))&&Number(n)>=0;}
 function validDate(value){return /^\d{4}-\d{2}-\d{2}$/.test(String(value||''));}
 function validTransaction(t){
@@ -178,7 +308,14 @@ async function handler(req,res){
         await c.query('INSERT INTO wz_branches(id,name,active,business_id) VALUES($1,$2,true,$3)',[branchId,branchName,businessId]);
         await c.query("INSERT INTO wz_employees(id,name,role,branch_id,salary,target,active,business_id) VALUES($1,$2,'Owner',$3,2000000,4500000,true,$4)",[employeeId,ownerName,branchId,businessId]);
         const ur=await c.query("INSERT INTO wz_users(username,password_hash,role,name,employee_id,business_id) VALUES($1,$2,'owner',$3,$4,$5) RETURNING id",[username,hashPassword(password),ownerName,employeeId,businessId]);
-        await c.query('INSERT INTO wz_app_states(business_id,data) VALUES($1,$2::jsonb)',[businessId,'{}']);tokenValue=token();await c.query("INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '30 days')",[tokenHash(tokenValue),ur.rows[0].id]);await c.query('COMMIT');return send(res,200,{ok:true,business:{businessId,name:businessName},user:{username,role:'owner',name:ownerName,employeeId,businessId}}, {'Set-Cookie':cookie('wz_session',tokenValue,60*60*24*30)});
+        await c.query('INSERT INTO wz_app_states(business_id,data) VALUES($1,$2::jsonb)',[businessId,'{}']);
+        await c.query(`
+          INSERT INTO wz_subscriptions
+            (business_id,plan,status,trial_started_at,trial_ends_at,current_period_start,current_period_end)
+          VALUES
+            ($1,'TRIAL','ACTIVE',NOW(),NOW()+INTERVAL '35 days',NOW(),NOW()+INTERVAL '35 days')
+          ON CONFLICT (business_id) DO NOTHING
+        `,[businessId]);tokenValue=token();await c.query("INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '30 days')",[tokenHash(tokenValue),ur.rows[0].id]);await c.query('COMMIT');return send(res,200,{ok:true,business:{businessId,name:businessName},user:{username,role:'owner',name:ownerName,employeeId,businessId}}, {'Set-Cookie':cookie('wz_session',tokenValue,60*60*24*30)});
       }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
     }
     if(path==='auth/login' && req.method==='POST'){
@@ -216,6 +353,73 @@ async function handler(req,res){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       const b=await body(req);if(b.endpoint)await getPool().query('DELETE FROM wz_push_subscriptions WHERE user_id=$1 AND endpoint=$2',[u.id,String(b.endpoint)]);return send(res,200,{ok:true});
     }
+    if(path==='subscription' && req.method==='GET'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Unauthorized'});
+
+      const r=await getPool().query(`
+        SELECT
+          s.business_id AS "businessId",
+          s.plan,
+          CASE
+            WHEN s.plan='TRIAL'
+              AND s.trial_ends_at IS NOT NULL
+              AND s.trial_ends_at <= NOW()
+              AND s.status='ACTIVE'
+            THEN 'EXPIRED'
+            WHEN s.current_period_end IS NOT NULL
+              AND s.current_period_end <= NOW()
+              AND s.status='ACTIVE'
+            THEN 'EXPIRED'
+            ELSE s.status
+          END AS status,
+          s.trial_started_at AS "trialStartedAt",
+          s.trial_ends_at AS "trialEndsAt",
+          s.current_period_start AS "currentPeriodStart",
+          s.current_period_end AS "currentPeriodEnd",
+          p.duration_days AS "durationDays",
+          p.max_branches AS "maxBranches",
+          p.max_employees AS "maxEmployees",
+          p.price_monthly AS "priceMonthly",
+          p.price_yearly AS "priceYearly"
+        FROM wz_subscriptions s
+        LEFT JOIN wz_subscription_plans p ON p.plan=s.plan
+        WHERE s.business_id=$1
+        LIMIT 1
+      `,[u.business_id]);
+
+      if(!r.rowCount){
+        return send(res,404,{ok:false,error:'Subscription bisnis belum tersedia.'});
+      }
+
+      const sub=r.rows[0];
+
+      const counts=await getPool().query(`
+        SELECT
+          (SELECT COUNT(*)::int
+             FROM wz_branches
+            WHERE business_id=$1
+              AND active=true) AS "activeBranches",
+          (SELECT COUNT(*)::int
+             FROM wz_employees
+            WHERE business_id=$1
+              AND active=true) AS "activeEmployees"
+      `,[u.business_id]);
+
+      const usage=counts.rows[0];
+
+      return send(res,200,{
+        ok:true,
+        subscription:{
+          ...sub,
+          usage:{
+            activeBranches:usage.activeBranches,
+            activeEmployees:usage.activeEmployees
+          }
+        }
+      });
+    }
+
     if(path==='business' && req.method==='GET'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       const p=getPool();
@@ -263,6 +467,27 @@ async function handler(req,res){
 
       if(name.length>100)
         return send(res,400,{ok:false,error:'Nama cabang terlalu panjang.'});
+
+      const access=await getSubscriptionAccess(u.business_id);
+
+      if(access.isReadOnly)
+        return send(res,403,{
+          ok:false,
+          code:'SUBSCRIPTION_REQUIRED',
+          error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'
+        });
+
+      if(!access.canCreateBranch)
+        return send(res,403,{
+          ok:false,
+          code:'BRANCH_LIMIT_REACHED',
+          plan:access.plan,
+          limit:access.maxBranches,
+          usage:access.activeBranches,
+          error:access.maxBranches===null
+            ?'Tidak dapat menambah cabang saat ini.'
+            :`Batas cabang paket ${access.plan} adalah ${access.maxBranches}. Silakan upgrade paket untuk menambah cabang.`
+        });
 
       const id='B'+crypto.randomBytes(5).toString('hex').toUpperCase();
 
@@ -402,6 +627,13 @@ async function handler(req,res){
     }
     if(path==='sync-business' && req.method==='POST'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)
+        return send(res,403,{
+          ok:false,
+          code:'SUBSCRIPTION_REQUIRED',
+          error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'
+        });
       const b=await body(req),txs=Array.isArray(b.transactions)?b.transactions:[],shifts=Array.isArray(b.shiftReports)?b.shiftReports:[];
       if(u.role==='employee'){
         if(!u.employee_id)return send(res,403,{ok:false,error:'Akun karyawan tidak terhubung ke ID karyawan.'});
@@ -433,6 +665,13 @@ async function handler(req,res){
     }
     if(path==='transaction' && req.method==='POST'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)
+        return send(res,403,{
+          ok:false,
+          code:'SUBSCRIPTION_REQUIRED',
+          error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'
+        });
       const t=await body(req);if(!t.id||!t.date||!t.employeeId)return send(res,400,{ok:false,error:'Data transaksi tidak lengkap.'});
       if(!validTransaction(t))return send(res,400,{ok:false,error:'Nilai transaksi tidak valid.'});
       if(u.role==='employee'&&String(t.employeeId)!==String(u.employee_id))return send(res,403,{ok:false,error:'Karyawan hanya boleh membuat transaksi atas namanya sendiri.'});
@@ -445,7 +684,15 @@ async function handler(req,res){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});const b=await body(req);const r=await getPool().query("UPDATE wz_transactions SET status='VOID',updated_at=NOW() WHERE id=$1 AND business_id=$4 AND ($2<>'employee' OR employee_id=$3) RETURNING id",[b.id,u.role,u.employee_id,u.business_id]);if(!r.rowCount)return send(res,404,{ok:false,error:'Transaksi tidak ditemukan atau tidak boleh diubah.'});return send(res,200,{ok:true});
     }
     if(path==='shift-report' && req.method==='POST'){
-      const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});const r=await body(req);if(!r.id||!r.date||!r.employeeId)return send(res,400,{ok:false,error:'Data shift tidak lengkap.'});
+      const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)
+        return send(res,403,{
+          ok:false,
+          code:'SUBSCRIPTION_REQUIRED',
+          error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'
+        });
+      const r=await body(req);if(!r.id||!r.date||!r.employeeId)return send(res,400,{ok:false,error:'Data shift tidak lengkap.'});
       if(Number(r.serviceTotal||0)<=0)return send(res,400,{ok:false,error:'Laporan shift wajib memiliki minimal 1 layanan.'});
       if(Number(r.totalPayment||0)<=0)return send(res,400,{ok:false,error:'Total pembayaran laporan shift harus lebih dari Rp0.'});if(u.role==='employee'&&String(r.employeeId)!==String(u.employee_id))return send(res,403,{ok:false,error:'Karyawan hanya boleh menyimpan shift miliknya.'});const re=await employeeFor(r.employeeId,u.business_id);if(!re)return send(res,400,{ok:false,error:'Karyawan tidak terdaftar.'});if(re.active===false)return send(res,400,{ok:false,error:'Karyawan sudah nonaktif.'});const cash=Number(r.cash||0),qris=Number(r.qris||0),opening=Number(r.openingCash||0),expense=Number(r.cashExpense||0),physical=Number(r.physicalCash||0);if([cash,qris,opening,expense,physical].some(n=>!validMoney(n)))return send(res,400,{ok:false,error:'Nilai kas shift tidak valid.'});const expected=opening+cash-expense,difference=physical-expected;if(Math.abs(difference)>0.001)return send(res,400,{ok:false,error:'Selisih kasir harus Rp 0.'});
       await getPool().query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22) ON CONFLICT(id) DO UPDATE SET customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW() WHERE wz_shift_reports.business_id=EXCLUDED.business_id`,[r.id,r.date,r.employeeId,r.employeeName||u.name,r.shiftType||null,Number(r.customers||0),Number(r.openingCash||0),Number(r.cash||0),Number(r.qris||0),Number(r.cashExpense||0),Number(r.physicalCash||0),Number(r.totalPayment||0),Number(r.expectedCash||0),Number(r.cashDifference||0),Number(r.serviceTotal||0),Number(r.productTotal||0),Number(r.totalOmzet||0),JSON.stringify(r.services||[]),JSON.stringify(r.products||[]),r.note||null,r.savedAt||new Date().toISOString(),u.business_id]);
@@ -474,6 +721,30 @@ async function handler(req,res){
       if(!branchId)return send(res,400,{ok:false,error:'Cabang wajib dipilih.'});
       const branchOk=await p.query('SELECT id FROM wz_branches WHERE id=$1 AND business_id=$2 AND active=true',[branchId,u.business_id]);if(!branchOk.rowCount)return send(res,400,{ok:false,error:'Cabang tidak ditemukan pada bisnis ini.'});
       if(!password)return send(res,400,{ok:false,error:'Password login wajib diisi.'});
+
+      if(req.method==='POST'){
+        const access=await getSubscriptionAccess(u.business_id);
+
+        if(access.isReadOnly)
+          return send(res,403,{
+            ok:false,
+            code:'SUBSCRIPTION_REQUIRED',
+            error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'
+          });
+
+        if(!access.canCreateEmployee)
+          return send(res,403,{
+            ok:false,
+            code:'EMPLOYEE_LIMIT_REACHED',
+            plan:access.plan,
+            limit:access.maxEmployees,
+            usage:access.activeEmployees,
+            error:access.maxEmployees===null
+              ?'Tidak dapat menambah karyawan saat ini.'
+              :`Batas karyawan paket ${access.plan} adalah ${access.maxEmployees}. Silakan upgrade paket untuk menambah karyawan.`
+          });
+      }
+
       const id=String(b.id||'').trim() || `E${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
       const role=String(b.role||'Barber'),salary=Number(b.salary)||0,target=Number(b.target)||0,username=String(b.username||defaultUsername(name)).trim();
       const client=await p.connect();
