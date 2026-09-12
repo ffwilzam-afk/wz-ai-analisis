@@ -418,7 +418,7 @@ function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['
 function navBtn(m){const unread=m[0]==='notifications'?(db.notifications||[]).filter(x=>!x.read).length:0;return `<button id="nav-${m[0]}" data-nav="${m[0]}">${m[1]} ${m[2]}${unread?` <span class="pill red" style="font-size:10px;padding:2px 6px">${unread}</span>`:''}</button>`}
 function go(key){if(!guard(key))return;location.hash=key;render()}
 async function subscriptionPage(){
-  const app=document.getElementById('app');
+  const app=document.getElementById('content');
   app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p>Memuat informasi subscription...</p></div>';
 
   try{
