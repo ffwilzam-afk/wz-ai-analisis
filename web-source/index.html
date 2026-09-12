@@ -178,12 +178,12 @@ const ACCESS={
   owner:[
     'dashboard','transactions','shiftReports','employees','customers',
     'services','finance','reports','operations','analytics',
-    'notifications','branches','profile','settings','system','auth'
+    'notifications','branches','profile','settings','system','subscription','auth'
   ],
   manager:[
     'dashboard','transactions','shiftReports','employees','customers',
     'services','finance','reports','operations','analytics',
-    'notifications','branches','settings','system','auth'
+    'notifications','branches','settings','system','subscription','auth'
   ],
   employee:[
     'dashboard','transactions','shiftReports','customers','services',
@@ -215,6 +215,7 @@ const menu=[
   ['profile','👤','Profil'],
   ['settings','⚙️','Pengaturan'],
   ['system','🛠️','Sistem & Data'],
+  ['subscription','💳','Berlangganan'],
   ['auth','🔐','Keamanan']
 ];
 
@@ -413,10 +414,84 @@ function businessDailyRevenue(iso){return ownerBusinessFeed().filter(x=>x.date==
 function getCustomer(id){return db.customers.find(x=>x.id===id)}
 function getEmployee(id){return db.employees.find(x=>x.id===id)}
 function getService(id){return db.services.find(x=>x.id===id)}
-function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','system','auth']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
+function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','system','subscription','auth']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
 function navBtn(m){const unread=m[0]==='notifications'?(db.notifications||[]).filter(x=>!x.read).length:0;return `<button id="nav-${m[0]}" data-nav="${m[0]}">${m[1]} ${m[2]}${unread?` <span class="pill red" style="font-size:10px;padding:2px 6px">${unread}</span>`:''}</button>`}
 function go(key){if(!guard(key))return;location.hash=key;render()}
-function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='system')systemPage();else if(key==='auth')auth();else dashboard()}
+async function subscriptionPage(){
+  const app=document.getElementById('app');
+  app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p>Memuat informasi subscription...</p></div>';
+
+  try{
+    const r=await api('/subscription');
+    if(!r.ok)throw new Error(r.error||'Gagal mengambil data subscription.');
+
+    const s=r.subscription||{};
+    const u=s.usage||{};
+    const plan=s.plan||'TRIAL';
+    const status=s.status||'EXPIRED';
+
+    const fmtMoney=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
+    const fmtDate=v=>v?new Date(v).toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}):'-';
+
+    const branchLimit=s.maxBranches===null?'Unlimited':s.maxBranches;
+    const employeeLimit=s.maxEmployees===null?'Unlimited':s.maxEmployees;
+
+    app.innerHTML=`
+      <div class="card">
+        <h2>💳 Berlangganan</h2>
+        <p style="color:var(--muted)">Kelola paket WZ MANAGE PRO untuk bisnis ini.</p>
+
+        <div class="detail-grid" style="margin-top:18px">
+          <div><strong>Paket</strong><span>${plan}</span></div>
+          <div><strong>Status</strong><span>${status}</span></div>
+          <div><strong>Berlaku sampai</strong><span>${fmtDate(s.currentPeriodEnd)}</span></div>
+          <div><strong>Mulai Trial</strong><span>${fmtDate(s.trialStartedAt)}</span></div>
+        </div>
+
+        <hr style="border:0;border-top:1px solid var(--line);margin:20px 0">
+
+        <h3>Penggunaan</h3>
+        <div class="detail-grid">
+          <div><strong>Cabang</strong><span>${u.activeBranches??0} / ${branchLimit}</span></div>
+          <div><strong>Karyawan</strong><span>${u.activeEmployees??0} / ${employeeLimit}</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3>Pilih Paket</h3>
+
+        <div class="detail-grid">
+          <div>
+            <h3>TRIAL</h3>
+            <p>35 hari</p>
+            <p>1 cabang · 10 karyawan</p>
+            <button class="btn small" disabled>Trial</button>
+          </div>
+
+          <div>
+            <h3>PRO</h3>
+            <p>${fmtMoney(s.priceMonthly)} / 30 hari</p>
+            <p>${fmtMoney(s.priceYearly)} / 12 bulan</p>
+            <p>3 cabang · 21 karyawan</p>
+            <button class="btn small" disabled>Segera tersedia</button>
+          </div>
+
+          <div>
+            <h3>PRO MAX</h3>
+            <p>${fmtMoney(149000)} / 30 hari</p>
+            <p>${fmtMoney(1490000)} / 12 bulan</p>
+            <p>Unlimited cabang · Unlimited karyawan</p>
+            <button class="btn small" disabled>Segera tersedia</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }catch(e){
+    app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p style="color:#f66">'+String(e.message||e)+'</p></div>';
+  }
+}
+
+function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){go(b.dataset.nav);document.getElementById('sidebar').classList.remove('open')}});window.onhashchange=render;
 
 function employeeDashboard(){const today=dateNow(),tx=db.transactions.filter(t=>t.date===today&&t.status==='SELESAI');document.getElementById('content').innerHTML=`<div class="dashboard-head"><div><span class="gold-label">EMPLOYEE WORKSPACE</span><div class="greeting">SELAMAT DATANG, ${currentUser.name.toUpperCase()}!</div><div class="subtle">Ringkasan pekerjaan hari ini · ${today}</div></div><button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button></div><section class="kpis">${kpi('🧾','Transaksi Hari Ini',tx.length,'transactions')}${kpi('👥','Pelanggan Terdaftar',db.customers.length,'customers')}${kpi('💈','Layanan Aktif',db.services.filter(s=>s.active).length,'services')}</section><div class="dashboard-grid"><section class="card"><div class="panel-title"><h3>AKSI KERJA</h3></div><div class="quick-grid"><div class="quick" onclick="openTransaction()"><span>🧾</span><b>Transaksi Baru</b></div><div class="quick" onclick="showWalkin()"><span>🚶</span><b>Walk-in</b></div><div class="quick" onclick="openCustomer()"><span>👤</span><b>Tambah Pelanggan</b></div><div class="quick" onclick="go('customers')"><span>🔎</span><b>Cari Pelanggan</b></div><div class="quick" onclick="go('services')"><span>📦</span><b>Lihat Layanan</b></div><div class="quick" onclick="go('operations')"><span>🕘</span><b>Absensi</b></div><div class="quick" onclick="go('shiftReports')"><span>📋</span><b>Tutup Shift</b></div></div></section><section class="card"><div class="panel-title"><h3>TRANSAKSI TERBARU</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>${tx.slice().reverse().slice(0,5).map(t=>`<div class="schedule-item"><span class="time">${t.date}</span><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'}</div></div><span class="tag">SELESAI</span></div>`).join('')||'<div class="empty">Belum ada transaksi hari ini.</div>'}</section></div><section class="section-head"><div><span class="gold-label">ACCESS LEVEL</span><h2>Akses Karyawan</h2><p>Perhitungan gaji, bonus, upah, dan data keuangan sensitif hanya dapat dilihat Owner/Manager.</p></div></section>`}
