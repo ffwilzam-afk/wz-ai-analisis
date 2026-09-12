@@ -479,7 +479,7 @@ async function handler(req,res){
       const client=await p.connect();
       try{
         await client.query('BEGIN');
-        await client.query(`INSERT INTO wz_employees(id,name,role,branch_id,salary,commission,target,active,business_id,updated_at) VALUES($1,$2,$3,$4,$5,0,$6,true,$7,NOW()) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,role=EXCLUDED.role,branch_id=EXCLUDED.branch_id,salary=EXCLUDED.salary,target=EXCLUDED.target,updated_at=NOW() WHERE wz_employees.business_id=EXCLUDED.business_id WHERE wz_employees.business_id=EXCLUDED.business_id`,[id,name,role,branchId,salary,target,u.business_id]);
+        await client.query(`INSERT INTO wz_employees(id,name,role,branch_id,salary,commission,target,active,business_id,updated_at) VALUES($1,$2,$3,$4,$5,0,$6,true,$7,NOW()) ON CONFLICT(id) DO UPDATE SET name=EXCLUDED.name,role=EXCLUDED.role,branch_id=EXCLUDED.branch_id,salary=EXCLUDED.salary,target=EXCLUDED.target,updated_at=NOW() WHERE wz_employees.business_id=EXCLUDED.business_id`,[id,name,role,branchId,salary,target,u.business_id]);
         const existing=await client.query('SELECT id FROM wz_users WHERE employee_id=$1 AND business_id=$2',[id,u.business_id]);
         const ph=hashPassword(password);
         if(existing.rowCount) await client.query('UPDATE wz_users SET username=$1,password_hash=$2,name=$3,role=\'employee\',active=true,updated_at=NOW() WHERE employee_id=$4 AND business_id=$5',[username,ph,name,id,u.business_id]);

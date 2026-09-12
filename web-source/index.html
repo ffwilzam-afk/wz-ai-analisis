@@ -1347,7 +1347,7 @@ async function saveBranch(id){
      });
    }
 
-   await syncBusiness();
+   await window.WZOnlineBusiness.sync();
    closeModal();
    toast(id?'Cabang diperbarui.':'Cabang ditambahkan.');
    render();
@@ -1863,7 +1863,9 @@ window.saveEmployee=async function(id){
       const existing=(db.employees||[]).find(e=>e.id===result.employee.id);
       if(existing)Object.assign(existing,result.employee); else db.employees.push(result.employee);
     }
-    await syncEmployeesFromServer();
+    if(typeof window.WZOnlineEmployee?.syncEmployeesFromServer==='function'){
+      await window.WZOnlineEmployee.syncEmployeesFromServer();
+    }
     closeModal();
     toast(id?'Data karyawan & akun online diperbarui.':'Karyawan & akun login online dibuat.');
   }catch(e){alert('Gagal menyimpan ke server: '+e.message);}
@@ -1877,7 +1879,9 @@ window.deleteEmployee=async function(id){
   if(!confirm('Hapus karyawan '+e.name+' beserta akun login karyawan ini?'))return;
   try{
     await api('employees?id='+encodeURIComponent(id),{method:'DELETE'});
-    await syncEmployeesFromServer();
+    if(typeof window.WZOnlineEmployee?.syncEmployeesFromServer==='function'){
+      await window.WZOnlineEmployee.syncEmployeesFromServer();
+    }
   }catch(err){alert('Gagal menghapus dari server: '+err.message);}
   void legacyDeleteEmployee;
 };
