@@ -978,11 +978,19 @@ async function handler(req,res){
         'SELECT id,name,active FROM wz_branches WHERE business_id=$1 ORDER BY id',
         [u.business_id]
       );
+      const state=await p.query(
+        'SELECT data FROM wz_app_states WHERE business_id=$1',
+        [u.business_id]
+      );
+      const notifications=state.rowCount&&state.rows[0]?.data&&Array.isArray(state.rows[0].data.notifications)
+        ? state.rows[0].data.notifications
+        : [];
       return send(res,200,{
         ok:true,
         transactions:tx.rows,
         shiftReports:sh.rows,
-        branches:branches.rows
+        branches:branches.rows,
+        notifications
       });
     }
 
@@ -1102,6 +1110,57 @@ async function handler(req,res){
 
       if(!r.rowCount)
         return send(res,404,{ok:false,error:'Cabang tidak ditemukan pada bisnis ini.'});
+
+      return send(res,200,{ok:true});
+    }
+
+    if(path==='notifications/read' && req.method==='POST'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      if(!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengubah notifikasi.'});
+
+      const b=await body(req);
+      const state=await getPool().query(
+        'SELECT data FROM wz_app_states WHERE business_id=$1',
+        [u.business_id]
+      );
+
+      if(!state.rowCount)
+        return send(res,404,{ok:false,error:'Data aplikasi bisnis tidak ditemukan.'});
+
+      const data=state.rows[0].data&&typeof state.rows[0].data==='object'
+        ? {...state.rows[0].data}
+        : {};
+
+      const notifications=Array.isArray(data.notifications)
+        ? data.notifications.map(item=>({...item}))
+        : [];
+
+      if(b?.all===true){
+        notifications.forEach(item=>{
+          item.read=true;
+          item.readAt=new Date().toISOString();
+        });
+      }else{
+        const id=String(b?.id||'');
+        if(!id)return send(res,400,{ok:false,error:'ID notifikasi wajib diisi.'});
+
+        const item=notifications.find(x=>String(x.id)===id);
+        if(!item)return send(res,404,{ok:false,error:'Notifikasi tidak ditemukan.'});
+
+        item.read=true;
+        item.readAt=new Date().toISOString();
+      }
+
+      data.notifications=notifications;
+
+      await getPool().query(
+        `UPDATE wz_app_states
+         SET data=$2::jsonb,updated_at=NOW()
+         WHERE business_id=$1`,
+        [u.business_id,JSON.stringify(data)]
+      );
 
       return send(res,200,{ok:true});
     }

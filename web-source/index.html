@@ -1751,9 +1751,7 @@ async function hydrateAppState(){
     const state=(r?.data&&typeof r.data==='object'&&!Array.isArray(r.data))?r.data:{};
     const hasState=Object.keys(state).length>0;
     if(hasState){
-      const serverNotifications=db.notifications;
       Object.assign(db,state);
-      db.notifications=serverNotifications;
     }
     appStateUpdatedAt=r.updatedAt||null;
     db.__onlineStateLoaded=true;
