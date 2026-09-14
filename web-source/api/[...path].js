@@ -1263,7 +1263,7 @@ async function handler(req,res){
 
     if(path==='employees' && req.method==='GET'){
       const u=await authUser(req);if(!u||!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Akses ditolak.'});
-      const r=await getPool().query(`SELECT e.id,e.name,e.role,e.branch_id AS "branchId",e.salary,e.commission,e.target,e.attendance,e.eval,e.active FROM wz_employees e WHERE e.business_id=$1 ORDER BY e.id`,[u.business_id]);
+      const r=await getPool().query(`SELECT e.id,e.name,e.role,e.branch_id AS "branchId",e.salary,e.commission,e.target,e.attendance,e.eval,e.active,(SELECT wu.username FROM wz_users wu WHERE wu.employee_id=e.id AND wu.business_id=e.business_id AND wu.active=true ORDER BY wu.id LIMIT 1) AS username FROM wz_employees e WHERE e.business_id=$1 ORDER BY e.id`,[u.business_id]);
       return send(res,200,{ok:true,employees:r.rows});
     }
     if(path==='employees' && (req.method==='POST'||req.method==='PUT')){

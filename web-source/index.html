@@ -244,7 +244,11 @@ function saveAccounts(){return true}
   return;
 })
 
-function accountForEmployee(id){return getAccounts().find(a=>a.role==='employee'&&a.employeeId===id)||null}
+function accountForEmployee(id){
+ const e=(db.employees||[]).find(e=>String(e.id)===String(id));
+ if(e?.username)return {username:e.username,role:'employee',employeeId:e.id};
+ return getAccounts().find(a=>a.role==='employee'&&a.employeeId===id)||null
+}
 function defaultEmployeePassword(name){return name.trim().toLowerCase().replace(/\s+/g,'')+'123'}
 function defaultEmployeeUsername(name){return name.trim().toLowerCase().replace(/[^a-z0-9]+/g,'')||'employee'}
 
@@ -1904,7 +1908,7 @@ async function syncEmployeesFromServer(){
     const server=Array.isArray(r?.employees)?r.employees:[];
     if(!Array.isArray(db.employees))db.employees=[];
     db.employees=server.map(se=>({
-      id:se.id,name:se.name,role:se.role||'Barber',branchId:se.branchId||null,
+      id:se.id,name:se.name,role:se.role||'Barber',branchId:se.branchId||null,username:se.username||'',
       salary:Number(se.salary)||0,commission:Number(se.commission)||0,target:Number(se.target)||0,
       attendance:Number(se.attendance)||0,eval:Number(se.eval)||0,active:se.active!==false
     }));
