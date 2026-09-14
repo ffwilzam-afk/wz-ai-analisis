@@ -1882,12 +1882,18 @@ async function fullHydrate(){
   if(!currentUser)return false;
   if(typeof Notification!=='undefined'&&Notification.permission==='granted')registerPushSubscription().catch(()=>{});
   await hydrateAppState();
-  if(['owner','manager'].includes(currentUser.role))await syncEmployeesFromServer();
-  else{
-    const e=(db.employees||[]).find(x=>String(x.id)===String(currentUser.employeeId));
-    if(e){e.name=currentUser.name||e.name;e.branchId=currentUser.branchId||e.branchId;e.active=true;}
+
+  try{
+    const r=await api('profile');
+    currentUser={...currentUser,...(r?.user||{}),...(r?.profile||{})};
+  }catch{}
+
+  if(['owner','manager'].includes(currentUser.role)){
+    await syncEmployeesFromServer();
+  }else{
+    await syncMyEmployeeFromServer();
   }
-  try{const r=await api('profile');currentUser={...currentUser,...(r?.user||{}),...(r?.profile||{})};}catch{}
+
   return syncBusiness();
 }
 
@@ -1908,6 +1914,41 @@ async function syncEmployeesFromServer(){
   }catch(e){console.warn('Online employee sync failed:',e.message||e);return false;}
 }
 window.WZOnlineEmployee.syncEmployeesFromServer=syncEmployeesFromServer;
+async function syncMyEmployeeFromServer(){
+  if(!currentUser?.employeeId)return false;
+  try{
+    const r=await api('employees/me');
+    const se=r?.employee;
+    if(!se)return false;
+
+    const mapped={
+      id:se.id,
+      name:se.name,
+      role:se.role||'Barber',
+      branchId:se.branchId||null,
+      salary:Number(se.salary)||0,
+      commission:Number(se.commission)||0,
+      target:Number(se.target)||0,
+      attendance:Number(se.attendance)||0,
+      eval:Number(se.eval)||0,
+      active:se.active!==false
+    };
+
+    if(!Array.isArray(db.employees))db.employees=[];
+    const idx=db.employees.findIndex(e=>String(e.id)===String(mapped.id));
+
+    if(idx>=0)db.employees[idx]=mapped;
+    else db.employees.push(mapped);
+
+    queueAppStateSave();
+    return true;
+  }catch(e){
+    console.warn('Online my-employee sync failed:',e.message||e);
+    return false;
+  }
+}
+window.WZOnlineEmployee.syncMyEmployeeFromServer=syncMyEmployeeFromServer;
+
 
 const REGISTER_MODAL_HTML=`<div id="registerBusinessModal" class="modal" style="display:none"><div class="modal-backdrop" onclick="closeRegisterBusiness()"></div><div class="modal-card" style="max-width:540px;position:relative;z-index:2"><div class="panel-title" style="margin-bottom:10px"><h3 style="margin:0">DAFTAR BARBERSHOP</h3><button type="button" class="btn small" onclick="closeRegisterBusiness()">Tutup</button></div><p class="muted" style="margin:0 0 14px;line-height:1.5">Buat bisnis baru beserta akun Owner dan cabang pertama.</p><form id="registerBusinessForm" class="register-form" onsubmit="submitRegisterBusiness(event)"><label>Nama Bisnis<input id="regBusinessName" required maxlength="100" placeholder="Contoh: WZ Barbershop"></label><label>Nama Owner<input id="regOwnerName" required maxlength="100" placeholder="Nama pemilik"></label><label>Nama Cabang Pertama<input id="regBranchName" required maxlength="100" placeholder="Contoh: Cabang Utama"></label><label>Username Owner<input id="regUsername" required minlength="3" maxlength="50" pattern="[a-z0-9._-]+" placeholder="contoh: ownerwz"></label><label>Password<input id="regPassword" type="password" required minlength="6" maxlength="128" placeholder="Minimal 6 karakter"></label><label>Konfirmasi Password<input id="regPassword2" type="password" required minlength="6" maxlength="128" placeholder="Ulangi password"></label><div class="login-error" id="registerError" style="display:none"></div><div class="dialog-actions" style="margin-top:14px"><button type="button" class="btn" onclick="closeRegisterBusiness()">BATAL</button><button class="btn primary" type="submit" id="registerSubmit">BUAT BISNIS</button></div></form></div></div>`;
 function openRegisterBusiness(){

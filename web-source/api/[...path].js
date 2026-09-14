@@ -1245,6 +1245,22 @@ async function handler(req,res){
       await sendShiftPushes({...r,businessId:u.business_id},u.id).catch(()=>{});
       return send(res,200,{ok:true,id:r.id});
     }
+    if(path==='employees/me' && req.method==='GET'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      if(!u.employee_id)return send(res,404,{ok:false,error:'Akun belum terhubung ke data karyawan.'});
+
+      const r=await getPool().query(
+        `SELECT id,name,role,branch_id AS "branchId",salary,commission,target,attendance,eval,active
+         FROM wz_employees
+         WHERE id=$1 AND business_id=$2`,
+        [u.employee_id,u.business_id]
+      );
+
+      if(!r.rowCount)return send(res,404,{ok:false,error:'Data karyawan tidak ditemukan.'});
+      return send(res,200,{ok:true,employee:r.rows[0]});
+    }
+
     if(path==='employees' && req.method==='GET'){
       const u=await authUser(req);if(!u||!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Akses ditolak.'});
       const r=await getPool().query(`SELECT e.id,e.name,e.role,e.branch_id AS "branchId",e.salary,e.commission,e.target,e.attendance,e.eval,e.active FROM wz_employees e WHERE e.business_id=$1 ORDER BY e.id`);
