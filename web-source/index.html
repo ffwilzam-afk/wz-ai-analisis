@@ -51,6 +51,13 @@ a{text-decoration:none;color:inherit}
 .mobile-menu{display:none}.empty{padding:28px;text-align:center;color:#777f89}.toast{display:none;position:fixed;right:18px;bottom:18px;background:#142219;border:1px solid #356648;color:#bcf1cf;padding:12px 15px;border-radius:9px;z-index:70}
 footer{text-align:center;color:#5e646d;font-size:10px;padding:34px 0 10px}
 @media(max-width:1100px){.hero{grid-template-columns:190px 1fr}.emblem{display:none}.kpis{grid-template-columns:repeat(3,1fr)}.two{grid-template-columns:1fr}}
+
+html,body{width:100%;max-width:100%;overflow-x:hidden}
+*,*::before,*::after{box-sizing:border-box}
+img,video,canvas,svg{max-width:100%}
+button,input,select,textarea{max-width:100%}
+.main{max-width:100%;overflow-x:hidden}
+.content{width:100%;max-width:1500px}
 @media(max-width:800px){.sidebar{transform:translateX(-100%);transition:.2s}.sidebar.open{transform:translateX(0)}.main{margin-left:0;width:100%}.hamb{display:block;background:transparent;border:0;color:#fff;font-size:20px}.mobile-menu{display:block}.content{padding:14px}.topbar{padding:0 14px}.hero{grid-template-columns:1fr;text-align:center}.hero-photo{height:280px}.profile-grid div{grid-template-columns:80px 1fr;text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.form,.detail-grid{grid-template-columns:1fr}.form .full{grid-column:auto}.top-actions .save-state{display:none}}
 
 /* WZ PRO dashboard upgrade */
@@ -1452,7 +1459,17 @@ function historicalPrintContentBase(){
  return `<h1>WZ MANAGE PRO · ${title}</h1><div class="print-muted">Dicetak ${new Date().toLocaleString('id-ID')}</div>${body}`;
 }
 function historicalPrintContent(){if(analyticsHistory.level==='detail')return `<h1>WZ MANAGE PRO · Detail Hari ${analyticsHistory.day}</h1>${analyticsDetail(analyticsHistory.day)}`;return historicalPrintContentBase()}
-function printAnalyticsHistory(){const print=document.getElementById('historicalPrint');if(print){print.innerHTML=historicalPrintContent();window.print()}}
+function printAnalyticsHistory(){
+  const print=document.getElementById('historicalPrint');
+  if(!print)return;
+  print.innerHTML=historicalPrintContent();
+
+  if(window.WZAndroid&&typeof window.WZAndroid.print==='function'){
+    window.WZAndroid.print();
+  }else{
+    window.print();
+  }
+}
 function historicalView(){
  if(analyticsHistory.level==='detail')return analyticsDetail(analyticsHistory.day);
  if(analyticsHistory.level==='months'){const months=analyticsHistoryMonths(analyticsHistory.year),rows=months.map(month=>{const metric=analyticsPeriodMetric(month);return `<tr><td><button class="historical-link" onclick="setAnalyticsHistory('days','${month}')">${month}</button></td><td>${metric.pelanggan}</td><td>${rupiah(metric.omzet)}</td><td>${rupiah(metric.pengeluaran)}</td><td>${rupiah(metric.laba)}</td></tr>`}),metric=analyticsPeriodMetric(analyticsHistory.year);return `<div class="historical-toolbar"><h3>Rekap Historis · Tahun ${analyticsHistory.year}</h3><div><button class="btn small" onclick="setAnalyticsHistory('years')">← Tahun</button> <button class="btn small" onclick="printAnalyticsHistory()">🖨 Print Tahun</button></div></div>${analyticsHistoryTable(metric,rows,['Bulan','Pelanggan','Omzet','Pengeluaran','Laba Bersih'],'TOTAL TAHUN')}`}
@@ -1880,6 +1897,25 @@ async function syncBusiness(){
 }
 window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[]};
 
+async function syncNativeFcmToken(){
+  if(!currentUser)return false;
+
+  const fcmToken=String(window.WZNativeFcmToken||'').trim();
+  if(!fcmToken)return false;
+
+  try{
+    await api('push/fcm-token',{
+      method:'POST',
+      body:JSON.stringify({token:fcmToken})
+    });
+    return true;
+  }catch(e){
+    console.warn('FCM token sync failed:',e.message||e);
+    return false;
+  }
+}
+
+window.WZOnlineFcm={sync:syncNativeFcmToken};
 async function fullHydrate(){
   if(!currentUser)return false;
   if(typeof Notification!=='undefined'&&Notification.permission==='granted')registerPushSubscription().catch(()=>{});
@@ -1895,6 +1931,8 @@ async function fullHydrate(){
   }else{
     await syncMyEmployeeFromServer();
   }
+
+  await syncNativeFcmToken();
 
   return syncBusiness();
 }

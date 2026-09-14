@@ -1,4 +1,7 @@
-plugins { id 'com.android.application' }
+plugins {
+    id 'com.android.application'
+    id 'com.google.gms.google-services'
+}
 
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file('keystore/keystore.properties')
@@ -8,6 +11,7 @@ if (keystorePropertiesFile.exists()) {
 
 android {
     namespace 'com.wzmanagepro.app'
+    buildToolsVersion '36.0.0'
     compileSdk 36
 
     signingConfigs {
@@ -23,7 +27,7 @@ android {
 
     defaultConfig {
         applicationId 'com.wzmanagepro.app'
-        minSdk 23
+        minSdk 29
         targetSdk 36
         versionCode 1
         versionName '1.0.0'
@@ -36,4 +40,9 @@ android {
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
+}
+
+dependencies {
+    implementation platform('com.google.firebase:firebase-bom:34.19.0')
+    implementation 'com.google.firebase:firebase-messaging'
 }

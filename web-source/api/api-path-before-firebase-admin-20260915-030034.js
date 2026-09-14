@@ -1,8 +1,6 @@
 const { Pool } = require('pg');
 const crypto = require('crypto');
 const webpush = require('web-push');
-const { getApps, initializeApp, cert } = require('firebase-admin/app');
-const { getMessaging } = require('firebase-admin/messaging');
 
 let pool;
 function databaseUrl(){
@@ -35,75 +33,7 @@ function safeServerError(error){
   const message = error && error.message ? String(error.message) : 'Server error';
   return process.env.NODE_ENV === 'production' ? 'Server sedang tidak tersedia. Silakan coba lagi nanti.' : message;
 }
-function firebaseConfigured(){
-  return !!(
-    process.env.FIREBASE_PROJECT_ID &&
-    process.env.FIREBASE_CLIENT_EMAIL &&
-    process.env.FIREBASE_PRIVATE_KEY
-  );
-}
-
-function getFirebaseMessaging(){
-  if(!firebaseConfigured())return null;
-
-  const app=getApps().length
-    ? getApps()[0]
-    : initializeApp({
-        credential:cert({
-          projectId:process.env.FIREBASE_PROJECT_ID,
-          clientEmail:process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey:process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g,'\n')
-        })
-      });
-
-  return getMessaging(app);
-}
-
 function pushConfigured(){return !!(process.env.VAPID_PUBLIC_KEY&&process.env.VAPID_PRIVATE_KEY&&process.env.VAPID_SUBJECT)}
-async function sendFcmNotification({businessId,senderId,title,body,data={}}){
-  const messaging=getFirebaseMessaging();
-  if(!messaging || !businessId)return;
-
-  const p=getPool();
-  const recipients=await p.query(
-    `SELECT id,token
-     FROM wz_fcm_tokens
-     WHERE business_id=$1
-       AND user_id<>$2`,
-    [businessId,senderId]
-  );
-
-  await Promise.all(recipients.rows.map(async row=>{
-    try{
-      await messaging.send({
-        token:row.token,
-        notification:{title,body},
-        data:Object.fromEntries(
-          Object.entries(data).map(([k,v])=>[String(k),String(v)])
-        ),
-        android:{
-          priority:'high',
-          notification:{
-            channelId:'wz_manage_pro',
-            sound:'default'
-          }
-        }
-      });
-    }catch(error){
-      const code=String(error?.code||'');
-      if(
-        code==='messaging/registration-token-not-registered' ||
-        code==='messaging/invalid-registration-token'
-      ){
-        await p.query(
-          'DELETE FROM wz_fcm_tokens WHERE id=$1 AND business_id=$2',
-          [row.id,businessId]
-        );
-      }
-    }
-  }));
-}
-
 async function sendShiftPushes(report,senderId){
   if(!pushConfigured())return;
   webpush.setVapidDetails(process.env.VAPID_SUBJECT,process.env.VAPID_PUBLIC_KEY,process.env.VAPID_PRIVATE_KEY);
@@ -570,16 +500,6 @@ async function handler(req,res){
       if(fcmToken.length>4096)return send(res,400,{ok:false,error:'FCM token tidak valid.'});
 
       const p=getPool();
-
-      // Satu token perangkat hanya boleh aktif pada akun/tenant yang sedang login.
-      // Ini hanya membersihkan data token FCM, bukan data bisnis/tenant.
-      await p.query(
-        `DELETE FROM wz_fcm_tokens
-         WHERE token=$1
-           AND NOT (business_id=$2 AND user_id=$3)`,
-        [fcmToken,u.business_id,u.id]
-      );
-
       await p.query(
         `INSERT INTO wz_fcm_tokens(user_id,business_id,token,updated_at)
          VALUES($1,$2,$3,NOW())
@@ -1378,13 +1298,6 @@ async function handler(req,res){
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       await Promise.all(shifts.map(shift=>sendShiftPushes({...shift,businessId:u.business_id},u.id).catch(()=>{})));
-      await Promise.all(shifts.map(shift=>sendFcmNotification({
-        businessId:u.business_id,
-        senderId:u.id,
-        title:'WZ MANAGE PRO',
-        body:`Laporan shift ${shift.employeeName||shift.employeeId||''} tersedia.`,
-        data:{type:'shift_report',reportId:shift.id}
-      }).catch(()=>{})));
       return send(res,200,{ok:true,transactions:txs.length,shiftReports:shifts.length});
     }
     if(path==='transaction' && req.method==='POST'){
@@ -1421,13 +1334,6 @@ async function handler(req,res){
       if(Number(r.totalPayment||0)<=0)return send(res,400,{ok:false,error:'Total pembayaran laporan shift harus lebih dari Rp0.'});if(u.role==='employee'&&String(r.employeeId)!==String(u.employee_id))return send(res,403,{ok:false,error:'Karyawan hanya boleh menyimpan shift miliknya.'});const re=await employeeFor(r.employeeId,u.business_id);if(!re)return send(res,400,{ok:false,error:'Karyawan tidak terdaftar.'});if(re.active===false)return send(res,400,{ok:false,error:'Karyawan sudah nonaktif.'});const cash=Number(r.cash||0),qris=Number(r.qris||0),opening=Number(r.openingCash||0),expense=Number(r.cashExpense||0),physical=Number(r.physicalCash||0);if([cash,qris,opening,expense,physical].some(n=>!validMoney(n)))return send(res,400,{ok:false,error:'Nilai kas shift tidak valid.'});const expected=opening+cash-expense,difference=physical-expected;if(Math.abs(difference)>0.001)return send(res,400,{ok:false,error:'Selisih kasir harus Rp 0.'});
       await getPool().query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22) ON CONFLICT(id) DO UPDATE SET customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW() WHERE wz_shift_reports.business_id=EXCLUDED.business_id`,[r.id,r.date,r.employeeId,r.employeeName||u.name,r.shiftType||null,Number(r.customers||0),Number(r.openingCash||0),Number(r.cash||0),Number(r.qris||0),Number(r.cashExpense||0),Number(r.physicalCash||0),Number(r.totalPayment||0),Number(r.expectedCash||0),Number(r.cashDifference||0),Number(r.serviceTotal||0),Number(r.productTotal||0),Number(r.totalOmzet||0),JSON.stringify(r.services||[]),JSON.stringify(r.products||[]),r.note||null,r.savedAt||new Date().toISOString(),u.business_id]);
       await sendShiftPushes({...r,businessId:u.business_id},u.id).catch(()=>{});
-      await sendFcmNotification({
-        businessId:u.business_id,
-        senderId:u.id,
-        title:'WZ MANAGE PRO',
-        body:`Laporan shift ${r.employeeName||r.employeeId||''} tersedia.`,
-        data:{type:'shift_report',reportId:r.id}
-      }).catch(()=>{});
       return send(res,200,{ok:true,id:r.id});
     }
     if(path==='employees/me' && req.method==='GET'){

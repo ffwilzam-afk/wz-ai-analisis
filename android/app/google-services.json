@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1051004255896",
+    "project_id": "wz-manage-pro",
+    "storage_bucket": "wz-manage-pro.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1051004255896:android:95e797becc789e2c731aed",
+        "android_client_info": {
+          "package_name": "com.wzmanagepro.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyArSnkUhTt4EMXhWAP7QwFofPKH4m4CvzE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

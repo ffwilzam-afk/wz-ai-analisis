@@ -1,0 +1,6 @@
+.vercel
+.env*
+
+# Local secrets and machine config
+firebase-admin.json
+android/local.properties
