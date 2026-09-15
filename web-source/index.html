@@ -2041,9 +2041,10 @@ window.login=async function(ev){
     const r=await api('auth/login',{method:'POST',body:JSON.stringify({username:u,password:p,businessId:String(document.getElementById('loginBusiness')?.value||'').trim()})});
     if(err)err.style.display='none';
     currentUser=r.user;
-    const screen=document.getElementById('loginScreen');if(screen)screen.style.display='none';
+    const screen=document.getElementById('loginScreen');
     const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
     await fullHydrate();
+    if(screen)screen.style.display='none';
     if(typeof render==='function')render();
   }catch(e){
     if(err){err.textContent=e.message||'Login gagal.';err.style.display='block';}
@@ -2064,9 +2065,10 @@ async function restoreSession(){
   try{
     const r=await api('auth/me');
     currentUser=r.user;
-    const screen=document.getElementById('loginScreen');if(screen)screen.style.display='none';
+    const screen=document.getElementById('loginScreen');
     const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
     await fullHydrate();
+    if(screen)screen.style.display='none';
     if(typeof render==='function')render();
   }catch{}
 }
