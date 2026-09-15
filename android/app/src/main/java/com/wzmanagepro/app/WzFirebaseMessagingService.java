@@ -114,7 +114,7 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
 
         NotificationCompat.Builder builder =
                 new NotificationCompat.Builder(this, CHANNEL_ID)
-                        .setSmallIcon(android.R.drawable.ic_dialog_info)
+                        .setSmallIcon(R.drawable.ic_stat_wz)
                         .setContentTitle(title)
                         .setContentText(body)
                         .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
