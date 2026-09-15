@@ -1931,7 +1931,7 @@ async function fullHydrate(){
   }else{
     const employeeSynced=await syncMyEmployeeFromServer();
     if(!employeeSynced){
-      throw new Error('Akun karyawan belum terhubung dengan data karyawan di server.');
+      throw new Error('Gagal mengambil data karyawan dari server: '+(window.__WZEmployeeSyncError||'error tidak diketahui'));
     }
   }
 
@@ -1986,7 +1986,8 @@ async function syncMyEmployeeFromServer(){
     queueAppStateSave();
     return true;
   }catch(e){
-    console.warn('Online my-employee sync failed:',e.message||e);
+    console.error('Online my-employee sync failed:',e.message||e);
+    window.__WZEmployeeSyncError=String(e?.message||e||'Unknown error');
     return false;
   }
 }
