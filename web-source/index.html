@@ -1929,7 +1929,10 @@ async function fullHydrate(){
   if(['owner','manager'].includes(currentUser.role)){
     await syncEmployeesFromServer();
   }else{
-    await syncMyEmployeeFromServer();
+    const employeeSynced=await syncMyEmployeeFromServer();
+    if(!employeeSynced){
+      throw new Error('Akun karyawan belum terhubung dengan data karyawan di server.');
+    }
   }
 
   await syncNativeFcmToken();
