@@ -1762,7 +1762,7 @@ function resetTenantState(){
 }
 
 async function hydrateAppState(){
-  if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+  if(!currentUser || !['owner','manager','employee'].includes(currentUser.role))return false;
   try{
     const r=await api('app-state');
     const state=(r?.data&&typeof r.data==='object'&&!Array.isArray(r.data))?r.data:{};
@@ -1958,11 +1958,9 @@ async function syncEmployeesFromServer(){
 }
 window.WZOnlineEmployee.syncEmployeesFromServer=syncEmployeesFromServer;
 async function syncMyEmployeeFromServer(){
-  console.log('[WZ EMP DEBUG] currentUser=',JSON.stringify(currentUser));
   if(!currentUser?.employeeId)return false;
   try{
     const r=await api('employees/me');
-    console.log('[WZ EMP DEBUG] employees/me=',JSON.stringify(r));
     const se=r?.employee;
     if(!se)return false;
 
