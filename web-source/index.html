@@ -1958,9 +1958,11 @@ async function syncEmployeesFromServer(){
 }
 window.WZOnlineEmployee.syncEmployeesFromServer=syncEmployeesFromServer;
 async function syncMyEmployeeFromServer(){
+  console.log('[WZ EMP DEBUG] currentUser=',JSON.stringify(currentUser));
   if(!currentUser?.employeeId)return false;
   try{
     const r=await api('employees/me');
+    console.log('[WZ EMP DEBUG] employees/me=',JSON.stringify(r));
     const se=r?.employee;
     if(!se)return false;
 
