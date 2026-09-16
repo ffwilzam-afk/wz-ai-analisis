@@ -1036,6 +1036,7 @@ function saveTransaction(){
  const notificationId='N'+Date.now();
  db.notifications.push({id:notificationId,date:dateNow(),title:'Transaksi berhasil',message:`${id} sebesar ${rupiah(total)}`,read:false});
  save();closeModal();render();toast('Transaksi tersimpan dan laporan diperbarui.',false,notificationId);
+}
 function dashboardFilter(){
  const f=document.getElementById('dashFrom')?.value||'',t=document.getElementById('dashTo')?.value||'';
  const list=db.transactions.filter(x=>(!f||x.date>=f)&&(!t||x.date<=t)&&x.status==='SELESAI');
@@ -1055,7 +1056,6 @@ function dashboardFilter(){
  if(el)el.innerHTML=`<b>${list.length}</b> transaksi · Pendapatan <b>${rupiah(r)}</b> · Pengeluaran <b>${rupiah(ex)}</b> · Laba <b>${rupiah(r-ex)}</b>`;
 }
 render();
-}
 function txDetail(id){const t=db.transactions.find(x=>x.id===id);const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${t.id}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(confirm('Void transaksi ini?')){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
 function box(a,b){return `<div class="detail-box"><span class="label">${a}</span><strong>${b}</strong></div>`}
