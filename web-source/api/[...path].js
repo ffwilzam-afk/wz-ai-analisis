@@ -69,7 +69,8 @@ async function sendFcmNotification({businessId,senderId,title,body,data={}}){
     `SELECT id,token
      FROM wz_fcm_tokens
      WHERE business_id=$1
-       AND user_id<>$2`,
+       AND user_id<>$2
+       AND EXISTS (SELECT 1 FROM wz_users u WHERE u.id=wz_fcm_tokens.user_id AND u.business_id=wz_fcm_tokens.business_id AND u.role='owner' AND u.active=true)`,
     [businessId,senderId]
   );
 
@@ -107,7 +108,7 @@ async function sendFcmNotification({businessId,senderId,title,body,data={}}){
 async function sendShiftPushes(report,senderId){
   if(!pushConfigured())return;
   webpush.setVapidDetails(process.env.VAPID_SUBJECT,process.env.VAPID_PUBLIC_KEY,process.env.VAPID_PRIVATE_KEY);
-  const p=getPool(),recipients=await p.query('SELECT s.id,s.endpoint,s.p256dh,s.auth FROM wz_push_subscriptions s JOIN wz_users u ON u.id=s.user_id WHERE u.active=true AND s.business_id=$2 AND s.user_id<>$1',[senderId,report.businessId]);
+  const p=getPool(),recipients=await p.query(`SELECT s.id,s.endpoint,s.p256dh,s.auth FROM wz_push_subscriptions s JOIN wz_users u ON u.id=s.user_id WHERE u.active=true AND u.role='owner' AND s.business_id=$2 AND s.user_id<>$1`,[senderId,report.businessId]);
   const payload=JSON.stringify({title:'WZ MANAGE PRO',body:`Laporan shift ${report.employeeName||report.employeeId||''} tersedia.`,icon:'/icons/icon-192.png',badge:'/icons/icon-192.png',tag:`wz-shift-${report.id}`,url:'/'});
   await Promise.all(recipients.rows.map(async subscription=>{
     try{await webpush.sendNotification({endpoint:subscription.endpoint,keys:{p256dh:subscription.p256dh,auth:subscription.auth}},payload,{TTL:86400});}
