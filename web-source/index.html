@@ -2240,7 +2240,6 @@ window.saveTransaction=async function(){
     await api('transaction',{method:'POST',body:JSON.stringify(payload)});
     await syncBusiness();
     toast('Transaksi tersimpan dan laporan diperbarui.',false);
-    closeModal();
     renderTransactionReceipt(payload);
   }catch(e){toast('Transaksi gagal disimpan: '+e.message);}
   void legacySaveTransaction;
