@@ -251,7 +251,7 @@ button,input,select,textarea{max-width:100%}
   </div>
 </div>
 <div class="login-screen" id="loginScreen"><div class="login-card"><div class="login-logo">WZ</div><div class="login-title">BARBERSHOP PRO</div><div class="login-sub">SECURE ACCESS · ONLINE</div><form onsubmit="login(event)" autocomplete="off"><label>Kode Bisnis <span style="color:#8a8f98;font-size:10px">(isi kode dari pendaftaran)</span><input id="loginBusiness" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Contoh: BIZ001"></label><label>Username<input id="loginUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></label><label>Password<div style="position:relative"><input id="loginPass" type="password" autocomplete="current-password" required style="padding-right:58px"><button type="button" class="password-toggle" onclick="toggleLoginPassword()" aria-label="Tampilkan password">Lihat</button></div></label><div class="login-error" id="loginError">Username atau password salah.</div><button class="btn primary" type="submit">MASUK KE SISTEM</button></form><button class="btn register-link" id="registerBusinessButton" type="button" onclick="openRegisterBusiness()">DAFTAR BARBERSHOP BARU</button><div style="margin-top:14px;color:#6f7680;font-size:10px">Akses menu ditentukan berdasarkan role akun.</div></div></div>
-<div class="app">
+<div class="app" id="mainApp" style="display:none">
 <aside class="sidebar" id="sidebar">
  <div class="brand"><div class="logo">WZ</div><div class="brand-title">BARBERSHOP PRO</div><div class="brand-sub">MANAGEMENT SYSTEM</div><span class="offline">ONLINE PREMIUM</span></div>
  <div class="nav" id="nav"></div>
@@ -2162,7 +2162,9 @@ window.login=async function(ev){
     const screen=document.getElementById('loginScreen');
     const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
     await fullHydrate();
+    const app=document.getElementById('mainApp');
     if(screen)screen.style.display='none';
+    if(app)app.style.display='flex';
     if(typeof render==='function')render();
   }catch(e){
     if(err){err.textContent=e.message||'Login gagal.';err.style.display='block';}
@@ -2174,6 +2176,8 @@ window.login=async function(ev){
 window.logout=async function(){
   try{await api('auth/logout',{method:'POST'})}catch{}
   currentUser=null;
+  const app=document.getElementById('mainApp');
+  if(app)app.style.display='none';
   const screen=document.getElementById('loginScreen');if(screen)screen.style.display='flex';
   const u=document.getElementById('loginUser'),pw=document.getElementById('loginPass');
   if(u)u.value='';if(pw)pw.value='';
@@ -2217,6 +2221,9 @@ async function restoreSession(){
     updateStartupLoading(70,'Memuat data akun...');
     await fullHydrate();
 
+    const app=document.getElementById('mainApp');
+    if(app)app.style.display='flex';
+
     updateStartupLoading(90,'Menyiapkan aplikasi...');
     if(typeof render==='function')render();
 
@@ -2227,6 +2234,8 @@ async function restoreSession(){
     updateStartupLoading(100,'Sesi tidak ditemukan');
     setTimeout(()=>{
       finishStartupLoading();
+      const app=document.getElementById('mainApp');
+      if(app)app.style.display='none';
       if(screen)screen.style.display='flex';
     },300);
   }
