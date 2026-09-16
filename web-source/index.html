@@ -1072,22 +1072,29 @@ function txDetail(id){const t=db.transactions.find(x=>x.id===id);const c=getCust
 function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(confirm('Void transaksi ini?')){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
 function box(a,b){return `<div class="detail-box"><span class="label">${a}</span><strong>${b}</strong></div>`}
 
+let pendingAndroidNotification=null;
+
+function processPendingAndroidNotification(){
+ if(!pendingAndroidNotification||!currentUser)return false;
+ if(!['owner','manager'].includes(currentUser.role)){
+  pendingAndroidNotification=null;
+  return false;
+ }
+ const {type,reportId}=pendingAndroidNotification;
+ if(type!=='shift_report'||!reportId)return false;
+ if(!db||!Array.isArray(db.shiftReports))return false;
+ const r=db.shiftReports.find(x=>String(x.id)===String(reportId));
+ if(!r)return false;
+ pendingAndroidNotification=null;
+ go('shiftReports');
+ setTimeout(()=>shiftReportDetail(reportId),100);
+ return true;
+}
+
 window.WZHandleNotification=function(type,reportId){
  if(type!=='shift_report'||!reportId)return;
- if(!currentUser)return;
- if(!['owner','manager'].includes(currentUser.role))return;
- const open=()=>{
-  if(!db||!Array.isArray(db.shiftReports))return;
-  const r=db.shiftReports.find(x=>String(x.id)===String(reportId));
-  if(!r)return;
-  go('shiftReports');
-  setTimeout(()=>shiftReportDetail(reportId),100);
- };
- if(document.readyState==='loading'){
-  document.addEventListener('DOMContentLoaded',open,{once:true});
- }else{
-  open();
- }
+ pendingAndroidNotification={type:String(type),reportId:String(reportId)};
+ processPendingAndroidNotification();
 };
 
 function shiftReportDetail(id){
@@ -2252,6 +2259,7 @@ window.login=async function(ev){
     const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
     setActionLoading(75,'Memuat data akun dan bisnis...','MASUK KE SISTEM');
     await fullHydrate();
+    processPendingAndroidNotification();
     const app=document.getElementById('mainApp');
     if(screen)screen.style.display='none';
     if(app)app.style.display='flex';
@@ -2319,6 +2327,7 @@ async function restoreSession(){
 
     updateStartupLoading(70,'Memuat data akun...');
     await fullHydrate();
+    processPendingAndroidNotification();
 
     const app=document.getElementById('mainApp');
     if(app)app.style.display='flex';
