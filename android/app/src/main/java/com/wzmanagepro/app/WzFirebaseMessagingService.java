@@ -37,7 +37,10 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
             body = "Ada informasi baru.";
         }
 
-        showNotification(title, body);
+        String type = remoteMessage.getData().get("type");
+        String reportId = remoteMessage.getData().get("reportId");
+
+        showNotification(title, body, type, reportId);
         speakNotification(body);
     }
 
@@ -88,7 +91,7 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
         }
     }
 
-    private void showNotification(String title, String body) {
+    private void showNotification(String title, String body, String type, String reportId) {
         NotificationManager manager =
                 (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
 
@@ -103,7 +106,15 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
         }
 
         Intent intent = new Intent(this, MainActivity.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+        if (type != null && !type.isEmpty()) {
+            intent.putExtra("notification_type", type);
+        }
+
+        if (reportId != null && !reportId.isEmpty()) {
+            intent.putExtra("notification_report_id", reportId);
+        }
 
         PendingIntent pendingIntent = PendingIntent.getActivity(
                 this,

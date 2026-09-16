@@ -1072,6 +1072,54 @@ function txDetail(id){const t=db.transactions.find(x=>x.id===id);const c=getCust
 function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(confirm('Void transaksi ini?')){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
 function box(a,b){return `<div class="detail-box"><span class="label">${a}</span><strong>${b}</strong></div>`}
 
+window.WZHandleNotification=function(type,reportId){
+ if(type!=='shift_report'||!reportId)return;
+ if(!currentUser)return;
+ if(!['owner','manager'].includes(currentUser.role))return;
+ const open=()=>{
+  if(!db||!Array.isArray(db.shiftReports))return;
+  const r=db.shiftReports.find(x=>String(x.id)===String(reportId));
+  if(!r)return;
+  go('shiftReports');
+  setTimeout(()=>shiftReportDetail(reportId),100);
+ };
+ if(document.readyState==='loading'){
+  document.addEventListener('DOMContentLoaded',open,{once:true});
+ }else{
+  open();
+ }
+};
+
+function shiftReportDetail(id){
+ const r=(db.shiftReports||[]).find(x=>String(x.id)===String(id));
+ if(!r){toast('Laporan shift tidak ditemukan.',true);return}
+ if(!currentUser||!['owner','manager'].includes(currentUser.role)){toast('Detail laporan hanya dapat dilihat Owner/Manager.',true);return}
+ const e=getEmployee(r.employeeId);
+ const branch=db.branches.find(b=>b.id===e?.branchId);
+ const services=(r.services||[]).map(x=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #20242b"><span>${x.serviceName||getService(x.serviceId)?.name||'-'} × ${Number(x.qty||0)}</span><b>${rupiah(Number(x.total||0))}</b></div>`).join('')||'<div class="empty">Tidak ada layanan.</div>';
+ const products=(r.products||[]).map(x=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #20242b"><span>${x.name||x.productName||'-'} × ${Number(x.qty||0)}</span><b>${rupiah(Number(x.total||0))}</b></div>`).join('')||'<div class="empty">Tidak ada produk.</div>';
+ show(`<span class="gold-label">DETAIL LAPORAN SHIFT</span>
+ <h2>${r.employeeName||e?.name||r.employeeId||'-'}</h2>
+ <p class="muted">${r.date||'-'} · ${r.shiftType||'-'} · Cabang: ${branch?.name||'-'}</p>
+ <div class="detail-grid">
+  ${box('Pelanggan',Number(r.customers||0))}
+  ${box('Total Pembayaran',rupiah(r.totalPayment||0))}
+  ${box('Omzet Shift',rupiah(r.totalOmzet||0))}
+  ${box('Kas Awal',rupiah(r.openingCash||0))}
+  ${box('Tunai',rupiah(r.cash||0))}
+  ${box('QRIS',rupiah(r.qris||0))}
+  ${box('Pengeluaran Kas',rupiah(r.cashExpense||0))}
+  ${box('Kas Seharusnya',rupiah(r.expectedCash||0))}
+  ${box('Uang Fisik',rupiah(r.physicalCash||0))}
+  ${box('Selisih Kasir',rupiah(r.cashDifference||0))}
+ </div>
+ <div class="goldline"></div>
+ <h3>Layanan</h3>${services}
+ <h3 style="margin-top:18px">Produk</h3>${products}
+ <h3 style="margin-top:18px">Catatan Shift</h3><p class="muted">${r.note||'-'}</p>
+ <div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`);
+}
+
 function shiftReports(){
  if(!guard('shiftReports'))return;
  const today=dateNow();
@@ -1093,7 +1141,7 @@ function shiftReports(){
     <table class="table">
      <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Shift</th><th>Pelanggan</th><th>Total Pembayaran</th><th>Omzet</th><th>Selisih Kasir</th></tr></thead>
      <tbody>
-      ${currentReports.map(r=>`<tr>
+      ${currentReports.map(r=>`<tr onclick="shiftReportDetail('${String(r.id).replace(/'/g,"\\'")}')" style="cursor:pointer">
        <td>${r.date||'-'}</td><td>${r.employeeName||'-'}</td><td>${r.shiftType||'-'}</td>
        <td>${r.customers||0}</td><td>${rupiah(r.totalPayment||0)}</td><td>${rupiah(r.totalOmzet||0)}</td>
        <td>${rupiah(r.cashDifference||0)}</td>

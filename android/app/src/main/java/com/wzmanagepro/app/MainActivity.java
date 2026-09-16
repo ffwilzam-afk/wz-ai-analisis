@@ -28,6 +28,8 @@ public class MainActivity extends Activity {
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
 
     private WebView web;
+    private String pendingNotificationType = "";
+    private String pendingNotificationReportId = "";
 
     public class AndroidPrintBridge {
         @JavascriptInterface
@@ -54,6 +56,8 @@ public class MainActivity extends Activity {
 
         web = new WebView(this);
 
+        handleNotificationIntent(getIntent());
+
         CookieManager cookieManager = CookieManager.getInstance();
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(web, true);
@@ -78,6 +82,7 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 loadFcmTokenIntoWebView();
+                handlePendingNotification();
             }
 
             @Override
@@ -127,6 +132,57 @@ public class MainActivity extends Activity {
 
         requestNotificationPermission();
         registerFcmToken();
+    }
+
+    private void handleNotificationIntent(Intent intent) {
+        if (intent == null) {
+            return;
+        }
+
+        String type = intent.getStringExtra("notification_type");
+        String reportId = intent.getStringExtra("notification_report_id");
+
+        if (type != null) {
+            pendingNotificationType = type;
+        }
+
+        if (reportId != null) {
+            pendingNotificationReportId = reportId;
+        }
+
+        handlePendingNotification();
+    }
+
+    private void handlePendingNotification() {
+        if (web == null || pendingNotificationReportId == null
+                || pendingNotificationReportId.isEmpty()) {
+            return;
+        }
+
+        String safeType = pendingNotificationType
+                .replace("\\", "\\\\")
+                .replace("'", "\\'");
+        String safeReportId = pendingNotificationReportId
+                .replace("\\", "\\\\")
+                .replace("'", "\\'");
+
+        String js =
+                "window.WZNotificationType='" + safeType + "';" +
+                "window.WZNotificationReportId='" + safeReportId + "';" +
+                "if(typeof window.WZHandleNotification==='function')" +
+                "{window.WZHandleNotification('" + safeType + "','" + safeReportId + "');}";
+
+        web.evaluateJavascript(js, null);
+
+        pendingNotificationType = "";
+        pendingNotificationReportId = "";
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleNotificationIntent(intent);
     }
 
     private void requestNotificationPermission() {
