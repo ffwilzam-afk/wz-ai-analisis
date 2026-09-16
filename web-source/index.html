@@ -2235,7 +2235,7 @@ window.saveTransaction=async function(){
   const discount=Number(document.getElementById('fDiscount')?.value||0);
   const total=Math.max(0,Number(svc?.price||0)-discount);
   const id='TRX'+Date.now();
-  const payload={id,date:dateNow(),customerId,customerName:customer?.name||null,serviceId,serviceName:svc?.name||null,servicePrice:Number(svc?.price||0),employeeId,employeeName:emp?.name||null,total,payment:document.getElementById('fPayment')?.value||'Tunai',discount,status:'SELESAI'};
+  const payload={id,date:dateNow(),branchId:emp?.branchId||currentUser?.branchId||null,customerId,customerName:customer?.name||null,serviceId,serviceName:svc?.name||null,servicePrice:Number(svc?.price||0),employeeId,employeeName:emp?.name||null,total,payment:document.getElementById('fPayment')?.value||'Tunai',discount,status:'SELESAI'};
   try{
     await api('transaction',{method:'POST',body:JSON.stringify(payload)});
     await syncBusiness();
@@ -2257,7 +2257,9 @@ function renderTransactionReceipt(t){
   show(`
     <div id="wzReceipt" class="wz-receipt">
       <div class="wz-receipt-head">
-        <div class="gold-label">WZ MANAGE PRO</div>
+        <div class="gold-label">${db.profile?.brand||'WZ MANAGE PRO'}</div>
+        <h3>${db.branches?.find(b=>b.id===t.branchId)?.name||db.branches?.find(b=>b.id===currentUser?.branchId)?.name||'Cabang'}</h3>
+        <div class="subtle">${db.branches?.find(b=>b.id===t.branchId)?.address||db.branches?.find(b=>b.id===currentUser?.branchId)?.address||''}</div>
         <h2>NOTA TRANSAKSI</h2>
         <div class="subtle">${t.id}</div>
       </div>
