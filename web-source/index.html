@@ -1836,16 +1836,26 @@ render();
 'use strict';
 
 async function api(path,options={}){
-  const res=await fetch('/api/'+path,{
-    credentials:'include',
-    headers:{'Content-Type':'application/json',...(options.headers||{})},
-    ...options
-  });
-  const text=await res.text();
-  let data=null;
-  try{data=text?JSON.parse(text):null}catch{}
-  if(!res.ok)throw new Error(data?.error||data?.message||('HTTP '+res.status));
-  return data;
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),15000);
+  try{
+    const res=await fetch("/api/"+path,{
+      credentials:"include",
+      headers:{"Content-Type":"application/json",...(options.headers||{})},
+      ...options,
+      signal:controller.signal
+    });
+    const text=await res.text();
+    let data=null;
+    try{data=text?JSON.parse(text):null}catch{}
+    if(!res.ok)throw new Error(data?.error||data?.message||("HTTP "+res.status));
+    return data;
+  }catch(e){
+    if(e?.name==="AbortError")throw new Error("Server tidak merespons. Silakan coba lagi.");
+    throw e;
+  }finally{
+    clearTimeout(timeout);
+  }
 }
 window.api=api;
 window.WZOnlineEmployee={api};
@@ -2145,6 +2155,7 @@ function toggleLoginPassword(){
 }
 window.openRegisterBusiness=openRegisterBusiness;
 window.closeRegisterBusiness=closeRegisterBusiness;
+window.toggleLoginPassword=toggleLoginPassword;
 document.addEventListener('DOMContentLoaded',()=>document.getElementById('registerBusinessButton')?.addEventListener('click',openRegisterBusiness),{once:true});
 async function submitRegisterBusiness(ev){ev.preventDefault();const err=document.getElementById('registerError'),btn=document.getElementById('registerSubmit');const businessName=document.getElementById('regBusinessName').value.trim(),ownerName=document.getElementById('regOwnerName').value.trim(),branchName=document.getElementById('regBranchName').value.trim(),username=document.getElementById('regUsername').value.trim().toLowerCase(),password=document.getElementById('regPassword').value,confirm=document.getElementById('regPassword2').value;if(password!==confirm){err.textContent='Konfirmasi password tidak sama.';err.style.display='block';return}err.style.display='none';btn.disabled=true;btn.textContent='MEMBUAT...';setActionLoading(10,'Memeriksa data pendaftaran...','MEMBUAT BARBERSHOP');try{setActionLoading(35,'Menghubungi server...','MEMBUAT BARBERSHOP');const r=await fetch('/api/auth/register',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({businessName,ownerName,branchName,username,password})});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Pendaftaran gagal.');setActionLoading(75,'Menyiapkan akun Owner dan cabang...','MEMBUAT BARBERSHOP');setActionLoading(95,'Menyiapkan halaman login...','MEMBUAT BARBERSHOP');currentUser=null;closeRegisterBusiness();prepareLoginAfterRegistration(data.business,data.user);setActionLoading(100,'Pendaftaran selesai.','BARBERSHOP BERHASIL DIBUAT');setTimeout(hideActionLoading,350);toast('Bisnis berhasil dibuat. Kode bisnis sudah diisi di form login.');alert('Pendaftaran berhasil!\n\nKode Bisnis: '+data.business.businessId+'\nUsername: '+data.user.username+'\n\nMasukkan password untuk login.')}catch(e){err.textContent=e.message||'Pendaftaran gagal.';err.style.display='block'}finally{btn.disabled=false;btn.textContent='BUAT BISNIS'}}
 window.submitRegisterBusiness=submitRegisterBusiness;
@@ -2201,9 +2212,15 @@ window.login=async function(ev){
     setActionLoading(100,'Login selesai.','SELAMAT DATANG');
     setTimeout(hideActionLoading,300);
   }catch(e){
-    if(err){err.textContent=e.message||'Login gagal.';err.style.display='block';}
-    else alert(e.message||'Login gagal.');
+    hideActionLoading();
+    if(err){err.textContent='Data login salah. Silakan isi data yang benar.';err.style.display='block';}
+    else alert('Data login salah. Silakan isi data yang benar.');
     void localLogin; // kept only to avoid shadowing legacy code; no offline fallback.
+  }finally{
+    if(loginButton){
+      loginButton.disabled=false;
+      loginButton.textContent='MASUK KE SISTEM';
+    }
   }
 };
 
