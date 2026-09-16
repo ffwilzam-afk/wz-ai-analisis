@@ -2146,26 +2146,60 @@ function toggleLoginPassword(){
 window.openRegisterBusiness=openRegisterBusiness;
 window.closeRegisterBusiness=closeRegisterBusiness;
 document.addEventListener('DOMContentLoaded',()=>document.getElementById('registerBusinessButton')?.addEventListener('click',openRegisterBusiness),{once:true});
-async function submitRegisterBusiness(ev){ev.preventDefault();const err=document.getElementById('registerError'),btn=document.getElementById('registerSubmit');const businessName=document.getElementById('regBusinessName').value.trim(),ownerName=document.getElementById('regOwnerName').value.trim(),branchName=document.getElementById('regBranchName').value.trim(),username=document.getElementById('regUsername').value.trim().toLowerCase(),password=document.getElementById('regPassword').value,confirm=document.getElementById('regPassword2').value;if(password!==confirm){err.textContent='Konfirmasi password tidak sama.';err.style.display='block';return}err.style.display='none';btn.disabled=true;btn.textContent='MEMBUAT...';try{const r=await fetch('/api/auth/register',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({businessName,ownerName,branchName,username,password})});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Pendaftaran gagal.');currentUser=null;closeRegisterBusiness();prepareLoginAfterRegistration(data.business,data.user);toast('Bisnis berhasil dibuat. Kode bisnis sudah diisi di form login.');alert('Pendaftaran berhasil!\n\nKode Bisnis: '+data.business.businessId+'\nUsername: '+data.user.username+'\n\nMasukkan password untuk login.')}catch(e){err.textContent=e.message||'Pendaftaran gagal.';err.style.display='block'}finally{btn.disabled=false;btn.textContent='BUAT BISNIS'}}
+async function submitRegisterBusiness(ev){ev.preventDefault();const err=document.getElementById('registerError'),btn=document.getElementById('registerSubmit');const businessName=document.getElementById('regBusinessName').value.trim(),ownerName=document.getElementById('regOwnerName').value.trim(),branchName=document.getElementById('regBranchName').value.trim(),username=document.getElementById('regUsername').value.trim().toLowerCase(),password=document.getElementById('regPassword').value,confirm=document.getElementById('regPassword2').value;if(password!==confirm){err.textContent='Konfirmasi password tidak sama.';err.style.display='block';return}err.style.display='none';btn.disabled=true;btn.textContent='MEMBUAT...';setActionLoading(10,'Memeriksa data pendaftaran...','MEMBUAT BARBERSHOP');try{setActionLoading(35,'Menghubungi server...','MEMBUAT BARBERSHOP');const r=await fetch('/api/auth/register',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({businessName,ownerName,branchName,username,password})});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Pendaftaran gagal.');setActionLoading(75,'Menyiapkan akun Owner dan cabang...','MEMBUAT BARBERSHOP');setActionLoading(95,'Menyiapkan halaman login...','MEMBUAT BARBERSHOP');currentUser=null;closeRegisterBusiness();prepareLoginAfterRegistration(data.business,data.user);setActionLoading(100,'Pendaftaran selesai.','BARBERSHOP BERHASIL DIBUAT');setTimeout(hideActionLoading,350);toast('Bisnis berhasil dibuat. Kode bisnis sudah diisi di form login.');alert('Pendaftaran berhasil!\n\nKode Bisnis: '+data.business.businessId+'\nUsername: '+data.user.username+'\n\nMasukkan password untuk login.')}catch(e){err.textContent=e.message||'Pendaftaran gagal.';err.style.display='block'}finally{btn.disabled=false;btn.textContent='BUAT BISNIS'}}
 window.submitRegisterBusiness=submitRegisterBusiness;
+
+function setActionLoading(percent,status,title){
+  let box=document.getElementById('wzActionLoading');
+  if(!box){
+    box=document.createElement('div');
+    box.id='wzActionLoading';
+    box.style.cssText='position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;padding:18px;background:rgba(3,5,8,.88);backdrop-filter:blur(4px)';
+    box.innerHTML='<div style="width:min(430px,100%);text-align:center;padding:28px 22px;border:1px solid #6a531f;border-radius:16px;background:#0d1015"><div id="wzActionTitle" style="font-weight:800;letter-spacing:2px;color:#f1f3f5">Memproses...</div><div id="wzActionStatus" style="margin-top:24px;color:#c7ccd3;font-size:12px">Mohon tunggu, jangan tekan tombol lagi.</div><div style="display:flex;align-items:center;gap:10px;margin-top:12px"><div style="height:7px;flex:1;background:#252a30;border-radius:999px;overflow:hidden;border:1px solid #3a3322"><div id="wzActionProgressBar" style="height:100%;width:0;background:#efd078;border-radius:999px;transition:width .25s ease"></div></div><span id="wzActionPercent" style="width:38px;text-align:right;color:#efd078;font-size:11px;font-weight:700">0%</span></div></div>';
+    document.body.appendChild(box);
+  }
+  box.style.display='flex';
+  const value=Math.max(0,Math.min(100,Number(percent)||0));
+  const t=document.getElementById('wzActionTitle'),st=document.getElementById('wzActionStatus'),bar=document.getElementById('wzActionProgressBar'),pct=document.getElementById('wzActionPercent');
+  if(t)t.textContent=title||'Memproses...';
+  if(st)st.textContent=status||'Mohon tunggu, jangan tekan tombol lagi.';
+  if(bar)bar.style.width=value+'%';
+  if(pct)pct.textContent=value+'%';
+}
+function hideActionLoading(){
+  const box=document.getElementById('wzActionLoading');
+  if(box)box.style.display='none';
+}
 
 const localLogin=window.login;
 window.login=async function(ev){
   ev.preventDefault();
+  const loginButton=document.querySelector('#loginScreen form button[type="submit"]');
+  if(loginButton){
+    loginButton.disabled=true;
+    loginButton.textContent='MEMERIKSA...';
+  }
+  setActionLoading(10,'Memeriksa data login...','MASUK KE SISTEM');
   const u=(document.getElementById('loginUser')?.value||'').trim().toLowerCase();
   const p=(document.getElementById('loginPass')?.value||'');
   const err=document.getElementById('loginError');
   try{
+    setActionLoading(30,'Menghubungi server...','MASUK KE SISTEM');
     const r=await api('auth/login',{method:'POST',body:JSON.stringify({username:u,password:p,businessId:String(document.getElementById('loginBusiness')?.value||'').trim()})});
+    setActionLoading(60,'Memverifikasi akun...','MASUK KE SISTEM');
     if(err)err.style.display='none';
     currentUser=r.user;
     const screen=document.getElementById('loginScreen');
     const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
+    setActionLoading(75,'Memuat data akun dan bisnis...','MASUK KE SISTEM');
     await fullHydrate();
     const app=document.getElementById('mainApp');
     if(screen)screen.style.display='none';
     if(app)app.style.display='flex';
+    setActionLoading(90,'Menyiapkan Dashboard...','MASUK KE SISTEM');
     if(typeof render==='function')render();
+    setActionLoading(100,'Login selesai.','SELAMAT DATANG');
+    setTimeout(hideActionLoading,300);
   }catch(e){
     if(err){err.textContent=e.message||'Login gagal.';err.style.display='block';}
     else alert(e.message||'Login gagal.');
