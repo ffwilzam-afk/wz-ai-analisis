@@ -2086,9 +2086,11 @@ async function syncNativeFcmToken(){
       method:'POST',
       body:JSON.stringify({token:fcmToken})
     });
+    if(typeof toast==='function')toast('FCM SYNC OK');
     return true;
   }catch(e){
     console.warn('FCM token sync failed:',e.message||e);
+    if(typeof toast==='function')toast('FCM SYNC FAIL: '+(e.message||e));
     return false;
   }
 }
@@ -2511,6 +2513,7 @@ window.voidTx=async function(id){
 
 const legacySaveShiftReport=window.saveShiftReport;
 window.saveShiftReport=async function(){
+  console.log('[SHIFT] override saveShiftReport CALLED');
   const c=typeof calcShiftReport==='function'?calcShiftReport():null;
   if(c){
     if(Number(c.serviceTotal||0)<=0){toast('Laporan belum bisa disimpan. Isi minimal 1 layanan terlebih dahulu.');return;}
