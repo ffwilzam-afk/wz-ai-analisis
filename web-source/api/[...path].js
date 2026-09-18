@@ -1300,7 +1300,21 @@ async function handler(req,res){
         return send(res,200,{ok:true});
       }
       if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat menyimpan data online.'});
-      const payload=JSON.stringify(data);
+      const current=await getPool().query(
+        'SELECT data FROM wz_app_states WHERE business_id=$1',
+        [u.business_id]
+      );
+      const currentData=current.rowCount&&current.rows[0].data&&typeof current.rows[0].data==='object'
+        ? current.rows[0].data
+        : {};
+      const mergedData={
+        ...data,
+        ...(!Object.prototype.hasOwnProperty.call(data,'notifications') &&
+           Array.isArray(currentData.notifications)
+          ? {notifications:currentData.notifications}
+          : {})
+      };
+      const payload=JSON.stringify(mergedData);
       if(payload.length>8*1024*1024)return send(res,413,{ok:false,error:'Data aplikasi terlalu besar.'});
       await getPool().query(`INSERT INTO wz_app_states(business_id,data,updated_at) VALUES($1,$2::jsonb,NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_at=NOW()`,[u.business_id,payload]);
       return send(res,200,{ok:true});
