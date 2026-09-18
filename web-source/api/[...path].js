@@ -61,8 +61,19 @@ function getFirebaseMessaging(){
 
 function pushConfigured(){return !!(process.env.VAPID_PUBLIC_KEY&&process.env.VAPID_PRIVATE_KEY&&process.env.VAPID_SUBJECT)}
 async function sendFcmNotification({businessId,senderId,title,body,data={}}){
-  const messaging=getFirebaseMessaging();
-  if(!messaging || !businessId)return;
+  console.log('[FCM] START configured=',firebaseConfigured(),'business=',String(businessId||''),'sender=',String(senderId||''));
+  let messaging;
+  try{
+    messaging=getFirebaseMessaging();
+    console.log('[FCM] INIT_OK=',!!messaging);
+  }catch(error){
+    console.error('[FCM] INIT_FAILED code=',String(error?.code||''),'message=',String(error?.message||error));
+    return;
+  }
+  if(!messaging || !businessId){
+    console.log('[FCM] SKIP no_messaging_or_business');
+    return;
+  }
 
   const p=getPool();
   const recipients=await p.query(
