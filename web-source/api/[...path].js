@@ -1462,6 +1462,7 @@ async function handler(req,res){
         ]
       );
       await sendShiftPushes({...r,businessId:u.business_id},u.id).catch(()=>{});
+      console.log('[FCM] shift_report calling sendFcmNotification business_id=',u.business_id,'sender_id=',u.id);
       await sendFcmNotification({
         businessId:u.business_id,
         senderId:u.id,
