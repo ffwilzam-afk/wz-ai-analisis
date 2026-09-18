@@ -74,6 +74,8 @@ async function sendFcmNotification({businessId,senderId,title,body,data={}}){
     [businessId,senderId]
   );
 
+  console.log('[FCM] recipient_count=',recipients.rowCount,'business_id=',businessId,'sender_id=',senderId);
+
   await Promise.all(recipients.rows.map(async row=>{
     try{
       await messaging.send({
@@ -90,7 +92,9 @@ async function sendFcmNotification({businessId,senderId,title,body,data={}}){
           }
         }
       });
+      console.log('[FCM] send_success recipient_id=',row.id);
     }catch(error){
+      console.error('[FCM] send_failed recipient_id=',row.id,'code=',String(error?.code||''),'message=',String(error?.message||error));
       const code=String(error?.code||'');
       if(
         code==='messaging/registration-token-not-registered' ||
