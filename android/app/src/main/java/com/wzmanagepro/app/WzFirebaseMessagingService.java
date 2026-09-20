@@ -102,6 +102,15 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
                     NotificationManager.IMPORTANCE_HIGH
             );
             channel.setDescription("Notifikasi WZ MANAGE PRO");
+            channel.enableVibration(true);
+            channel.setVibrationPattern(new long[]{0, 500, 200, 500});
+            channel.setSound(
+                android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
+                new android.app.AudioAttributes.Builder()
+                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build()
+            );
             manager.createNotificationChannel(channel);
         }
 

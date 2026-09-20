@@ -204,12 +204,17 @@ public class MainActivity extends Activity {
                 .addOnCompleteListener(task -> {
                     if (!task.isSuccessful()) {
                         android.util.Log.e("WZ_FCM", "getToken FAILED", task.getException());
+
                         return;
                     }
 
                     android.util.Log.d("WZ_FCM", "getToken SUCCESS");
 
+
                     String token = task.getResult();
+                    if (token == null || token.isEmpty()) {
+
+                    }
 
                     if (token != null && !token.isEmpty()) {
                         getSharedPreferences("wz_fcm", MODE_PRIVATE)

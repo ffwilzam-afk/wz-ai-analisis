@@ -2115,11 +2115,9 @@ async function syncNativeFcmToken(){
       method:'POST',
       body:JSON.stringify({token:fcmToken})
     });
-    if(typeof toast==='function')toast('FCM SYNC OK');
     return true;
   }catch(e){
     console.warn('FCM token sync failed:',e.message||e);
-    if(typeof toast==='function')toast('FCM SYNC FAIL: '+(e.message||e));
     return false;
   }
 }
