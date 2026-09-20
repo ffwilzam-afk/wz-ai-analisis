@@ -2145,6 +2145,11 @@ async function fullHydrate(){
   }
 
   await syncNativeFcmToken();
+  if(!window.WZNativeFcmToken){
+    setTimeout(()=>{
+      if(window.WZNativeFcmToken&&currentUser)syncNativeFcmToken().catch(()=>{});
+    },5000);
+  }
 
   const businessSynced=await syncBusiness();
   if(!businessSynced){

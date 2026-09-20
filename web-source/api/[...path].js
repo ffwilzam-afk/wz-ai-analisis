@@ -1414,7 +1414,9 @@ async function handler(req,res){
         title:'WZ MANAGE PRO',
         body:`Laporan shift ${shift.employeeName||shift.employeeId||''} tersedia.`,
         data:{type:'shift_report',reportId:shift.id}
-      }).catch(()=>{})));
+      }).catch(e=>{
+        console.error('[FCM] sync_business ERROR',String(e?.message||e));
+      })));
       return send(res,200,{ok:true,transactions:txs.length,shiftReports:shifts.length});
     }
     if(path==='transaction' && req.method==='POST'){
@@ -1480,7 +1482,9 @@ async function handler(req,res){
         title:'WZ MANAGE PRO',
         body:`Laporan shift ${r.employeeName||r.employeeId||''} tersedia.`,
         data:{type:'shift_report',reportId:r.id}
-      }).catch(()=>{});
+      }).catch(e=>{
+        console.error('[FCM] shift_report ERROR',String(e?.message||e));
+      });
       return send(res,200,{ok:true,id:r.id});
     }
     if(path==='employees/me' && req.method==='GET'){
