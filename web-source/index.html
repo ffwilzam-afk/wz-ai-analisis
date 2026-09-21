@@ -1113,7 +1113,16 @@ function processPendingAndroidNotification(){
  if(type!=='shift_report'||!reportId)return false;
  if(!db||!Array.isArray(db.shiftReports))return false;
  const r=db.shiftReports.find(x=>String(x.id)===String(reportId));
- if(!r)return false;
+ if(!r){
+  pendingAndroidNotification=null;
+  go('shiftReports');
+  if(typeof syncBusiness==='function'){
+   syncBusiness().then(()=>{
+    setTimeout(()=>shiftReportDetail(reportId),300);
+   }).catch(()=>{});
+  }
+  return true;
+ }
  pendingAndroidNotification=null;
  go('shiftReports');
  setTimeout(()=>shiftReportDetail(reportId),100);
@@ -2600,6 +2609,32 @@ window.notifications=function(){
 void legacyNotifications;
 
 })();
+
+// Auto-refresh: polling setiap 30 detik
+setInterval(()=>{
+  if(currentUser&&typeof syncBusiness==='function'){
+    syncBusiness().catch(()=>{});
+  }
+},30000);
+
+// Auto-refresh: saat app kembali ke foreground
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&currentUser&&typeof syncBusiness==='function'){
+    syncBusiness().catch(()=>{});
+  }
+});
+
+// Auto-refresh: saat FCM masuk foreground via WZOnlineFcm
+const _origFcmSync=window.WZOnlineFcm&&window.WZOnlineFcm.sync;
+window.WZOnlineFcm={
+  sync:function(){
+    if(_origFcmSync)_origFcmSync();
+    if(currentUser&&typeof syncBusiness==='function'){
+      setTimeout(()=>syncBusiness().catch(()=>{}),1000);
+    }
+  }
+};
+
 </script>
 <script>
 if ('serviceWorker' in navigator) {
