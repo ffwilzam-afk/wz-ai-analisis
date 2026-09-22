@@ -265,7 +265,153 @@ button,input,select,textarea{max-width:100%}
 @media(max-width:600px){.profile-top{align-items:flex-start}.profile-card .detail-grid{grid-template-columns:1fr 1fr}}
 .analytics-donut{width:190px;height:190px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(#5aa9ff 0 25%,#43c985 25% 50%,#c99932 50% 75%,#ef6666 75% 100%);margin:auto}.analytics-donut:after{content:"";width:112px;height:112px;border-radius:50%;background:#0d1014;border:1px solid var(--line)}.analytics-legend{display:grid;gap:8px}.analytics-legend div{display:flex;justify-content:space-between;gap:10px}.analytics-swatch{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:6px}.historical-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.historical-table{width:100%;border-collapse:collapse}.historical-table th,.historical-table td{padding:10px;border-bottom:1px solid #252a31;text-align:left;font-size:12px}.historical-table th{color:#9da4ae;font-size:10px;text-transform:uppercase}.historical-link{border:0;background:none;color:var(--gold2);padding:0;font-weight:700;cursor:pointer}.historical-total{font-weight:800;background:#15130e}.historical-detail{display:grid;grid-template-columns:repeat(4,1fr);gap:9px}.historical-detail .card{padding:12px}.historical-source{margin-top:14px}.historical-print-only{display:none}
 @media print{body *{visibility:hidden!important}.historical-print-only,.historical-print-only *{visibility:visible!important}.historical-print-only{display:block!important;position:absolute;inset:0;background:#fff;color:#111;padding:18mm;font:10pt Arial,sans-serif}.historical-print-only h1{font-size:18pt;margin:0 0 4mm}.historical-print-only h2{font-size:13pt;margin:5mm 0 2mm}.historical-print-only table{width:100%;border-collapse:collapse}.historical-print-only th,.historical-print-only td{border:1px solid #999;padding:5px;text-align:left}.historical-print-only .historical-total{font-weight:700;background:#eee}.historical-print-only .print-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5mm}.historical-print-only .print-box{border:1px solid #999;padding:4mm}.historical-print-only .print-muted{color:#555}}
-</style></head>
+</style>
+<style>
+.owner-forum-page{
+  background:#0b0b0b;
+  border:1px solid rgba(212,175,55,.28);
+  border-radius:16px;
+}
+
+.owner-forum-head{
+  padding:16px;
+  border-bottom:1px solid rgba(212,175,55,.2);
+  background:linear-gradient(135deg,#111,#080808);
+}
+
+.owner-forum-messages{
+  min-height:420px;
+  max-height:65vh;
+  overflow-y:auto;
+  padding:16px 12px;
+  background:
+    radial-gradient(circle at top right,rgba(212,175,55,.06),transparent 35%),
+    #080808;
+}
+
+.owner-forum-message{
+  display:flex;
+  gap:10px;
+  margin-bottom:16px;
+  align-items:flex-start;
+}
+
+.owner-forum-avatar{
+  width:38px;
+  height:38px;
+  min-width:38px;
+  border-radius:50%;
+  overflow:hidden;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#171717;
+  border:1px solid rgba(212,175,55,.45);
+  color:#d4af37;
+}
+
+.owner-forum-avatar img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+}
+
+.owner-forum-body{
+  min-width:0;
+  max-width:calc(100% - 50px);
+}
+
+.owner-forum-meta{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-bottom:5px;
+}
+
+.owner-forum-meta strong{
+  color:#d4af37;
+  font-size:13px;
+}
+
+.owner-forum-meta span{
+  color:#777;
+  font-size:11px;
+}
+
+.owner-forum-text{
+  display:inline-block;
+  padding:10px 13px;
+  border-radius:4px 14px 14px 14px;
+  background:#151515;
+  border:1px solid #292929;
+  color:#eee;
+  line-height:1.45;
+  word-break:break-word;
+}
+
+.owner-forum-sticker{
+  font-size:48px;
+  line-height:1;
+  padding:4px 0;
+}
+
+.owner-forum-compose{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px;
+  border-top:1px solid rgba(212,175,55,.2);
+  background:#101010;
+}
+
+.owner-forum-compose .input{
+  flex:1;
+  min-width:0;
+  background:#181818;
+  border-color:#292929;
+  color:#fff;
+  border-radius:22px;
+  padding-left:15px;
+}
+
+.owner-forum-sticker-btn{
+  width:40px;
+  height:40px;
+  border-radius:50%;
+  border:1px solid rgba(212,175,55,.35);
+  background:#151515;
+  color:#d4af37;
+  font-size:20px;
+  cursor:pointer;
+}
+
+.owner-forum-send{
+  border-radius:20px;
+  padding:9px 15px;
+}
+
+@media(max-width:600px){
+  .owner-forum-messages{
+    min-height:calc(100vh - 300px);
+    max-height:none;
+  }
+
+  .owner-forum-head{
+    padding:13px;
+  }
+
+  .owner-forum-compose{
+    position:sticky;
+    bottom:0;
+  }
+
+  .owner-forum-send{
+    padding:9px 12px;
+  }
+}
+</style>
+
+</head>
 <body>
 <div class="wz-startup-loading" id="wzStartupLoading">
   <div class="wz-startup-card">
@@ -327,7 +473,7 @@ const ACCESS={
   cs:'all',owner:[
     'dashboard','transactions','shiftReports','employees','customers',
     'services','finance','reports','operations','analytics',
-    'notifications','branches','profile','settings','payrollSettings','system','subscription','auth'
+    'notifications','branches','profile','settings','payrollSettings','ownerForum','system','subscription','auth'
   ,'cs'],
   manager:[
     'dashboard','transactions','shiftReports','employees','customers',
@@ -364,6 +510,7 @@ const menu=[
   ['profile','👤','Profil'],
   ['settings','⚙️','Pengaturan'],
   ['payrollSettings','💵','Pengaturan Gaji'],
+  ['ownerForum','💬','Obrolan Owner'],
   ['system','🛠️','Sistem & Data'],
   ['cs','💬','Bantuan & CS'],
   ['subscription','💳','Berlangganan'],
@@ -569,7 +716,7 @@ function businessDailyRevenue(iso){return ownerBusinessFeed().filter(x=>x.date==
 function getCustomer(id){return db.customers.find(x=>x.id===id)}
 function getEmployee(id){return db.employees.find(x=>x.id===id)}
 function getService(id){return db.services.find(x=>x.id===id)}
-function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','payrollSettings','system','subscription','auth','cs']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
+function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','payrollSettings','ownerForum','system','subscription','auth','cs']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
 function openCS(){const u=currentUser||{};const msg=`Halo CS WZ MANAGE PRO, saya membutuhkan bantuan.%0A%0ABisnis: ${encodeURIComponent(u.businessName||u.businessId||'-')}%0ACabang: ${encodeURIComponent(u.branchName||u.branchId||'-')}%0AAkun: ${encodeURIComponent(u.name||u.username||'-')}%0ARole: ${encodeURIComponent(u.role||'-')}%0A%0AMasalah:%20`;window.open('https://wa.me/6287777527161?text='+msg,'_blank')}
 function navBtn(m){if(m[0]==='cs')return `<button id="nav-cs" onclick="openCS()">💬 Bantuan & CS</button>`;const unread=m[0]==='notifications'?(db.notifications||[]).filter(x=>!x.read).length:0;return `<button id="nav-${m[0]}" data-nav="${m[0]}">${m[1]} ${m[2]}${unread?` <span class="pill red" style="font-size:10px;padding:2px 6px">${unread}</span>`:''}</button>`}
 function go(key){if(!guard(key))return;location.hash=key;render()}
@@ -718,7 +865,7 @@ window.selectSubscriptionPlan=async function(plan,period){
   }
 };
 
-function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='payrollSettings')payrollSettingsPage();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
+function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='payrollSettings')payrollSettingsPage();else if(key==='ownerForum')ownerForumPage();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){go(b.dataset.nav);document.getElementById('sidebar').classList.remove('open')}});window.onhashchange=render;
 
 function employeeDashboard(){const today=dateNow(),tx=db.transactions.filter(t=>t.date===today&&t.status==='SELESAI');document.getElementById('content').innerHTML=`<div class="dashboard-head"><div><span class="gold-label">EMPLOYEE WORKSPACE</span><div class="greeting">SELAMAT DATANG, ${currentUser.name.toUpperCase()}!</div><div class="subtle">Ringkasan pekerjaan hari ini · ${today}</div></div><button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button></div><section class="kpis">${kpi('🧾','Transaksi Hari Ini',tx.length,'transactions')}${kpi('👥','Pelanggan Terdaftar',db.customers.length,'customers')}${kpi('💈','Layanan Aktif',db.services.filter(s=>s.active).length,'services')}</section><div class="dashboard-grid"><section class="card"><div class="panel-title"><h3>AKSI KERJA</h3></div><div class="quick-grid"><div class="quick" onclick="openTransaction()"><span>🧾</span><b>Transaksi Baru</b></div><div class="quick" onclick="showWalkin()"><span>🚶</span><b>Walk-in</b></div><div class="quick" onclick="openCustomer()"><span>👤</span><b>Tambah Pelanggan</b></div><div class="quick" onclick="go('customers')"><span>🔎</span><b>Cari Pelanggan</b></div><div class="quick" onclick="go('services')"><span>📦</span><b>Lihat Layanan</b></div><div class="quick" onclick="go('operations')"><span>🕘</span><b>Absensi</b></div><div class="quick" onclick="go('shiftReports')"><span>📋</span><b>Tutup Shift</b></div></div></section><section class="card"><div class="panel-title"><h3>TRANSAKSI TERBARU</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>${tx.slice().reverse().slice(0,5).map(t=>`<div class="schedule-item"><span class="time">${t.date}</span><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'}</div></div><span class="tag">SELESAI</span></div>`).join('')||'<div class="empty">Belum ada transaksi hari ini.</div>'}</section></div><section class="section-head"><div><span class="gold-label">ACCESS LEVEL</span><h2>Akses Karyawan</h2><p>Perhitungan gaji, bonus, upah, dan data keuangan sensitif hanya dapat dilihat Owner/Manager.</p></div></section>`}
@@ -1992,6 +2139,146 @@ async function shiftTestReset(){
 }
 
 function auth(){if(!guard('auth'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SECURITY</span><h1>Keamanan</h1><p>Aplikasi menggunakan autentikasi server dan data bisnis online.</p></div></div><div class="grid">${boxCard('Mode','Online')}${boxCard('Storage','Neon PostgreSQL')}${boxCard('Backup','JSON')}${boxCard('Session','Server')}</div><section class="card section"><h3>Peringatan</h3><p class="muted">Jangan membuka file backup JSON di tempat umum. Data bisnis disimpan pada server dan dapat diakses dari perangkat lain.</p></section>`}
+
+async function ownerForumPage(){
+  if(!guard('ownerForum'))return;
+
+  const content=document.getElementById('content');
+
+  content.innerHTML=`
+    <section class="card section owner-forum-page" style="padding:0;overflow:hidden">
+      <div class="owner-forum-head">
+        <div>
+          <span class="gold-label">OWNER COMMUNITY</span>
+          <h2 style="margin:4px 0 0">💬 Obrolan Owner</h2>
+          <p class="muted" style="margin:4px 0 0">Forum bersama Owner WZ Manage Pro</p>
+        </div>
+      </div>
+
+      <div id="ownerForumMessages" class="owner-forum-messages">
+        <div class="muted" style="padding:24px;text-align:center">Memuat obrolan...</div>
+      </div>
+
+      <div class="owner-forum-compose">
+        <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickSticker()" title="Sticker">😊</button>
+        <input
+          id="ownerForumInput"
+          class="input"
+          type="text"
+          maxlength="1000"
+          placeholder="Tulis pesan..."
+          autocomplete="off"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ownerForumSend()}"
+        >
+        <button type="button" class="btn primary owner-forum-send" onclick="ownerForumSend()">Kirim</button>
+      </div>
+    </section>
+  `;
+
+  await ownerForumLoad();
+}
+
+async function ownerForumLoad(){
+  const box=document.getElementById('ownerForumMessages');
+  if(!box)return;
+
+  try{
+    const r=await api('owner-forum/messages');
+    if(!r.ok)throw new Error(r.error||'Gagal memuat obrolan.');
+
+    const messages=Array.isArray(r.messages)?r.messages:[];
+
+    if(!messages.length){
+      box.innerHTML='<div class="muted" style="padding:32px;text-align:center">Belum ada obrolan.</div>';
+      return;
+    }
+
+    box.innerHTML=messages.map(ownerForumMessageHtml).join('');
+    box.scrollTop=box.scrollHeight;
+  }catch(e){
+    box.innerHTML='<div class="muted" style="padding:24px;text-align:center">Gagal memuat obrolan.</div>';
+    toast(e.message||'Gagal memuat obrolan.',true);
+  }
+}
+
+function ownerForumMessageHtml(m){
+  const avatar=m.senderAvatar
+    ? `<img src="${String(m.senderAvatar).replace(/"/g,'&quot;')}" alt="">`
+    : '<span>👤</span>';
+
+  const time=m.createdAt
+    ? new Date(m.createdAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})
+    : '';
+
+  const content=m.messageType==='sticker'
+    ? `<div class="owner-forum-sticker">${escapeHtml(m.stickerId||'😊')}</div>`
+    : `<div class="owner-forum-text">${escapeHtml(m.message||'')}</div>`;
+
+  return `
+    <div class="owner-forum-message">
+      <div class="owner-forum-avatar">${avatar}</div>
+      <div class="owner-forum-body">
+        <div class="owner-forum-meta">
+          <strong>${escapeHtml(m.senderName||'Owner')}</strong>
+          <span>${time}</span>
+        </div>
+        ${content}
+      </div>
+    </div>
+  `;
+}
+
+async function ownerForumSend(){
+  const input=document.getElementById('ownerForumInput');
+  if(!input)return;
+
+  const message=input.value.trim();
+  if(!message)return;
+
+  input.disabled=true;
+
+  try{
+    const r=await api('owner-forum/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message,messageType:'text'})
+    });
+
+    if(!r.ok)throw new Error(r.error||'Pesan gagal dikirim.');
+
+    input.value='';
+    await ownerForumLoad();
+  }catch(e){
+    toast(e.message||'Pesan gagal dikirim.',true);
+  }finally{
+    input.disabled=false;
+    input.focus();
+  }
+}
+
+function ownerForumPickSticker(){
+  const stickers=['😊','😂','❤️','👍','🙏','🔥','🎉','💈'];
+  const value=prompt('Pilih sticker: '+stickers.join(' '));
+  if(!value||!stickers.includes(value))return;
+  ownerForumSendSticker(value);
+}
+
+async function ownerForumSendSticker(stickerId){
+  try{
+    const r=await api('owner-forum/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:'',messageType:'sticker',stickerId})
+    });
+
+    if(!r.ok)throw new Error(r.error||'Sticker gagal dikirim.');
+
+    await ownerForumLoad();
+  }catch(e){
+    toast(e.message||'Sticker gagal dikirim.',true);
+  }
+}
+
 function systemPage(){if(!guard('system'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SYSTEM & DATA</span><h1>Sistem & Data</h1><p>Perawatan data online dan informasi sistem.</p></div></div><div class="grid">${boxCard('Transaksi',db.transactions.length)}${boxCard('Karyawan',db.employees.length)}${boxCard('Pelanggan',db.customers.length)}${boxCard('Layanan',db.services.length)}${boxCard('Pengeluaran',db.expenses.length)}${boxCard('Absensi',db.attendance.length)}</div><section class="card section"><h3>Backup & Restore</h3><p class="muted">Backup disimpan sebagai JSON dan dapat dipindahkan ke perangkat lain.</p><div class="actions"><button class="btn primary" onclick="exportBackup()">Download Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore Backup</button></div></section><section id="shift-test-reset-card" class="card section" style="margin-top:16px"><span class="gold-label">TESTING</span><h3 style="margin-top:8px">Reset Laporan Tutup Shift</h3><p class="muted">Khusus Manager/Owner. Hapus seluruh data transaksi dan seluruh laporan tutup shift untuk memulai pengujian dari kondisi kosong.</p><button type="button" id="resetShiftTestingBtn" class="btn">Hapus Semua Transaksi & Laporan Tutup Shift</button></section><section class="card section" style="margin-top:16px"><span class="gold-label">DEBUG FCM</span><h3 style="margin-top:8px">FCM Token</h3><p class="muted" id="fcmDebugStatus">Token: ${window.WZNativeFcmToken?window.WZNativeFcmToken.substring(0,30)+'...':('Belum ada token')}</p><button type="button" class="btn" onclick="syncNativeFcmToken().then(ok=>toast(ok?'Token berhasil disimpan!':'Gagal simpan token.',!ok))">Sync FCM Token</button></section>`}
 
 document.addEventListener('click',function(e){

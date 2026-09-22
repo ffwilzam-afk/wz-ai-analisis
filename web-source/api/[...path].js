@@ -304,6 +304,35 @@ async function schema(){
       avatar TEXT NOT NULL DEFAULT '',
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+
+    CREATE TABLE IF NOT EXISTS wz_owner_forum_messages(
+      id BIGSERIAL PRIMARY KEY,
+      sender_user_id BIGINT NOT NULL REFERENCES wz_users(id) ON DELETE CASCADE,
+      message TEXT NOT NULL DEFAULT '',
+      message_type TEXT NOT NULL DEFAULT 'text'
+        CHECK (message_type IN ('text','sticker')),
+      sticker_id TEXT,
+      reply_to_id BIGINT REFERENCES wz_owner_forum_messages(id) ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS wz_owner_forum_messages_created_idx
+      ON wz_owner_forum_messages(created_at);
+
+    CREATE INDEX IF NOT EXISTS wz_owner_forum_messages_sender_idx
+      ON wz_owner_forum_messages(sender_user_id);
+
+    CREATE TABLE IF NOT EXISTS wz_owner_forum_reactions(
+      id BIGSERIAL PRIMARY KEY,
+      message_id BIGINT NOT NULL REFERENCES wz_owner_forum_messages(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES wz_users(id) ON DELETE CASCADE,
+      reaction TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(message_id,user_id,reaction)
+    );
+
+    CREATE INDEX IF NOT EXISTS wz_owner_forum_reactions_message_idx
+      ON wz_owner_forum_reactions(message_id);
   `);
   await p.query(`
     ALTER TABLE wz_branches ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '';\n    ALTER TABLE wz_branches ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
@@ -1672,6 +1701,152 @@ async function handler(req,res){
       );
 
       return send(res,200,{ok:true,settings:r.rows[0]});
+    }
+
+    if(path==='owner-forum/messages'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      if(u.role!=='owner')return send(res,403,{ok:false,error:'Akses hanya untuk Owner.'});
+
+      const pool=getPool();
+
+      if(req.method==='GET'){
+        const r=await pool.query(`
+          SELECT
+            m.id,
+            m.message,
+            m.message_type AS "messageType",
+            m.sticker_id AS "stickerId",
+            m.reply_to_id AS "replyToId",
+            m.created_at AS "createdAt",
+            u.id AS "senderUserId",
+            u.name AS "senderName",
+            COALESCE(p.avatar,'') AS "senderAvatar"
+          FROM wz_owner_forum_messages m
+          JOIN wz_users u ON u.id=m.sender_user_id
+          LEFT JOIN wz_user_profiles p ON p.user_id=u.id
+          WHERE u.role='owner' AND u.active=true
+          ORDER BY m.created_at DESC
+          LIMIT 100
+        `);
+
+        return send(res,200,{ok:true,messages:r.rows.reverse()});
+      }
+
+      if(req.method==='POST'){
+        const b=await body(req);
+        const message=String(b.message||'').trim();
+        const messageType=String(b.messageType||'text');
+        const stickerId=b.stickerId==null?null:String(b.stickerId);
+        const replyToId=b.replyToId==null?null:Number(b.replyToId);
+
+        if(!['text','sticker'].includes(messageType))
+          return send(res,400,{ok:false,error:'Jenis pesan tidak valid.'});
+
+        if(messageType==='text' && !message)
+          return send(res,400,{ok:false,error:'Pesan tidak boleh kosong.'});
+
+        if(messageType==='sticker' && !stickerId)
+          return send(res,400,{ok:false,error:'Sticker tidak valid.'});
+
+        if(replyToId!==null && (!Number.isInteger(replyToId)||replyToId<1))
+          return send(res,400,{ok:false,error:'Reply tidak valid.'});
+
+        if(replyToId!==null){
+          const replyCheck=await pool.query(`
+            SELECT m.id
+            FROM wz_owner_forum_messages m
+            JOIN wz_users u ON u.id=m.sender_user_id
+            WHERE m.id=$1 AND u.role='owner' AND u.active=true
+          `,[replyToId]);
+
+          if(!replyCheck.rowCount)
+            return send(res,400,{ok:false,error:'Pesan yang dibalas tidak ditemukan.'});
+        }
+
+        const r=await pool.query(`
+          INSERT INTO wz_owner_forum_messages
+            (sender_user_id,message,message_type,sticker_id,reply_to_id)
+          VALUES($1,$2,$3,$4,$5)
+          RETURNING
+            id,
+            message,
+            message_type AS "messageType",
+            sticker_id AS "stickerId",
+            reply_to_id AS "replyToId",
+            created_at AS "createdAt"
+        `,[u.id,message,messageType,stickerId,replyToId]);
+
+        return send(res,201,{
+          ok:true,
+          message:{
+            ...r.rows[0],
+            senderUserId:u.id,
+            senderName:u.name,
+            senderAvatar:''
+          }
+        });
+      }
+
+      return send(res,405,{ok:false,error:'Method tidak didukung.'});
+    }
+
+    if(path==='owner-forum/reactions'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      if(u.role!=='owner')return send(res,403,{ok:false,error:'Akses hanya untuk Owner.'});
+
+      if(req.method!=='POST')
+        return send(res,405,{ok:false,error:'Method tidak didukung.'});
+
+      const b=await body(req);
+      const messageId=Number(b.messageId);
+      const reaction=String(b.reaction||'').trim();
+
+      if(!Number.isInteger(messageId)||messageId<1)
+        return send(res,400,{ok:false,error:'Pesan tidak valid.'});
+
+      if(!reaction)
+        return send(res,400,{ok:false,error:'Reaksi tidak valid.'});
+
+      const allowedReactions=['👍','❤️','😂','😮','😢','🙏'];
+
+      if(!allowedReactions.includes(reaction))
+        return send(res,400,{ok:false,error:'Reaksi tidak didukung.'});
+
+      const pool=getPool();
+
+      const messageCheck=await pool.query(`
+        SELECT m.id
+        FROM wz_owner_forum_messages m
+        JOIN wz_users sender ON sender.id=m.sender_user_id
+        WHERE m.id=$1 AND sender.role='owner' AND sender.active=true
+      `,[messageId]);
+
+      if(!messageCheck.rowCount)
+        return send(res,404,{ok:false,error:'Pesan tidak ditemukan.'});
+
+      const existing=await pool.query(`
+        SELECT id
+        FROM wz_owner_forum_reactions
+        WHERE message_id=$1 AND user_id=$2 AND reaction=$3
+      `,[messageId,u.id,reaction]);
+
+      if(existing.rowCount){
+        await pool.query(
+          `DELETE FROM wz_owner_forum_reactions WHERE id=$1`,
+          [existing.rows[0].id]
+        );
+        return send(res,200,{ok:true,reacted:false});
+      }
+
+      await pool.query(`
+        INSERT INTO wz_owner_forum_reactions(message_id,user_id,reaction)
+        VALUES($1,$2,$3)
+        ON CONFLICT(message_id,user_id,reaction) DO NOTHING
+      `,[messageId,u.id,reaction]);
+
+      return send(res,200,{ok:true,reacted:true});
     }
 
     return send(res,404,{ok:false,error:'Endpoint tidak ditemukan.'});
