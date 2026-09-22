@@ -1398,6 +1398,28 @@ function saveShiftReport(){
    - Shaving: Rp2.000/transaksi
    - Haircoloring: Rp20.000/transaksi
 */
+const PAYROLL_RULES_DEFAULT={
+ baseSalary:2000000,
+ periodStartDay:24,
+ haircut:{threshold:157,bonus:10000},
+ hairwash:{threshold:1,bonus:2000},
+ hairstyling:{threshold:1,bonus:2000},
+ shaving:{threshold:1,bonus:2000},
+ haircoloring:{threshold:1,bonus:20000}
+};
+function getPayrollRules(){
+ const s=db.payrollSettings;
+ if(!s||typeof s!=='object')return PAYROLL_RULES_DEFAULT;
+ return {
+  baseSalary:Number(s.baseSalary)||PAYROLL_RULES_DEFAULT.baseSalary,
+  periodStartDay:Number(s.periodStartDay)||PAYROLL_RULES_DEFAULT.periodStartDay,
+  haircut:{threshold:Number(s.haircut?.threshold)||PAYROLL_RULES_DEFAULT.haircut.threshold,bonus:Number(s.haircut?.bonus)||PAYROLL_RULES_DEFAULT.haircut.bonus},
+  hairwash:{threshold:Number(s.hairwash?.threshold)||PAYROLL_RULES_DEFAULT.hairwash.threshold,bonus:Number(s.hairwash?.bonus)||PAYROLL_RULES_DEFAULT.hairwash.bonus},
+  hairstyling:{threshold:Number(s.hairstyling?.threshold)||PAYROLL_RULES_DEFAULT.hairstyling.threshold,bonus:Number(s.hairstyling?.bonus)||PAYROLL_RULES_DEFAULT.hairstyling.bonus},
+  shaving:{threshold:Number(s.shaving?.threshold)||PAYROLL_RULES_DEFAULT.shaving.threshold,bonus:Number(s.shaving?.bonus)||PAYROLL_RULES_DEFAULT.shaving.bonus},
+  haircoloring:{threshold:Number(s.haircoloring?.threshold)||PAYROLL_RULES_DEFAULT.haircoloring.threshold,bonus:Number(s.haircoloring?.bonus)||PAYROLL_RULES_DEFAULT.haircoloring.bonus}
+ };
+}
 const PAYROLL_RULES={
  baseSalary:2000000,
  haircut:{threshold:157,bonus:10000},
@@ -1407,10 +1429,12 @@ const PAYROLL_RULES={
  haircoloring:{threshold:1,bonus:20000}
 };
 function payrollPeriodFor(dateStr){
+ const rules=getPayrollRules();
+ const startDay=Number(rules.periodStartDay)||24;
  const d=dashboardDateObj(dateStr||dateNow()), y=d.getUTCFullYear(),m=d.getUTCMonth(),day=d.getUTCDate();
  let start,end;
- if(day>=24){start=new Date(Date.UTC(y,m,24));end=new Date(Date.UTC(y,m+1,24));}
- else{start=new Date(Date.UTC(y,m-1,24));end=new Date(Date.UTC(y,m,24));}
+ if(day>=startDay){start=new Date(Date.UTC(y,m,startDay));end=new Date(Date.UTC(y,m+1,startDay));}
+ else{start=new Date(Date.UTC(y,m-1,startDay));end=new Date(Date.UTC(y,m,startDay));}
  return {start:dashboardIso(start),end:dashboardIso(end)};
 }
 function payrollServiceKey(service){
@@ -1438,7 +1462,7 @@ function payrollCounts(employeeId,start,end){
 function calculatePayroll(employeeId,periodDate){
  const e=getEmployee(employeeId); if(!e)return null;
  const period=payrollPeriodFor(periodDate||dateNow()), counts=payrollCounts(employeeId,period.start,period.end);
- const rules=PAYROLL_RULES;
+ const rules=getPayrollRules();
  const detail={};
  Object.keys(counts).forEach(key=>{
   const rule=rules[key];
@@ -1448,7 +1472,7 @@ function calculatePayroll(employeeId,periodDate){
   detail[key]={customers:counts[key],threshold:rule.threshold,bonusCustomers,rate:rule.bonus,bonus:bonusCustomers*rule.bonus};
  });
  const totalBonus=Object.values(detail).reduce((s,x)=>s+x.bonus,0);
- const baseSalary=Number(e.salary||rules.baseSalary||2000000);
+ const baseSalary=Number(e.salary)||Number(rules.baseSalary)||2000000;
  return {employeeId,periodStart:period.start,periodEnd:period.end,baseSalary,counts:detail,totalBonus,totalPay:baseSalary+totalBonus};
 }
 function payrollSummaryHtml(pay){
@@ -1856,7 +1880,7 @@ async function importBackup(event){
  }catch(e){alert('Restore online gagal: '+(e.message||e));}
  finally{if(event?.target)event.target.value='';}
 }
-function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${db.profile.name}"></label><label>Jabatan<input id="pRole" value="${db.profile.role}"></label><label class="full">Brand<input id="pBrand" value="${db.profile.brand}"></label><label class="full">Fokus<input id="pFocus" value="${db.profile.focus}"></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
+function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${db.profile.name}"></label><label>Jabatan<input id="pRole" value="${db.profile.role}"></label><label class="full">Brand<input id="pBrand" value="${db.profile.brand}"></label><label class="full">Fokus<input id="pFocus" value="${db.profile.focus}"></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section>${currentUser.role==="owner"?`<section class="card section"><h3>⚙️ Pengaturan Upah</h3><p class="muted">Setting berlaku untuk semua karyawan bisnis ini.</p><div class="form"><label>Gaji Pokok Default<input id="prBaseSalary" type="number" value="${(db.payrollSettings?.baseSalary||2000000)}"></label><label>Tanggal Mulai Periode<input id="prPeriodDay" type="number" min="1" max="28" value="${(db.payrollSettings?.periodStartDay||24)}"></label></div><div class="goldline"></div><h4 style="margin:10px 0 6px">Bonus Layanan</h4><div class="form"><label>Haircut — Threshold<input id="prHcThreshold" type="number" value="${(db.payrollSettings?.haircut?.threshold||157)}"></label><label>Haircut — Bonus/potong (Rp)<input id="prHcBonus" type="number" value="${(db.payrollSettings?.haircut?.bonus||10000)}"></label><label>Hairwash — Bonus/layanan (Rp)<input id="prHwBonus" type="number" value="${(db.payrollSettings?.hairwash?.bonus||2000)}"></label><label>Hairstyling — Bonus/layanan (Rp)<input id="prHsBonus" type="number" value="${(db.payrollSettings?.hairstyling?.bonus||2000)}"></label><label>Shaving — Bonus/layanan (Rp)<input id="prSvBonus" type="number" value="${(db.payrollSettings?.shaving?.bonus||2000)}"></label><label>Haircoloring — Bonus/layanan (Rp)<input id="prHcColBonus" type="number" value="${(db.payrollSettings?.haircoloring?.bonus||20000)}"></label></div><button class="btn primary" style="margin-top:12px" onclick="savePayrollSettings()">Simpan Pengaturan Upah</button></section>`:''}<section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
 function testNotificationSound(){const wasEnabled=db.profile.notificationSoundEnabled;db.profile.notificationSoundEnabled=true;playNotificationSound();db.profile.notificationSoundEnabled=wasEnabled;toast('Suara notifikasi diuji.',true);}
 function saveSettings(){if(!guard('settings'))return;db.profile.name=pName.value;db.profile.role=pRole.value;db.profile.brand=pBrand.value;db.profile.focus=pFocus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;save();toast('Pengaturan disimpan.');render()}
 
@@ -1967,6 +1991,7 @@ function resetTenantState(){
   db.expenses=[];
   db.attendance=[];
   db.notifications=[];
+  db.payrollSettings=null;
   db.profile={
     name:currentUser?.name||'',
     role:currentUser?.role||'',
@@ -2634,6 +2659,25 @@ window.WZOnlineFcm={
     }
   }
 };
+
+// Retry FCM token sync sampai berhasil (max 10 menit)
+(function retryFcmTokenSync(){
+  let attempts=0;
+  const MAX=20;
+  const INTERVAL=30000;
+  function trySync(){
+    if(attempts>=MAX)return;
+    attempts++;
+    if(!window.WZNativeFcmToken||!currentUser){
+      setTimeout(trySync,INTERVAL);
+      return;
+    }
+    syncNativeFcmToken().then(ok=>{
+      if(!ok)setTimeout(trySync,INTERVAL);
+    }).catch(()=>setTimeout(trySync,INTERVAL));
+  }
+  setTimeout(trySync,10000);
+})();
 
 </script>
 <script>
