@@ -42,7 +42,6 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
 
         showNotification(title, body, type, reportId);
         speakNotification(body);
-        MainActivity.notifyNewReport(type, reportId);
     }
 
     @Override
@@ -107,7 +106,7 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
             channel.setVibrationPattern(new long[]{0, 500, 200, 500});
             channel.setSound(
                 android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
-                new android.media.AudioAttributes.Builder()
+                new android.app.AudioAttributes.Builder()
                     .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
                     .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
                     .build()

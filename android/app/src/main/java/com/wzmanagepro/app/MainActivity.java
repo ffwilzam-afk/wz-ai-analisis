@@ -30,7 +30,6 @@ public class MainActivity extends Activity {
     private WebView web;
     private String pendingNotificationType = "";
     private String pendingNotificationReportId = "";
-    private static MainActivity activeInstance;
 
     public class AndroidPrintBridge {
         @JavascriptInterface
@@ -56,7 +55,6 @@ public class MainActivity extends Activity {
         getWindow().getDecorView().setSystemUiVisibility(0);
 
         web = new WebView(this);
-        activeInstance = this;
 
         handleNotificationIntent(getIntent());
 
@@ -180,34 +178,6 @@ public class MainActivity extends Activity {
         pendingNotificationReportId = "";
     }
 
-    public static void notifyNewReport(String type, String reportId) {
-        MainActivity mi = activeInstance;
-        if (mi != null) {
-            mi.injectNotificationJs(type, reportId);
-        }
-    }
-
-    private void injectNotificationJs(String type, String reportId) {
-        if (web == null) {
-            return;
-        }
-
-        String safeType = (type == null ? "" : type)
-                .replace("\\", "\\\\")
-                .replace("'", "\\'");
-        String safeReportId = (reportId == null ? "" : reportId)
-                .replace("\\", "\\\\")
-                .replace("'", "\\'");
-
-        String js =
-                "window.WZNotificationType='" + safeType + "';" +
-                "window.WZNotificationReportId='" + safeReportId + "';" +
-                "if(typeof window.WZHandleNotification==='function')" +
-                "{window.WZHandleNotification('" + safeType + "','" + safeReportId + "');}";
-
-        runOnUiThread(() -> web.evaluateJavascript(js, null));
-    }
-
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
@@ -289,14 +259,6 @@ public class MainActivity extends Activity {
     protected void onSaveInstanceState(Bundle outState) {
         web.saveState(outState);
         super.onSaveInstanceState(outState);
-    }
-
-    @Override
-    protected void onDestroy() {
-        if (activeInstance == this) {
-            activeInstance = null;
-        }
-        super.onDestroy();
     }
 
     @Override
