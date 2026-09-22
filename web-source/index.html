@@ -2183,6 +2183,106 @@ async function syncNativeFcmToken(){
 }
 
 window.WZOnlineFcm={sync:syncNativeFcmToken};
+
+async function syncPayrollSettingsFromServer(){
+  if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+  try{
+    const r=await api('payroll/settings');
+    if(r?.settings){
+      const s=r.settings;
+      const rules=s.serviceRules&&typeof s.serviceRules==='object'?s.serviceRules:{};
+      db.payrollSettings={
+        payrollType:s.payrollType||'BASE_PLUS_SERVICE_BONUS',
+        baseSalary:Number(s.baseSalary)||0,
+        targetAmount:Number(s.targetAmount)||0,
+        periodStartDay:Number(s.periodStartDay)||24,
+        periodEndDay:Number(s.periodEndDay)||24,
+        haircut:rules.Haircut||rules.haircut||{threshold:157,bonus:10000},
+        hairwash:rules.Hairwash||rules.hairwash||{threshold:1,bonus:2000},
+        hairstyling:rules.Hairstyling||rules.hairstyling||{threshold:1,bonus:2000},
+        shaving:rules.Shaving||rules.shaving||{threshold:1,bonus:2000},
+        haircoloring:rules.Haircoloring||rules.haircoloring||{threshold:1,bonus:20000}
+      };
+      return true;
+    }
+  }catch(e){
+    console.warn('Payroll settings sync failed:',e.message||e);
+  }
+  return false;
+}
+
+async function savePayrollSettings(){
+  if(!currentUser || currentUser.role!=='owner'){
+    toast('Hanya Owner yang dapat mengubah pengaturan upah.');
+    return;
+  }
+
+  const baseSalary=Number(document.getElementById('prBaseSalary')?.value)||0;
+  const periodStartDay=Number(document.getElementById('prPeriodDay')?.value)||24;
+  const periodEndDay=periodStartDay;
+
+  const serviceRules={
+    Haircut:{
+      threshold:Number(document.getElementById('prHcThreshold')?.value)||157,
+      bonus:Number(document.getElementById('prHcBonus')?.value)||10000
+    },
+    Hairwash:{
+      threshold:1,
+      bonus:Number(document.getElementById('prHwBonus')?.value)||2000
+    },
+    Hairstyling:{
+      threshold:1,
+      bonus:Number(document.getElementById('prHsBonus')?.value)||2000
+    },
+    Shaving:{
+      threshold:1,
+      bonus:Number(document.getElementById('prSvBonus')?.value)||2000
+    },
+    Haircoloring:{
+      threshold:1,
+      bonus:Number(document.getElementById('prHcColBonus')?.value)||20000
+    }
+  };
+
+  try{
+    const r=await api('payroll/settings',{
+      method:'POST',
+      body:JSON.stringify({
+        payrollType:'BASE_PLUS_SERVICE_BONUS',
+        baseSalary,
+        targetAmount:Number(db.payrollSettings?.targetAmount)||0,
+        periodStartDay,
+        periodEndDay,
+        serviceRules
+      })
+    });
+
+    if(r?.settings){
+      const x=r.settings;
+      const rules=x.serviceRules||serviceRules;
+      db.payrollSettings={
+        payrollType:x.payrollType||'BASE_PLUS_SERVICE_BONUS',
+        baseSalary:Number(x.baseSalary)||baseSalary,
+        targetAmount:Number(x.targetAmount)||0,
+        periodStartDay:Number(x.periodStartDay)||periodStartDay,
+        periodEndDay:Number(x.periodEndDay)||periodEndDay,
+        haircut:rules.Haircut||rules.haircut||serviceRules.Haircut,
+        hairwash:rules.Hairwash||rules.hairwash||serviceRules.Hairwash,
+        hairstyling:rules.Hairstyling||rules.hairstyling||serviceRules.Hairstyling,
+        shaving:rules.Shaving||rules.shaving||serviceRules.Shaving,
+        haircoloring:rules.Haircoloring||rules.haircoloring||serviceRules.Haircoloring
+      };
+    }
+
+    toast('Pengaturan upah berhasil disimpan.');
+    render();
+  }catch(e){
+    console.error('Save payroll settings failed:',e);
+    toast('Gagal menyimpan pengaturan upah: '+(e.message||e));
+  }
+}
+
+
 async function fullHydrate(){
   if(!currentUser)return false;
   if(typeof Notification!=='undefined'&&Notification.permission==='granted')registerPushSubscription().catch(()=>{});
@@ -2195,6 +2295,7 @@ async function fullHydrate(){
 
   if(['owner','manager'].includes(currentUser.role)){
     await syncEmployeesFromServer();
+    await syncPayrollSettingsFromServer();
   }else{
     const employeeSynced=await syncMyEmployeeFromServer();
     if(!employeeSynced){
