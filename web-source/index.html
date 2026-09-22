@@ -327,7 +327,7 @@ const ACCESS={
   cs:'all',owner:[
     'dashboard','transactions','shiftReports','employees','customers',
     'services','finance','reports','operations','analytics',
-    'notifications','branches','profile','settings','system','subscription','auth'
+    'notifications','branches','profile','settings','payrollSettings','system','subscription','auth'
   ,'cs'],
   manager:[
     'dashboard','transactions','shiftReports','employees','customers',
@@ -363,6 +363,7 @@ const menu=[
   ['branches','🏢','Cabang'],
   ['profile','👤','Profil'],
   ['settings','⚙️','Pengaturan'],
+  ['payrollSettings','💵','Pengaturan Gaji'],
   ['system','🛠️','Sistem & Data'],
   ['cs','💬','Bantuan & CS'],
   ['subscription','💳','Berlangganan'],
@@ -568,7 +569,7 @@ function businessDailyRevenue(iso){return ownerBusinessFeed().filter(x=>x.date==
 function getCustomer(id){return db.customers.find(x=>x.id===id)}
 function getEmployee(id){return db.employees.find(x=>x.id===id)}
 function getService(id){return db.services.find(x=>x.id===id)}
-function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','system','subscription','auth','cs']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
+function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','payrollSettings','system','subscription','auth','cs']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
 function openCS(){const u=currentUser||{};const msg=`Halo CS WZ MANAGE PRO, saya membutuhkan bantuan.%0A%0ABisnis: ${encodeURIComponent(u.businessName||u.businessId||'-')}%0ACabang: ${encodeURIComponent(u.branchName||u.branchId||'-')}%0AAkun: ${encodeURIComponent(u.name||u.username||'-')}%0ARole: ${encodeURIComponent(u.role||'-')}%0A%0AMasalah:%20`;window.open('https://wa.me/6287777527161?text='+msg,'_blank')}
 function navBtn(m){if(m[0]==='cs')return `<button id="nav-cs" onclick="openCS()">💬 Bantuan & CS</button>`;const unread=m[0]==='notifications'?(db.notifications||[]).filter(x=>!x.read).length:0;return `<button id="nav-${m[0]}" data-nav="${m[0]}">${m[1]} ${m[2]}${unread?` <span class="pill red" style="font-size:10px;padding:2px 6px">${unread}</span>`:''}</button>`}
 function go(key){if(!guard(key))return;location.hash=key;render()}
@@ -717,7 +718,7 @@ window.selectSubscriptionPlan=async function(plan,period){
   }
 };
 
-function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
+function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='payrollSettings')payrollSettingsPage();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){go(b.dataset.nav);document.getElementById('sidebar').classList.remove('open')}});window.onhashchange=render;
 
 function employeeDashboard(){const today=dateNow(),tx=db.transactions.filter(t=>t.date===today&&t.status==='SELESAI');document.getElementById('content').innerHTML=`<div class="dashboard-head"><div><span class="gold-label">EMPLOYEE WORKSPACE</span><div class="greeting">SELAMAT DATANG, ${currentUser.name.toUpperCase()}!</div><div class="subtle">Ringkasan pekerjaan hari ini · ${today}</div></div><button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button></div><section class="kpis">${kpi('🧾','Transaksi Hari Ini',tx.length,'transactions')}${kpi('👥','Pelanggan Terdaftar',db.customers.length,'customers')}${kpi('💈','Layanan Aktif',db.services.filter(s=>s.active).length,'services')}</section><div class="dashboard-grid"><section class="card"><div class="panel-title"><h3>AKSI KERJA</h3></div><div class="quick-grid"><div class="quick" onclick="openTransaction()"><span>🧾</span><b>Transaksi Baru</b></div><div class="quick" onclick="showWalkin()"><span>🚶</span><b>Walk-in</b></div><div class="quick" onclick="openCustomer()"><span>👤</span><b>Tambah Pelanggan</b></div><div class="quick" onclick="go('customers')"><span>🔎</span><b>Cari Pelanggan</b></div><div class="quick" onclick="go('services')"><span>📦</span><b>Lihat Layanan</b></div><div class="quick" onclick="go('operations')"><span>🕘</span><b>Absensi</b></div><div class="quick" onclick="go('shiftReports')"><span>📋</span><b>Tutup Shift</b></div></div></section><section class="card"><div class="panel-title"><h3>TRANSAKSI TERBARU</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>${tx.slice().reverse().slice(0,5).map(t=>`<div class="schedule-item"><span class="time">${t.date}</span><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'}</div></div><span class="tag">SELESAI</span></div>`).join('')||'<div class="empty">Belum ada transaksi hari ini.</div>'}</section></div><section class="section-head"><div><span class="gold-label">ACCESS LEVEL</span><h2>Akses Karyawan</h2><p>Perhitungan gaji, bonus, upah, dan data keuangan sensitif hanya dapat dilihat Owner/Manager.</p></div></section>`}
@@ -1880,7 +1881,82 @@ async function importBackup(event){
  }catch(e){alert('Restore online gagal: '+(e.message||e));}
  finally{if(event?.target)event.target.value='';}
 }
-function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${db.profile.name}"></label><label>Jabatan<input id="pRole" value="${db.profile.role}"></label><label class="full">Brand<input id="pBrand" value="${db.profile.brand}"></label><label class="full">Fokus<input id="pFocus" value="${db.profile.focus}"></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section>${currentUser.role==="owner"?`<section class="card section"><h3>⚙️ Pengaturan Upah</h3><p class="muted">Setting berlaku untuk semua karyawan bisnis ini.</p><div class="form"><label>Gaji Pokok Default<input id="prBaseSalary" type="number" value="${(db.payrollSettings?.baseSalary||2000000)}"></label><label>Tanggal Mulai Periode<input id="prPeriodDay" type="number" min="1" max="28" value="${(db.payrollSettings?.periodStartDay||24)}"></label></div><div class="goldline"></div><h4 style="margin:10px 0 6px">Bonus Layanan</h4><div class="form"><label>Haircut — Threshold<input id="prHcThreshold" type="number" value="${(db.payrollSettings?.haircut?.threshold||157)}"></label><label>Haircut — Bonus/potong (Rp)<input id="prHcBonus" type="number" value="${(db.payrollSettings?.haircut?.bonus||10000)}"></label><label>Hairwash — Bonus/layanan (Rp)<input id="prHwBonus" type="number" value="${(db.payrollSettings?.hairwash?.bonus||2000)}"></label><label>Hairstyling — Bonus/layanan (Rp)<input id="prHsBonus" type="number" value="${(db.payrollSettings?.hairstyling?.bonus||2000)}"></label><label>Shaving — Bonus/layanan (Rp)<input id="prSvBonus" type="number" value="${(db.payrollSettings?.shaving?.bonus||2000)}"></label><label>Haircoloring — Bonus/layanan (Rp)<input id="prHcColBonus" type="number" value="${(db.payrollSettings?.haircoloring?.bonus||20000)}"></label></div><button class="btn primary" style="margin-top:12px" onclick="savePayrollSettings()">Simpan Pengaturan Upah</button></section>`:''}<section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
+async function payrollSettingsPage(){
+ if(!guard('payrollSettings'))return;
+
+ const app=document.getElementById('content');
+ app.innerHTML='<div class="card"><h2>💵 Pengaturan Gaji</h2><p class="muted">Memuat pengaturan gaji tenant...</p></div>';
+
+ try{
+   await syncPayrollSettingsFromServer();
+ }catch{}
+
+ const s=db.payrollSettings||{};
+ const haircut=s.haircut||{threshold:157,bonus:10000};
+ const hairwash=s.hairwash||{threshold:1,bonus:2000};
+ const hairstyling=s.hairstyling||{threshold:1,bonus:2000};
+ const shaving=s.shaving||{threshold:1,bonus:2000};
+ const haircoloring=s.haircoloring||{threshold:1,bonus:20000};
+
+ app.innerHTML=`
+ <div class="section-head">
+   <div>
+     <span class="gold-label">PAYROLL</span>
+     <h1>Pengaturan Gaji</h1>
+     <p>Atur sistem gaji dan bonus khusus untuk bisnis/tenant ini.</p>
+   </div>
+ </div>
+
+ <section class="card">
+   <h3>⚙️ Sistem Gaji</h3>
+   <p class="muted">Pengaturan ini hanya berlaku untuk tenant yang sedang login.</p>
+
+   <div class="form">
+     <label>Gaji Pokok Default
+       <input id="prBaseSalary" type="number" min="0" value="${Number(s.baseSalary)||0}">
+     </label>
+
+     <label>Tanggal Mulai Periode
+       <input id="prPeriodDay" type="number" min="1" max="31" value="${Number(s.periodStartDay)||24}">
+     </label>
+   </div>
+
+   <div class="goldline"></div>
+   <h4 style="margin:10px 0 6px">Bonus Layanan</h4>
+
+   <div class="form">
+     <label>Haircut — Threshold
+       <input id="prHcThreshold" type="number" min="0" value="${Number(haircut.threshold)||157}">
+     </label>
+
+     <label>Haircut — Bonus/potong (Rp)
+       <input id="prHcBonus" type="number" min="0" value="${Number(haircut.bonus)||10000}">
+     </label>
+
+     <label>Hairwash — Bonus/layanan (Rp)
+       <input id="prHwBonus" type="number" min="0" value="${Number(hairwash.bonus)||2000}">
+     </label>
+
+     <label>Hairstyling — Bonus/layanan (Rp)
+       <input id="prHsBonus" type="number" min="0" value="${Number(hairstyling.bonus)||2000}">
+     </label>
+
+     <label>Shaving — Bonus/layanan (Rp)
+       <input id="prSvBonus" type="number" min="0" value="${Number(shaving.bonus)||2000}">
+     </label>
+
+     <label>Haircoloring — Bonus/layanan (Rp)
+       <input id="prHcColBonus" type="number" min="0" value="${Number(haircoloring.bonus)||20000}">
+     </label>
+   </div>
+
+   <button class="btn primary" style="margin-top:12px" onclick="savePayrollSettings()">
+     Simpan Pengaturan Gaji
+   </button>
+ </section>`;
+}
+
+function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${db.profile.name}"></label><label>Jabatan<input id="pRole" value="${db.profile.role}"></label><label class="full">Brand<input id="pBrand" value="${db.profile.brand}"></label><label class="full">Fokus<input id="pFocus" value="${db.profile.focus}"></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
 function testNotificationSound(){const wasEnabled=db.profile.notificationSoundEnabled;db.profile.notificationSoundEnabled=true;playNotificationSound();db.profile.notificationSoundEnabled=wasEnabled;toast('Suara notifikasi diuji.',true);}
 function saveSettings(){if(!guard('settings'))return;db.profile.name=pName.value;db.profile.role=pRole.value;db.profile.brand=pBrand.value;db.profile.focus=pFocus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;save();toast('Pengaturan disimpan.');render()}
 
