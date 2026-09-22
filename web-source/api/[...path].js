@@ -338,6 +338,21 @@ async function schema(){
     CREATE INDEX IF NOT EXISTS wz_fcm_user_idx ON wz_fcm_tokens(user_id);
     CREATE INDEX IF NOT EXISTS wz_fcm_business_idx ON wz_fcm_tokens(business_id);
     CREATE TABLE IF NOT EXISTS wz_app_states(business_id TEXT PRIMARY KEY REFERENCES wz_businesses(id) ON DELETE CASCADE,data JSONB NOT NULL DEFAULT '{}'::jsonb,updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW());
+
+    CREATE TABLE IF NOT EXISTS wz_payroll_settings(
+      id BIGSERIAL PRIMARY KEY,
+      business_id TEXT NOT NULL UNIQUE REFERENCES wz_businesses(id) ON DELETE CASCADE,
+      payroll_type TEXT NOT NULL DEFAULT 'BASE_PLUS_SERVICE_BONUS',
+      base_salary NUMERIC NOT NULL DEFAULT 0,
+      target_amount NUMERIC NOT NULL DEFAULT 0,
+      period_start_day INTEGER NOT NULL DEFAULT 1 CHECK (period_start_day BETWEEN 1 AND 31),
+      period_end_day INTEGER NOT NULL DEFAULT 31 CHECK (period_end_day BETWEEN 1 AND 31),
+      service_rules JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS wz_payroll_settings_business_idx
+      ON wz_payroll_settings(business_id);
   `);
   // NO DEFAULT WZ TENANT DATA. Semua bisnis dimulai dari data miliknya sendiri.
 
@@ -1569,6 +1584,96 @@ async function handler(req,res){
       const id=new URL(req.url,'http://localhost').searchParams.get('id');if(!id)return send(res,400,{ok:false,error:'ID karyawan wajib diisi.'});
       const client=await getPool().connect();try{await client.query('BEGIN');await client.query('DELETE FROM wz_users WHERE employee_id=$1 AND business_id=$2',[id,u.business_id]);const r=await client.query('DELETE FROM wz_employees WHERE id=$1 AND business_id=$2 RETURNING id',[id,u.business_id]);if(!r.rowCount){await client.query('ROLLBACK');return send(res,404,{ok:false,error:'Karyawan tidak ditemukan.'});}await client.query('COMMIT');return send(res,200,{ok:true});}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()};
     }
+    if(path==='payroll/settings' && req.method==='GET'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      if(!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengatur sistem upah.'});
+
+      const p=getPool();
+      let r=await p.query(
+        `SELECT id,business_id AS "businessId",payroll_type AS "payrollType",
+                base_salary AS "baseSalary",target_amount AS "targetAmount",
+                period_start_day AS "periodStartDay",period_end_day AS "periodEndDay",
+                service_rules AS "serviceRules"
+         FROM wz_payroll_settings
+         WHERE business_id=$1`,
+        [u.business_id]
+      );
+
+      if(!r.rowCount){
+        r=await p.query(
+          `INSERT INTO wz_payroll_settings
+             (business_id,payroll_type,base_salary,target_amount,period_start_day,period_end_day,service_rules)
+           VALUES($1,'BASE_PLUS_SERVICE_BONUS',0,0,1,31,'{}'::jsonb)
+           RETURNING id,business_id AS "businessId",payroll_type AS "payrollType",
+                     base_salary AS "baseSalary",target_amount AS "targetAmount",
+                     period_start_day AS "periodStartDay",period_end_day AS "periodEndDay",
+                     service_rules AS "serviceRules"`,
+          [u.business_id]
+        );
+      }
+
+      return send(res,200,{ok:true,settings:r.rows[0]});
+    }
+
+    if(path==='payroll/settings' && req.method==='POST'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      if(!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengatur sistem upah.'});
+
+      const b=await body(req);
+      const payrollType=String(b.payrollType||'BASE_PLUS_SERVICE_BONUS').trim();
+      const baseSalary=Number(b.baseSalary);
+      const targetAmount=Number(b.targetAmount);
+      const periodStartDay=Number(b.periodStartDay);
+      const periodEndDay=Number(b.periodEndDay);
+      const serviceRules=b.serviceRules && typeof b.serviceRules==='object' && !Array.isArray(b.serviceRules)
+        ? b.serviceRules
+        : {};
+
+      if(!Number.isFinite(baseSalary)||baseSalary<0)
+        return send(res,400,{ok:false,error:'Gaji pokok tidak valid.'});
+      if(!Number.isFinite(targetAmount)||targetAmount<0)
+        return send(res,400,{ok:false,error:'Target tidak valid.'});
+      if(!Number.isInteger(periodStartDay)||periodStartDay<1||periodStartDay>31)
+        return send(res,400,{ok:false,error:'Tanggal mulai periode tidak valid.'});
+      if(!Number.isInteger(periodEndDay)||periodEndDay<1||periodEndDay>31)
+        return send(res,400,{ok:false,error:'Tanggal akhir periode tidak valid.'});
+
+      const p=getPool();
+      const r=await p.query(
+        `INSERT INTO wz_payroll_settings
+           (business_id,payroll_type,base_salary,target_amount,period_start_day,period_end_day,service_rules,updated_at)
+         VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,NOW())
+         ON CONFLICT(business_id)
+         DO UPDATE SET
+           payroll_type=EXCLUDED.payroll_type,
+           base_salary=EXCLUDED.base_salary,
+           target_amount=EXCLUDED.target_amount,
+           period_start_day=EXCLUDED.period_start_day,
+           period_end_day=EXCLUDED.period_end_day,
+           service_rules=EXCLUDED.service_rules,
+           updated_at=NOW()
+         RETURNING id,business_id AS "businessId",payroll_type AS "payrollType",
+                   base_salary AS "baseSalary",target_amount AS "targetAmount",
+                   period_start_day AS "periodStartDay",period_end_day AS "periodEndDay",
+                   service_rules AS "serviceRules"`,
+        [
+          u.business_id,
+          payrollType,
+          baseSalary,
+          targetAmount,
+          periodStartDay,
+          periodEndDay,
+          JSON.stringify(serviceRules)
+        ]
+      );
+
+      return send(res,200,{ok:true,settings:r.rows[0]});
+    }
+
     return send(res,404,{ok:false,error:'Endpoint tidak ditemukan.'});
   }catch(e){console.error(e);return send(res,500,{ok:false,error:safeServerError(e)});}
 }
