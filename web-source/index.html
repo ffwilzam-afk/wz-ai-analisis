@@ -411,6 +411,29 @@ button,input,select,textarea{max-width:100%}
 }
 
 /* Mobile bottom navigation */
+.wz-top-hidden{
+  display:none !important;
+}
+
+.wz-top-icon{
+  width:40px;
+  height:40px;
+  border:0;
+  border-radius:12px;
+  background:transparent;
+  color:#d6a84f;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  font-size:22px;
+  cursor:pointer;
+  padding:0;
+}
+
+.wz-top-icon:hover{
+  background:rgba(214,168,79,.10);
+}
+
 .wz-bottom-nav{
   display:none;
 }
@@ -496,7 +519,16 @@ button,input,select,textarea{max-width:100%}
 <main class="main">
  <header class="topbar">
   <div class="top-left"><button class="hamb" onclick="toggleMenu()">☰</button><div><strong>WZ MANAGE PRO</strong><div class="crumb" id="crumb">Dashboard</div></div></div>
-  <div class="top-actions"><span class="user-badge" id="roleBadge"></span><span class="save-state" id="saveState">● Online</span><button class="btn small" onclick="exportBackup()">Backup</button><button class="btn small" onclick="document.getElementById('importFile').click()">Restore</button><input id="importFile" type="file" accept=".json,application/json" hidden onchange="importBackup(event)"></div>
+  <div class="top-actions">
+   <span class="user-badge wz-top-hidden" id="roleBadge"></span>
+   <span class="save-state wz-top-hidden" id="saveState">● Online</span>
+   <button class="btn small wz-top-hidden" onclick="exportBackup()">Backup</button>
+   <button class="btn small wz-top-hidden" onclick="document.getElementById('importFile').click()">Restore</button>
+   <input id="importFile" type="file" accept=".json,application/json" hidden onchange="importBackup(event)">
+   <button class="wz-top-icon" type="button" onclick="go('ownerForum')" aria-label="Chat">💬</button>
+   <button class="wz-top-icon" type="button" onclick="go('notifications')" aria-label="Notifikasi">🔔</button>
+   <button class="wz-top-icon" type="button" onclick="go('profile')" aria-label="Profil">👤</button>
+  </div>
  </header>
  <div class="content" id="content"></div>
 </main>
