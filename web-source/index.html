@@ -409,6 +409,68 @@ button,input,select,textarea{max-width:100%}
     padding:9px 12px;
   }
 }
+
+/* Mobile bottom navigation */
+.wz-bottom-nav{
+  display:none;
+}
+
+@media(max-width:600px){
+  .wz-bottom-nav{
+    position:fixed;
+    left:0;
+    right:0;
+    bottom:0;
+    z-index:1200;
+    height:68px;
+    display:flex;
+    align-items:stretch;
+    justify-content:space-around;
+    background:rgba(12,14,18,.98);
+    border-top:1px solid #292d35;
+    box-shadow:0 -8px 24px rgba(0,0,0,.35);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+
+  .wz-bottom-nav button{
+    flex:1;
+    min-width:0;
+    border:0;
+    background:transparent;
+    color:#858b95;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    font:inherit;
+    cursor:pointer;
+    padding:7px 2px;
+  }
+
+  .wz-bottom-nav button .nav-icon{
+    font-size:20px;
+    line-height:1;
+  }
+
+  .wz-bottom-nav button .nav-label{
+    font-size:9px;
+    line-height:1.1;
+    white-space:nowrap;
+  }
+
+  .wz-bottom-nav button.active{
+    color:#d6a84f;
+  }
+
+  .wz-bottom-nav button.active .nav-icon{
+    filter:drop-shadow(0 0 5px rgba(214,168,79,.35));
+  }
+
+  .main{
+    padding-bottom:82px;
+  }
+}
 </style>
 
 </head>
@@ -439,6 +501,25 @@ button,input,select,textarea{max-width:100%}
  <div class="content" id="content"></div>
 </main>
 </div>
+
+<nav class="wz-bottom-nav" id="wzBottomNav" aria-label="Navigasi utama">
+  <button type="button" data-bottom-key="dashboard" onclick="bottomNavGo('dashboard')">
+    <span class="nav-icon">🏠</span><span class="nav-label">Beranda</span>
+  </button>
+  <button type="button" data-bottom-key="payrollSettings" onclick="bottomNavGo('payrollSettings')">
+    <span class="nav-icon">💵</span><span class="nav-label">Pengaturan Gaji</span>
+  </button>
+  <button type="button" data-bottom-key="reports" onclick="bottomNavGo('reports')">
+    <span class="nav-icon">📊</span><span class="nav-label">Laporan</span>
+  </button>
+  <button type="button" data-bottom-key="employees" onclick="bottomNavGo('employees')">
+    <span class="nav-icon">👥</span><span class="nav-label">Karyawan</span>
+  </button>
+  <button type="button" data-bottom-key="subscription" onclick="bottomNavGo('subscription')">
+    <span class="nav-icon">💎</span><span class="nav-label">Langganan</span>
+  </button>
+</nav>
+
 <div class="modal" id="modal"><div class="dialog" id="dialog"></div></div>
 <div class="toast" id="toast"></div>
 
@@ -716,6 +797,26 @@ function businessDailyRevenue(iso){return ownerBusinessFeed().filter(x=>x.date==
 function getCustomer(id){return db.customers.find(x=>x.id===id)}
 function getEmployee(id){return db.employees.find(x=>x.id===id)}
 function getService(id){return db.services.find(x=>x.id===id)}
+
+function bottomNavGo(key){
+  if(!currentUser)return;
+  if(!can(key)){
+    toast('Akses menu tidak diizinkan untuk role ini.',true);
+    return;
+  }
+  go(key);
+}
+
+function updateBottomNav(){
+  const bar=document.getElementById('wzBottomNav');
+  if(!bar)return;
+  bar.style.display=currentUser?'flex':'none';
+  const active=(location.hash||'#dashboard').replace(/^#/,'')||'dashboard';
+  bar.querySelectorAll('[data-bottom-key]').forEach(btn=>{
+    btn.classList.toggle('active',btn.dataset.bottomKey===active);
+  });
+}
+
 function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','payrollSettings','ownerForum','system','subscription','auth','cs']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
 function openCS(){const u=currentUser||{};const msg=`Halo CS WZ MANAGE PRO, saya membutuhkan bantuan.%0A%0ABisnis: ${encodeURIComponent(u.businessName||u.businessId||'-')}%0ACabang: ${encodeURIComponent(u.branchName||u.branchId||'-')}%0AAkun: ${encodeURIComponent(u.name||u.username||'-')}%0ARole: ${encodeURIComponent(u.role||'-')}%0A%0AMasalah:%20`;window.open('https://wa.me/6287777527161?text='+msg,'_blank')}
 function navBtn(m){if(m[0]==='cs')return `<button id="nav-cs" onclick="openCS()">💬 Bantuan & CS</button>`;const unread=m[0]==='notifications'?(db.notifications||[]).filter(x=>!x.read).length:0;return `<button id="nav-${m[0]}" data-nav="${m[0]}">${m[1]} ${m[2]}${unread?` <span class="pill red" style="font-size:10px;padding:2px 6px">${unread}</span>`:''}</button>`}
@@ -865,7 +966,7 @@ window.selectSubscriptionPlan=async function(plan,period){
   }
 };
 
-function render(){if(!currentUser)return;nav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='payrollSettings')payrollSettingsPage();else if(key==='ownerForum')ownerForumPage();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
+function render(){if(!currentUser)return;nav();updateBottomNav();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='payrollSettings')payrollSettingsPage();else if(key==='ownerForum')ownerForumPage();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){go(b.dataset.nav);document.getElementById('sidebar').classList.remove('open')}});window.onhashchange=render;
 
 function employeeDashboard(){const today=dateNow(),tx=db.transactions.filter(t=>t.date===today&&t.status==='SELESAI');document.getElementById('content').innerHTML=`<div class="dashboard-head"><div><span class="gold-label">EMPLOYEE WORKSPACE</span><div class="greeting">SELAMAT DATANG, ${currentUser.name.toUpperCase()}!</div><div class="subtle">Ringkasan pekerjaan hari ini · ${today}</div></div><button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button></div><section class="kpis">${kpi('🧾','Transaksi Hari Ini',tx.length,'transactions')}${kpi('👥','Pelanggan Terdaftar',db.customers.length,'customers')}${kpi('💈','Layanan Aktif',db.services.filter(s=>s.active).length,'services')}</section><div class="dashboard-grid"><section class="card"><div class="panel-title"><h3>AKSI KERJA</h3></div><div class="quick-grid"><div class="quick" onclick="openTransaction()"><span>🧾</span><b>Transaksi Baru</b></div><div class="quick" onclick="showWalkin()"><span>🚶</span><b>Walk-in</b></div><div class="quick" onclick="openCustomer()"><span>👤</span><b>Tambah Pelanggan</b></div><div class="quick" onclick="go('customers')"><span>🔎</span><b>Cari Pelanggan</b></div><div class="quick" onclick="go('services')"><span>📦</span><b>Lihat Layanan</b></div><div class="quick" onclick="go('operations')"><span>🕘</span><b>Absensi</b></div><div class="quick" onclick="go('shiftReports')"><span>📋</span><b>Tutup Shift</b></div></div></section><section class="card"><div class="panel-title"><h3>TRANSAKSI TERBARU</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>${tx.slice().reverse().slice(0,5).map(t=>`<div class="schedule-item"><span class="time">${t.date}</span><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'}</div></div><span class="tag">SELESAI</span></div>`).join('')||'<div class="empty">Belum ada transaksi hari ini.</div>'}</section></div><section class="section-head"><div><span class="gold-label">ACCESS LEVEL</span><h2>Akses Karyawan</h2><p>Perhitungan gaji, bonus, upah, dan data keuangan sensitif hanya dapat dilihat Owner/Manager.</p></div></section>`}
