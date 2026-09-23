@@ -3130,17 +3130,31 @@ void legacyNotifications;
 
 })();
 
+// Auto-refresh: sinkronisasi seluruh data online
+async function refreshAppData(){
+  if(!currentUser)return false;
+  try{
+    await hydrateAppState();
+    await syncBusiness();
+    if(typeof render==='function')render();
+    return true;
+  }catch(e){
+    console.warn('Auto-refresh failed:',e.message||e);
+    return false;
+  }
+}
+
 // Auto-refresh: polling setiap 30 detik
 setInterval(()=>{
-  if(currentUser&&typeof syncBusiness==='function'){
-    syncBusiness().catch(()=>{});
+  if(currentUser){
+    refreshAppData().catch(()=>{});
   }
 },30000);
 
 // Auto-refresh: saat app kembali ke foreground
 document.addEventListener('visibilitychange',()=>{
-  if(document.visibilityState==='visible'&&currentUser&&typeof syncBusiness==='function'){
-    syncBusiness().catch(()=>{});
+  if(document.visibilityState==='visible'&&currentUser){
+    refreshAppData().catch(()=>{});
   }
 });
 
@@ -3149,8 +3163,8 @@ const _origFcmSync=window.WZOnlineFcm&&window.WZOnlineFcm.sync;
 window.WZOnlineFcm={
   sync:function(){
     if(_origFcmSync)_origFcmSync();
-    if(currentUser&&typeof syncBusiness==='function'){
-      setTimeout(()=>syncBusiness().catch(()=>{}),1000);
+    if(currentUser){
+      setTimeout(()=>refreshAppData().catch(()=>{}),1000);
     }
   }
 };
