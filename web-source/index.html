@@ -809,8 +809,10 @@ function bottomNavGo(key){
 
 function updateBottomNav(){
   const bar=document.getElementById('wzBottomNav');
+  const app=document.getElementById('mainApp');
   if(!bar)return;
-  bar.style.display=currentUser?'flex':'none';
+  const appVisible=!!app&&getComputedStyle(app).display!=='none';
+  bar.style.display=(currentUser&&appVisible)?'flex':'none';
   const active=(location.hash||'#dashboard').replace(/^#/,'')||'dashboard';
   bar.querySelectorAll('[data-bottom-key]').forEach(btn=>{
     btn.classList.toggle('active',btn.dataset.bottomKey===active);
