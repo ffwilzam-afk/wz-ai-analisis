@@ -81,11 +81,11 @@ z-index:1
 footer{text-align:center;color:#5e646d;font-size:10px;padding:34px 0 10px}
 @media(max-width:1100px){.hero{grid-template-columns:190px 1fr}.emblem{display:none}.kpis{grid-template-columns:repeat(3,1fr)}.two{grid-template-columns:1fr}}
 
-html,body{width:100%;max-width:100%;overflow-x:hidden}
+html,body{width:100%;max-width:100%;overflow-x:hidden;overflow-x:clip}
 *,*::before,*::after{box-sizing:border-box}
 img,video,canvas,svg{max-width:100%}
 button,input,select,textarea{max-width:100%}
-.main{max-width:100%;overflow-x:hidden}
+.main{max-width:100%;overflow-x:hidden;overflow-x:clip}
 .content{width:100%;max-width:1500px}
 @media(max-width:800px){.sidebar{transform:translateX(-100%);transition:.2s}.sidebar.open{transform:translateX(0)}.main{margin-left:0;width:100%}.hamb{display:block;background:transparent;border:0;color:#fff;font-size:20px}.mobile-menu{display:block}.content{padding:14px}.topbar{padding:0 14px}.hero{grid-template-columns:1fr;text-align:center}.hero-photo{height:280px}.profile-grid div{grid-template-columns:80px 1fr;text-align:left}.kpis{grid-template-columns:repeat(2,1fr)}.form,.detail-grid{grid-template-columns:1fr}.form .full{grid-column:auto}.top-actions .save-state{display:none}}
 
@@ -573,7 +573,7 @@ button,input,select,textarea{max-width:100%}
 </main>
 </div>
 
-<nav class="wz-bottom-nav" id="wzBottomNav" aria-label="Navigasi utama">
+<nav class="wz-bottom-nav" id="wzBottomNav" style="display:none" aria-label="Navigasi utama">
   <button type="button" data-bottom-key="dashboard" onclick="bottomNavGo('dashboard')">
     <span class="nav-icon">🏠</span><span class="nav-label">Beranda</span>
   </button>
@@ -883,7 +883,8 @@ function updateBottomNav(){
   const app=document.getElementById('mainApp');
   if(!bar)return;
   const appVisible=!!app&&getComputedStyle(app).display!=='none';
-  bar.style.display=(currentUser&&appVisible)?'flex':'none';
+  const show=!!currentUser&&appVisible;
+  bar.style.display=show?'':'none';
   const active=(location.hash||'#dashboard').replace(/^#/,'')||'dashboard';
   bar.querySelectorAll('[data-bottom-key]').forEach(btn=>{
     btn.classList.toggle('active',btn.dataset.bottomKey===active);
@@ -3059,6 +3060,7 @@ window.logout=async function(){
   currentUser=null;
   const app=document.getElementById('mainApp');
   if(app)app.style.display='none';
+  if(typeof updateBottomNav==='function')updateBottomNav();
   const screen=document.getElementById('loginScreen');if(screen)screen.style.display='flex';
   const u=document.getElementById('loginUser'),pw=document.getElementById('loginPass');
   if(u)u.value='';if(pw)pw.value='';
@@ -3075,6 +3077,7 @@ function updateStartupLoading(percent,status){
 }
 
 function finishStartupLoading(){
+  if(typeof updateBottomNav==='function')updateBottomNav();
   const loading=document.getElementById('wzStartupLoading');
   if(loading){
     loading.style.opacity='0';
