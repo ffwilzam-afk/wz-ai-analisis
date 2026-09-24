@@ -917,12 +917,17 @@ function topbarAvatar(){
   box.innerHTML=avatar?'<img src="'+avatar.replace(/"/g,'&quot;')+'" alt="">':(initial||'?');
 }
 
+let wzForumSeenSaved=false;
+
 function markOwnerForumSeen(){
   db.profile=db.profile||{};
-  if(Math.abs(Date.parse(db.profile.ownerForumSeenAt||0)-Date.now())<5000)return;
   db.profile.ownerForumSeenAt=new Date().toISOString();
-  window.WZOnlineStateSave?.queue?.();
   if(wzForumUnread){wzForumUnread=0;topbarBadge('wzChatBadge',0)}
+  // Cukup satu kali per sesi: mencegah save app-state berulang tiap render
+  // (save ulang memicu hydrate+render lagi dan membuat halaman berkedip).
+  if(wzForumSeenSaved)return;
+  wzForumSeenSaved=true;
+  window.WZOnlineStateSave?.queue?.();
 }
 
 async function refreshOwnerForumBadge(){
@@ -2379,35 +2384,37 @@ async function ownerForumPage(){
 
   const content=document.getElementById('content');
 
-  content.innerHTML=`
-    <section class="card section owner-forum-page" style="padding:0;overflow:hidden">
-      <div class="owner-forum-head">
-        <div>
-          <span class="gold-label">OWNER COMMUNITY</span>
-          <h2 style="margin:4px 0 0">💬 Obrolan Owner</h2>
-          <p class="muted" style="margin:4px 0 0">Forum bersama Owner WZ Manage Pro</p>
+  if(!document.getElementById('ownerForumMessages')){
+    content.innerHTML=`
+      <section class="card section owner-forum-page" style="padding:0;overflow:hidden">
+        <div class="owner-forum-head">
+          <div>
+            <span class="gold-label">OWNER COMMUNITY</span>
+            <h2 style="margin:4px 0 0">💬 Obrolan Owner</h2>
+            <p class="muted" style="margin:4px 0 0">Forum bersama Owner WZ Manage Pro</p>
+          </div>
         </div>
-      </div>
 
-      <div id="ownerForumMessages" class="owner-forum-messages">
-        <div class="muted" style="padding:24px;text-align:center">Memuat obrolan...</div>
-      </div>
+        <div id="ownerForumMessages" class="owner-forum-messages">
+          <div class="muted" style="padding:24px;text-align:center">Memuat obrolan...</div>
+        </div>
 
-      <div class="owner-forum-compose">
-        <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickSticker()" title="Sticker">😊</button>
-        <input
-          id="ownerForumInput"
-          class="input"
-          type="text"
-          maxlength="1000"
-          placeholder="Tulis pesan..."
-          autocomplete="off"
-          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ownerForumSend()}"
-        >
-        <button type="button" class="btn primary owner-forum-send" onclick="ownerForumSend()">Kirim</button>
-      </div>
-    </section>
-  `;
+        <div class="owner-forum-compose">
+          <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickSticker()" title="Sticker">😊</button>
+          <input
+            id="ownerForumInput"
+            class="input"
+            type="text"
+            maxlength="1000"
+            placeholder="Tulis pesan..."
+            autocomplete="off"
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ownerForumSend()}"
+          >
+          <button type="button" class="btn primary owner-forum-send" onclick="ownerForumSend()">Kirim</button>
+        </div>
+      </section>
+    `;
+  }
 
   await ownerForumLoad();
 }
@@ -2754,45 +2761,20 @@ window.savePayrollSettings=savePayrollSettings;
 window.syncNativeFcmToken=syncNativeFcmToken;
 
 async function syncNativeFcmToken(){
-  console.log('[FCM] sync start');
-
-  if(!currentUser){
-    console.warn('[FCM] currentUser belum tersedia');
-    if(typeof toast==='function')toast('FCM: akun belum siap');
-    return false;
-  }
+  // Sengaja tanpa console log / toast: sinkronisasi token dijalankan otomatis
+  // (dan diulang berkali-kali), sehingga diagnostik di sini akan mengganggu.
+  if(!currentUser)return false;
 
   const fcmToken=String(window.WZNativeFcmToken||'').trim();
-
-  if(!fcmToken){
-    console.warn('[FCM] token belum tersedia');
-    if(typeof toast==='function')toast('FCM: token belum tersedia');
-    return false;
-  }
-
-  console.log('[FCM] currentUser OK:',currentUser.username||currentUser.id);
-  console.log('[FCM] token OK:',fcmToken.substring(0,20)+'...');
+  if(!fcmToken)return false;
 
   try{
-    if(typeof toast==='function')toast('FCM: mengirim token...',true);
-
-    const result=await api('push/fcm-token',{
+    await api('push/fcm-token',{
       method:'POST',
       body:JSON.stringify({token:fcmToken})
     });
-
-    console.log('[FCM] sync response:',result);
-
-    if(typeof toast==='function')toast('FCM SYNC OK');
     return true;
-
   }catch(e){
-    console.error('[FCM] sync failed:',e);
-
-    if(typeof toast==='function'){
-      toast('FCM SYNC FAIL: '+(e.message||e));
-    }
-
     return false;
   }
 }
@@ -3423,7 +3405,8 @@ async function refreshAppData(){
     if(typeof render==='function')render();
     return true;
   }catch(e){
-    console.warn('Auto-refresh failed:',e.message||e);
+    // Sengaja tanpa log: auto-refresh berjalan otomatis di latar belakang,
+    // sehingga pesan diagnostik hanya menambah kebisingan.
     return false;
   }
 }
@@ -3460,6 +3443,9 @@ window.WZOnlineFcm={
   const INTERVAL=30000;
   function trySync(){
     if(attempts>=MAX)return;
+    // Tanpa bridge native (browser biasa) tidak akan pernah ada token,
+    // jadi jangan mengulang penjadwalan terus-menerus.
+    if(!('WZAndroid' in window))return;
     attempts++;
     if(!window.WZNativeFcmToken||!currentUser){
       setTimeout(trySync,INTERVAL);
