@@ -1,6 +1,8 @@
 {
   "status": "PASS_WITH_LIVE_ENV_LIMITATION",
   "checked_at": "2026-09-05T18:30:00+09:00",
+  "superseded_at": "2026-09-24",
+  "superseded_note": "Snapshot historis, bukan status repo saat ini. Daftar html_files dan syntax_checks di bawah menyebut file yang sudah dihapus pada pembersihan repo 24 Sep 2026: app/index.html, app/index-offline-reference.html, tools/online-bridge.js, tools/patch-online.js. Untuk kondisi terkini lihat web-source/README.md dan jalankan `npm test` di web-source/.",
   "online_storage_refs": 0,
   "menus": 16,
   "menu_list": [

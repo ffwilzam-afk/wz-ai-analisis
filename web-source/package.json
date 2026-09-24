@@ -2,6 +2,10 @@
   "name": "wz-manage-pro-online",
   "private": true,
   "version": "1.0.0",
+  "scripts": {
+    "check": "node --check \"api/[...path].js\" && node --check lib/helpers.js && node --check sw.js",
+    "test": "npm run check && node --test"
+  },
   "dependencies": {
     "firebase-admin": "^14.4.0",
     "pg": "^8.16.3",

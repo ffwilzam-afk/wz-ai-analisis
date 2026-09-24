@@ -1,0 +1,25 @@
+# File yang tidak perlu ikut ter-deploy ke Vercel.
+# PENTING: jangan pernah mengecualikan lib/ dan api/ — keduanya dipakai
+# oleh serverless function api/[...path].js saat dijalankan.
+node_modules
+.git
+
+# Dokumentasi & file pengembangan
+README.md
+AUDIT-REPORT.json
+INTEGRITY-REPORT.json
+*.sql
+tests/
+.github/
+
+# Jangan pernah unggah file rahasia/lokal bila ada di folder ini
+.env
+.env.*
+firebase-admin.json
+.vercel
+
+# Arsip & backup
+*.zip
+*.bak
+*.backup
+*.log

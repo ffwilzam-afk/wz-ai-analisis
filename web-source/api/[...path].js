@@ -3,6 +3,28 @@ const crypto = require('crypto');
 const webpush = require('web-push');
 const { getApps, initializeApp, cert } = require('firebase-admin/app');
 const { getMessaging } = require('firebase-admin/messaging');
+const {
+  hashPassword, verifyPassword, token, tokenHash,
+  defaultUsername, defaultPassword, normalizeBusinessId, safeServerError,
+  xenditSafeName, cookie, send, body,
+  validMoney, validDate, validTransaction, validShift
+} = require('../lib/helpers.js');
+
+// Modul rute per domain. Setiap modul menerima (ctx, req, res, path), mengirim
+// responsnya sendiri, dan handler berhenti begitu res.writableEnded bernilai true.
+const routeModules = [
+  require('../lib/routes/auth.js'),
+  require('../lib/routes/push.js')
+];
+
+// Helper yang dibagikan ke modul rute.
+function routeContext(){
+  return {
+    getPool, send, body, cookie,
+    token, tokenHash, hashPassword, verifyPassword,
+    authUser, normalizeBusinessId, pushConfigured
+  };
+}
 
 let pool;
 function databaseUrl(){
@@ -15,26 +37,6 @@ function getPool(){
   return pool;
 }
 
-function hashPassword(password, salt=crypto.randomBytes(16).toString('hex')){
-  const hash=crypto.scryptSync(String(password),salt,64).toString('hex');
-  return `${salt}:${hash}`;
-}
-function verifyPassword(password, stored){
-  try{
-    const [salt,hex]=String(stored).split(':');
-    const a=Buffer.from(hex,'hex');
-    const b=crypto.scryptSync(String(password),salt,64);
-    return a.length===b.length && crypto.timingSafeEqual(a,b);
-  }catch{return false}
-}
-function token(){return crypto.randomBytes(32).toString('hex')}
-function tokenHash(t){return crypto.createHash('sha256').update(t).digest('hex')}
-function defaultUsername(name){return String(name||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'')||'employee'}
-function defaultPassword(name){return String(name||'').trim().toLowerCase().replace(/\s+/g,'')+'123'}
-function safeServerError(error){
-  const message = error && error.message ? String(error.message) : 'Server error';
-  return process.env.NODE_ENV === 'production' ? 'Server sedang tidak tersedia. Silakan coba lagi nanti.' : message;
-}
 function firebaseConfigured(){
   return !!(
     process.env.FIREBASE_PROJECT_ID &&
@@ -396,16 +398,6 @@ async function authUser(req){
   const r=await p.query(`SELECT u.id,u.username,u.role,u.name,u.employee_id,u.business_id,e.branch_id FROM wz_sessions s JOIN wz_users u ON u.id=s.user_id LEFT JOIN wz_employees e ON e.id=u.employee_id AND e.business_id=u.business_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND u.active=true`,[tokenHash(decodeURIComponent(m[1]))]);
   return r.rows[0]||null;
 }
-function normalizeBusinessId(value){
-  const v=String(value||'').trim();
-  if(!v)return '';
-  const normalized=v.toUpperCase().replace(/[^A-Z0-9]/g,'');
-  return normalized;
-}
-function cookie(name,value,maxAge){return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.NODE_ENV==='production'?'; Secure':''}`}
-function send(res,status,data,headers={}){res.statusCode=status;for(const [k,v] of Object.entries(headers))res.setHeader(k,v);res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));}
-async function body(req){let s='';for await(const c of req)s+=c;return s?JSON.parse(s):{};}
-
 async function xenditRequest(path,payload){
   const secret=String(process.env.XENDIT_SECRET_KEY||'').trim();
   if(!secret)throw new Error('XENDIT_SECRET_KEY belum dikonfigurasi di server.');
@@ -456,15 +448,6 @@ function publicAppUrl(){
   return 'https://wz-ai-analisis-rust.vercel.app';
 }
 
-function xenditSafeName(name){
-  const cleaned=String(name||'OWNER')
-    .normalize('NFKD')
-    .replace(/[^A-Za-z0-9]/g,'')
-    .replace(/\s+/g,' ')
-    .trim();
-
-  return cleaned||'OWNER';
-}
 async function employeeFor(id,businessId){
   if(!id||!businessId)return null;
   const r=await getPool().query('SELECT id,name,branch_id AS "branchId",active FROM wz_employees WHERE id=$1 AND business_id=$2',[String(id),String(businessId)]);
@@ -553,106 +536,15 @@ async function getSubscriptionAccess(businessId){
   };
 }
 
-function validMoney(n){return Number.isFinite(Number(n))&&Number(n)>=0;}
-function validDate(value){return /^\d{4}-\d{2}-\d{2}$/.test(String(value||''));}
-function validTransaction(t){
-  const servicePrice=Number(t.servicePrice||0),discount=Number(t.discount||0),total=Number(t.total||0);
-  return validDate(t.date)&&validMoney(servicePrice)&&validMoney(discount)&&validMoney(total)&&discount<=servicePrice&&Math.abs(total-Math.max(0,servicePrice-discount))<=0.001&&['SELESAI','VOID'].includes(String(t.status||'SELESAI'))&&['Tunai','QRIS','Transfer'].includes(String(t.payment||'Tunai'));
-}
-function validShift(r){
-  const values=['openingCash','cash','qris','cashExpense','physicalCash','totalPayment','expectedCash','cashDifference','serviceTotal','productTotal','totalOmzet'];
-  return validDate(r.date)&&values.every(key=>validMoney(r[key]))&&Number(r.serviceTotal||0)>0&&Number(r.totalPayment||0)>0&&Math.abs(Number(r.cashDifference||0))<=0.001&&Math.abs(Number(r.physicalCash||0)-(Number(r.openingCash||0)+Number(r.cash||0)-Number(r.cashExpense||0)))<=0.001;
-}
-
 async function handler(req,res){
   try{
     await ensureSchema();
     const path=req.url.split('?')[0].replace(/^\/api\/?/,'').replace(/\/$/,'');
     if(path==='ready')return send(res,200,{ok:true,service:'WZ MANAGE PRO API',database:true});
-    if(path==='auth/register' && req.method==='POST'){
-      const b=await body(req),businessName=String(b.businessName||'').trim(),ownerName=String(b.ownerName||'').trim(),branchName=String(b.branchName||'').trim(),username=String(b.username||'').trim().toLowerCase(),password=String(b.password||'');
-      if(businessName.length<2||businessName.length>100||ownerName.length<2||ownerName.length>100||branchName.length<2||branchName.length>100)return send(res,400,{ok:false,error:'Data pendaftaran tidak valid.'});
-      if(!/^[a-z0-9._-]{3,50}$/.test(username)||password.length<6||password.length>128)return send(res,400,{ok:false,error:'Username/password tidak valid.'});
-      const c=await getPool().connect();let tokenValue;try{await c.query('BEGIN');const businessId='BIZ'+crypto.randomBytes(5).toString('hex').toUpperCase(),branchId='B'+crypto.randomBytes(5).toString('hex').toUpperCase(),employeeId='E'+crypto.randomBytes(5).toString('hex').toUpperCase();
-        await c.query('INSERT INTO wz_businesses(id,name,active) VALUES($1,$2,true)',[businessId,businessName]);
-        await c.query('INSERT INTO wz_branches(id,name,active,business_id) VALUES($1,$2,true,$3)',[branchId,branchName,businessId]);
-        await c.query("INSERT INTO wz_employees(id,name,role,branch_id,salary,target,active,business_id) VALUES($1,$2,'Owner',$3,2000000,4500000,true,$4)",[employeeId,ownerName,branchId,businessId]);
-        const ur=await c.query("INSERT INTO wz_users(username,password_hash,role,name,employee_id,business_id) VALUES($1,$2,'owner',$3,$4,$5) RETURNING id",[username,hashPassword(password),ownerName,employeeId,businessId]);
-        await c.query('INSERT INTO wz_app_states(business_id,data) VALUES($1,$2::jsonb)',[businessId,'{}']);
-        await c.query(`
-          INSERT INTO wz_subscriptions
-            (business_id,plan,status,trial_started_at,trial_ends_at,current_period_start,current_period_end)
-          VALUES
-            ($1,'TRIAL','ACTIVE',NOW(),NOW()+INTERVAL '35 days',NOW(),NOW()+INTERVAL '35 days')
-          ON CONFLICT (business_id) DO NOTHING
-        `,[businessId]);tokenValue=token();await c.query("INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '30 days')",[tokenHash(tokenValue),ur.rows[0].id]);await c.query('COMMIT');return send(res,200,{ok:true,business:{businessId,name:businessName},user:{username,role:'owner',name:ownerName,employeeId,businessId}}, {'Set-Cookie':cookie('wz_session',tokenValue,60*60*24*30)});
-      }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
-    }
-    if(path==='auth/login' && req.method==='POST'){
-      const b=await body(req),username=String(b.username||'').trim().toLowerCase(),password=String(b.password||'');
-      if(!username||!password)return send(res,400,{ok:false,error:'Username dan password wajib diisi.'});
-      const businessId=normalizeBusinessId(b.businessId);
-      if(b.businessId && !businessId)return send(res,400,{ok:false,error:'Kode Bisnis tidak valid.'});
-      const p=getPool(); const r=await p.query(`SELECT u.*,e.branch_id FROM wz_users u LEFT JOIN wz_employees e ON e.id=u.employee_id AND e.business_id=u.business_id WHERE u.username=$1 AND u.active=true ${businessId?'AND u.business_id=$2':''} ORDER BY u.id`,businessId?[username,businessId]:[username]); if(!businessId && r.rowCount>1)return send(res,400,{ok:false,error:'Kode Bisnis wajib diisi karena username digunakan di lebih dari satu bisnis.'}); const u=r.rows[0];
-      if(!u||!verifyPassword(password,u.password_hash))return send(res,401,{ok:false,error:'Username atau password salah.'});
-      const t=token(); await p.query('DELETE FROM wz_sessions WHERE expires_at<=NOW()');
-      await p.query('INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL \'30 days\')',[tokenHash(t),u.id]);
-      return send(res,200,{ok:true,user:{username:u.username,role:u.role,name:u.name,employeeId:u.employee_id||null,branchId:u.branch_id||null,businessId:u.business_id||null}}, {'Set-Cookie':cookie('wz_session',t,60*60*24*30)});
-    }
-    if(path==='auth/me' && req.method==='GET'){
-      const u=await authUser(req); if(!u)return send(res,401,{ok:false,error:'Belum login.'});
-      return send(res,200,{ok:true,user:{username:u.username,role:u.role,name:u.name,employeeId:u.employee_id||null,branchId:u.branch_id||null,businessId:u.business_id||null}});
-    }
-    if(path==='auth/logout' && req.method==='POST'){
-      const c=String(req.headers.cookie||''),m=c.match(/(?:^|;\s*)wz_session=([^;]+)/);if(m)await getPool().query('DELETE FROM wz_sessions WHERE token_hash=$1',[tokenHash(decodeURIComponent(m[1]))]);
-      return send(res,200,{ok:true},{'Set-Cookie':cookie('wz_session','',0)});
-    }
-    if(path==='push/vapid-public-key' && req.method==='GET'){
-      const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
-      if(!pushConfigured())return send(res,503,{ok:false,error:'Web Push belum dikonfigurasi di server.'});
-      return send(res,200,{ok:true,publicKey:process.env.VAPID_PUBLIC_KEY});
-    }
-    if(path==='push/subscribe' && req.method==='POST'){
-      const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
-      const b=await body(req),endpoint=String(b.endpoint||''),keys=b.keys||{},p256dh=String(keys.p256dh||''),auth=String(keys.auth||'');
-      if(!endpoint||!p256dh||!auth)return send(res,400,{ok:false,error:'Subscription push tidak valid.'});
-      await getPool().query('INSERT INTO wz_push_subscriptions(user_id,endpoint,p256dh,auth,business_id,updated_at) VALUES($1,$2,$3,$4,$5,NOW()) ON CONFLICT (business_id,endpoint) DO UPDATE SET user_id=EXCLUDED.user_id,p256dh=EXCLUDED.p256dh,auth=EXCLUDED.auth,updated_at=NOW()',[u.id,endpoint,p256dh,auth,u.business_id]);
-      return send(res,200,{ok:true});
-    }
-    if(path==='push/fcm-token' && req.method==='POST'){
-      const u=await authUser(req);
-      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
-
-      const b=await body(req);
-      const fcmToken=String(b.token||'').trim();
-
-      if(!fcmToken)return send(res,400,{ok:false,error:'FCM token wajib diisi.'});
-      if(fcmToken.length>4096)return send(res,400,{ok:false,error:'FCM token tidak valid.'});
-
-      const p=getPool();
-
-      // Satu token perangkat hanya boleh aktif pada akun/tenant yang sedang login.
-      // Ini hanya membersihkan data token FCM, bukan data bisnis/tenant.
-      await p.query(
-        `DELETE FROM wz_fcm_tokens
-         WHERE token=$1
-           AND NOT (business_id=$2 AND user_id=$3)`,
-        [fcmToken,u.business_id,u.id]
-      );
-
-      await p.query(
-        `INSERT INTO wz_fcm_tokens(user_id,business_id,token,updated_at)
-         VALUES($1,$2,$3,NOW())
-         ON CONFLICT (business_id,token)
-         DO UPDATE SET user_id=EXCLUDED.user_id,updated_at=NOW()`,
-        [u.id,u.business_id,fcmToken]
-      );
-
-      return send(res,200,{ok:true});
-    }
-    if(path==='push/unsubscribe' && req.method==='POST'){
-      const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
-      const b=await body(req);if(b.endpoint)await getPool().query('DELETE FROM wz_push_subscriptions WHERE user_id=$1 AND endpoint=$2',[u.id,String(b.endpoint)]);return send(res,200,{ok:true});
+    const ctx=routeContext();
+    for(const routeModule of routeModules){
+      await routeModule(ctx,req,res,path);
+      if(res.writableEnded)return;
     }
     if(path==='subscription/webhook' && req.method==='POST'){
       if(!xenditWebhookValid(req))

@@ -1,26 +1,88 @@
 # WZ MANAGE PRO — Play Store build
 
-## 1. Set the final HTTPS website URL
-Edit `app/src/main/java/com/wzmanagepro/app/MainActivity.java` and replace `START_URL` with the final live WZ MANAGE PRO URL.
+## Prasyarat (dijalankan di komputer Anda)
 
-Do not publish while the URL returns 404/unreachable.
+- JDK 17 atau lebih baru (perintah `keytool` sudah termasuk di dalamnya).
+- Android SDK dengan platform API 36 dan build-tools 36.0.0.
+- `ANDROID_HOME` dan `ANDROID_SDK_ROOT` diarahkan ke folder SDK tersebut.
+- Gradle **tidak** perlu diinstal, repo sudah memuat Gradle wrapper.
 
-## 2. Build AAB
-Ensure the Android SDK is available, then run from `android/`:
+Workspace cloud Freebuff tidak menyediakan Java, Gradle, maupun Android SDK, jadi seluruh langkah build di bawah harus dijalankan di komputer Anda sendiri.
+
+## 1. URL aplikasi
+
+`START_URL` di `app/src/main/java/com/wzmanagepro/app/MainActivity.java` saat ini:
+
+```
+https://wz-ai-analisis-rust.vercel.app/
+```
+
+Pastikan alamat ini benar-benar hidup (bukan 404/unreachable) sebelum submit. Bila nanti pindah ke domain sendiri, ubah baris `START_URL` tersebut.
+
+## 2. Buat upload keystore (sekali saja, lalu simpan baik-baik)
 
 ```bash
-export ANDROID_HOME=/path/to/android-sdk
-export ANDROID_SDK_ROOT="$ANDROID_HOME"
+cd android
+keytool -genkeypair -v \
+  -keystore keystore/wz-upload.jks \
+  -alias wz-upload \
+  -keyalg RSA -keysize 4096 -validity 10000
+```
+
+`keytool` akan menanyakan password, nama, dan organisasi. Simpan file `.jks` beserta password-nya di tempat aman: **kalau upload key hilang, aplikasi tidak bisa diperbarui lagi di Play Store**.
+
+Folder `android/keystore/` sudah ada di `android/.gitignore`, jadi file keystore dan password-nya tidak akan ikut ter-commit.
+
+## 3. Buat `android/keystore/keystore.properties`
+
+```properties
+storeFile=../keystore/wz-upload.jks
+storePassword=ISI_PASSWORD_ANDA
+keyAlias=wz-upload
+keyPassword=ISI_PASSWORD_ALIAS
+```
+
+Nilai `storeFile` relatif terhadap folder `app/`, karena itu diawali `../keystore/`.
+
+Bila file ini belum ada, build release tetap berjalan tetapi menghasilkan AAB/APK **unsigned** sehingga tidak bisa diunggah ke Play Console. Untuk uji coba di perangkat sebelum keystore siap, pakai `./gradlew assembleDebug` (APK sudah ditandatangani debug key).
+
+## 4. Build AAB
+
+```bash
+cd android
 ./gradlew clean bundleRelease
 ```
 
-The repository includes the Gradle wrapper, so a system Gradle installation is not required.
+Di Windows: `gradlew.bat clean bundleRelease`.
 
-Output:
-`app/build/outputs/bundle/release/app-release.aab`
+Hasil: `app/build/outputs/bundle/release/app-release.aab`
 
-## 3. Upload signing key
-For a new Play app, generate an upload keystore and configure Gradle signing locally. Never commit the keystore or passwords to GitHub. The local `keystore/` directory is ignored by Git.
+## 5. Verifikasi sebelum unggah
 
-## 4. Play requirements
-This project targets Android API 36. New personal developer accounts created after 13 Nov 2023 may need a closed test with at least 12 opted-in testers continuously for 14 days before production access.
+```bash
+jarsigner -verify -verbose -certs app/build/outputs/bundle/release/app-release.aab
+```
+
+Opsional, uji AAB di perangkat memakai bundletool:
+
+```bash
+bundletool build-apks \
+  --bundle=app/build/outputs/bundle/release/app-release.aab \
+  --output=/tmp/wz.apks \
+  --ks=keystore/wz-upload.jks --ks-key-alias=wz-upload
+```
+
+Selalu uji versi rilis (bukan hanya debug), termasuk login, simpan transaksi, tutup shift, dan notifikasi.
+
+## 6. Persyaratan Play Console
+
+- `applicationId`: `com.wzmanagepro.app` · minSdk 29 · targetSdk 36
+- Versi saat ini: **versionCode 2 / versionName 1.0.1**. Setiap unggahan berikutnya wajib menaikkan `versionCode` (berikutnya: 3).
+- Akun developer personal yang dibuat setelah 13 Nov 2023 wajib menjalani closed testing minimal **12 tester selama 14 hari berturut-turut** sebelum bisa akses produksi.
+- Siapkan materi listing: ikon 512×512, feature graphic 1024×500, minimal 2 screenshot, deskripsi, privacy policy (repo sudah menyediakan `web-source/privacy.html`), serta formulir Data safety.
+
+## Catatan konfigurasi
+
+- Notifikasi Android bergantung pada `app/google-services.json` (ada di repo) dan izin `POST_NOTIFICATIONS`. Jangan dihapus.
+- `android.aapt2FromMavenOverride` sudah dihapus dari `gradle.properties`. Sebelumnya baris itu menunjuk path Termux (`/data/data/com.termux/...`) dan akan menggagalkan build di mesin biasa maupun CI.
+- Signing release kini kondisional (`hasReleaseSigning` di `app/build.gradle`), sehingga build tidak langsung gagal ketika keystore lokal belum tersedia.

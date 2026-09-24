@@ -1,0 +1,24 @@
+name: Verifikasi WZ MANAGE PRO
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  web:
+    name: API & PWA
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-source
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Instal dependensi
+        run: npm ci
+      - name: Cek sintaks & jalankan test
+        run: npm test

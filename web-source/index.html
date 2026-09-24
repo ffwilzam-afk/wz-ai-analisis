@@ -8,8 +8,8 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="manifest" href="/manifest.json">
-<link rel="icon" href="/public/icon-192.png" type="image/png">
-<link rel="apple-touch-icon" href="/public/icon-192.png">
+<link rel="icon" href="/icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
 <title>WZ MANAGE PRO — Online Premium</title>
 <style>
 :root{
@@ -221,9 +221,25 @@ button,input,select,textarea{max-width:100%}
   font-size:11px;
   color:#777;
 }
+.receipt-paper-pick{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  font-size:11px;
+  color:var(--muted);
+}
+.receipt-paper-pick select{
+  background:#090c10;
+  color:#fff;
+  border:1px solid #30353d;
+  border-radius:8px;
+  padding:6px 8px;
+}
 
 
 @media print{
+  @page{margin:0}
+  html,body{background:#fff!important}
   body *{visibility:hidden!important}
   #wzReceipt,#wzReceipt *{visibility:visible!important}
   #wzReceipt{
@@ -231,14 +247,37 @@ button,input,select,textarea{max-width:100%}
     position:absolute!important;
     left:0!important;
     top:0!important;
-    width:72mm!important;
+    width:var(--wz-receipt-width,72mm)!important;
+    max-width:none!important;
     margin:0!important;
-    padding:4mm!important;
+    padding:2mm 1.5mm!important;
     background:#fff!important;
-    color:#111!important;
+    color:#000!important;
     box-shadow:none!important;
     border-radius:0!important;
+    border:none!important;
+    font-family:'Courier New',Courier,monospace!important;
+    font-size:var(--wz-receipt-font,11px)!important;
+    line-height:1.3!important;
   }
+  /* Printer thermal mencetak 1-bit: semua warna abu-abu dibuat hitam penuh
+     supaya tidak tercetak sebagai pola titik yang samar. */
+  #wzReceipt .gold-label,#wzReceipt .subtle,#wzReceipt .wz-receipt-head .subtle,
+  #wzReceipt .wz-receipt-meta span,#wzReceipt .wz-receipt-item .subtle,
+  #wzReceipt .wz-receipt-payment,#wzReceipt .wz-receipt-thanks{
+    color:#000!important;
+    letter-spacing:0!important;
+  }
+  #wzReceipt .wz-receipt-head{margin-bottom:2mm!important}
+  #wzReceipt .wz-receipt-head h3{font-size:12px!important;margin:0!important}
+  #wzReceipt .wz-receipt-head h2{font-size:13px!important;margin:1mm 0!important;letter-spacing:0!important}
+  #wzReceipt .wz-receipt-meta{gap:1mm!important}
+  #wzReceipt .wz-receipt-meta div,#wzReceipt .wz-receipt-item>div{gap:3mm!important;font-size:11px!important}
+  #wzReceipt .wz-receipt-line{border-top:1px dashed #000!important;margin:2mm 0!important}
+  #wzReceipt .wz-receipt-total{font-size:12px!important;align-items:flex-end!important}
+  #wzReceipt .wz-receipt-total strong{font-size:15px!important}
+  #wzReceipt .wz-receipt-payment{margin-top:1.5mm!important;text-align:left!important;font-size:11px!important}
+  #wzReceipt .wz-receipt-thanks{margin-top:3mm!important;font-size:10px!important}
   #wzReceipt + .dialog-actions{
     display:none!important;
   }
@@ -510,7 +549,7 @@ button,input,select,textarea{max-width:100%}
     </div>
   </div>
 </div>
-<div class="login-screen" id="loginScreen"><div class="login-card"><div class="login-led-comet"><svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"><path class="c1" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.000s"/><path class="c2" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.007s"/><path class="c3" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.014s"/><path class="c4" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.021s"/><path class="c5" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.028s"/><path class="c6" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.035s"/><path class="c7" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.042s"/><path class="c8" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.049s"/><path class="c9" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.056s"/><path class="c10" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.063s"/><path class="c11" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.070s"/><path class="c12" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.077s"/></svg></div><div class="login-logo">WZ</div><div class="login-title">BARBERSHOP PRO</div><div class="login-sub">SECURE ACCESS · ONLINE</div><form onsubmit="login(event)" autocomplete="off"><label>Kode Bisnis <span style="color:#8a8f98;font-size:10px">(isi kode dari pendaftaran)</span><input id="loginBusiness" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Contoh: BIZ001"></label><label>Username<input id="loginUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></label><label>Password<div style="position:relative"><input id="loginPass" type="password" autocomplete="current-password" required style="padding-right:58px"><button type="button" class="password-toggle" onclick="toggleLoginPassword()" aria-label="Tampilkan password">Lihat</button></div></label><div class="login-error" id="loginError">Username atau password salah.</div><button class="btn primary" type="submit">MASUK KE SISTEM</button></form><button class="btn register-link" id="registerBusinessButton" type="button" onclick="openRegisterBusiness()">DAFTAR BARBERSHOP BARU</button><div class="login-cs-banner"><img src="/login-cs-banner-front-layer.png" alt="Bantuan CS WZ Manage Pro"><button class="login-cs-banner-help" type="button" onclick="openCS()" aria-label="Bantuan CS"></button></div><div style="margin-top:14px;color:#6f7680;font-size:10px">Akses menu ditentukan berdasarkan role akun.</div></div></div>
+<div class="login-screen" id="loginScreen"><div class="login-card"><div class="login-led-comet"><svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true"><path class="c1" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.000s"/><path class="c2" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.007s"/><path class="c3" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.014s"/><path class="c4" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.021s"/><path class="c5" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.028s"/><path class="c6" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.035s"/><path class="c7" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.042s"/><path class="c8" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.049s"/><path class="c9" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.056s"/><path class="c10" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.063s"/><path class="c11" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.070s"/><path class="c12" pathLength="1000" d="M 20 1 H 980 A 19 19 0 0 1 999 20 V 980 A 19 19 0 0 1 980 999 H 20 A 19 19 0 0 1 1 980 V 20 A 19 19 0 0 1 20 1 Z" style="animation-delay:0.077s"/></svg></div><div class="login-logo">WZ</div><div class="login-title">BARBERSHOP PRO</div><div class="login-sub">SECURE ACCESS · ONLINE</div><form onsubmit="login(event)" autocomplete="off"><label>Kode Bisnis <span style="color:#8a8f98;font-size:10px">(isi kode dari pendaftaran)</span><input id="loginBusiness" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Contoh: BIZ001"></label><label>Username<input id="loginUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></label><label>Password<div style="position:relative"><input id="loginPass" type="password" autocomplete="current-password" required style="padding-right:58px"><button type="button" class="password-toggle" onclick="toggleLoginPassword()" aria-label="Tampilkan password">Lihat</button></div></label><div class="login-error" id="loginError">Username atau password salah.</div><button class="btn primary" type="submit">MASUK KE SISTEM</button></form><button class="btn register-link" id="registerBusinessButton" type="button" onclick="openRegisterBusiness()">DAFTAR BARBERSHOP BARU</button><div class="login-cs-banner"><img src="/login-cs-banner-front-layer.webp" alt="Bantuan CS WZ Manage Pro" width="750" height="339" loading="lazy" decoding="async"><button class="login-cs-banner-help" type="button" onclick="openCS()" aria-label="Bantuan CS"></button></div><div style="margin-top:14px;color:#6f7680;font-size:10px">Akses menu ditentukan berdasarkan role akun.</div></div></div>
 <div class="app" id="mainApp" style="display:none">
 <aside class="sidebar" id="sidebar">
  <div class="brand"><div class="logo">WZ</div><div class="brand-title">BARBERSHOP PRO</div><div class="brand-sub">MANAGEMENT SYSTEM</div><span class="offline">ONLINE PREMIUM</span></div>
@@ -1399,8 +1438,9 @@ function processPendingAndroidNotification(){
  if(!r){
   pendingAndroidNotification=null;
   go('shiftReports');
-  if(typeof syncBusiness==='function'){
-   syncBusiness().then(()=>{
+  const syncBridge=window.WZOnlineBusiness;
+  if(syncBridge&&typeof syncBridge.sync==='function'){
+   syncBridge.sync().then(()=>{
     setTimeout(()=>shiftReportDetail(reportId),300);
    }).catch(()=>{});
   }
@@ -2238,9 +2278,9 @@ async function payrollSettingsPage(){
  </section>`;
 }
 
-function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${db.profile.name}"></label><label>Jabatan<input id="pRole" value="${db.profile.role}"></label><label class="full">Brand<input id="pBrand" value="${db.profile.brand}"></label><label class="full">Fokus<input id="pFocus" value="${db.profile.focus}"></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
+function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${db.profile.name}"></label><label>Jabatan<input id="pRole" value="${db.profile.role}"></label><label class="full">Brand<input id="pBrand" value="${db.profile.brand}"></label><label class="full">Fokus<input id="pFocus" value="${db.profile.focus}"></label><label class="full">Ukuran Kertas Struk (thermal)<select id="pReceiptPaper"><option value="80"${receiptPaperSpec().code==='80'?' selected':''}>80mm (struk standar)</option><option value="58"${receiptPaperSpec().code==='58'?' selected':''}>58mm (struk kecil)</option></select></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
 function testNotificationSound(){const wasEnabled=db.profile.notificationSoundEnabled;db.profile.notificationSoundEnabled=true;playNotificationSound();db.profile.notificationSoundEnabled=wasEnabled;toast('Suara notifikasi diuji.',true);}
-function saveSettings(){if(!guard('settings'))return;db.profile.name=pName.value;db.profile.role=pRole.value;db.profile.brand=pBrand.value;db.profile.focus=pFocus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;save();toast('Pengaturan disimpan.');render()}
+function saveSettings(){if(!guard('settings'))return;db.profile.name=pName.value;db.profile.role=pRole.value;db.profile.brand=pBrand.value;db.profile.focus=pFocus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;db.profile.receiptPaper=document.getElementById('pReceiptPaper')?.value==='58'?'58':'80';window.__wzReceiptPaper=db.profile.receiptPaper;applyReceiptPaper();save();toast('Pengaturan disimpan.');render()}
 
 
 let modalHistoryState=false;
@@ -2645,6 +2685,14 @@ async function syncBusiness(){
   }
 }
 window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[]};
+// Dipakai auto-refresh di luar IIFE ini (lihat refreshAppData).
+window.WZOnlineSync={hydrate:hydrateAppState,business:syncBusiness,employees:syncEmployeesFromServer};
+// Fungsi berikut dipanggil dari atribut onclick di HTML, jadi harus global.
+window.printTransactionReceipt=printTransactionReceipt;
+window.markServerNotificationRead=markServerNotificationRead;
+window.markAllServerNotificationsRead=markAllServerNotificationsRead;
+window.savePayrollSettings=savePayrollSettings;
+window.syncNativeFcmToken=syncNativeFcmToken;
 
 async function syncNativeFcmToken(){
   console.log('[FCM] sync start');
@@ -3147,6 +3195,7 @@ window.saveTransaction=async function(){
 
 
 function renderTransactionReceipt(t){
+  applyReceiptPaper();
   const customerName=t.customerName||getCustomer(t.customerId)?.name||'-';
   const serviceName=t.serviceName||getService(t.serviceId)?.name||'-';
   const employeeName=t.employeeName||getEmployee(t.employeeId)?.name||'-';
@@ -3178,9 +3227,17 @@ function renderTransactionReceipt(t){
       <div class="wz-receipt-payment">Pembayaran: <b>${payment}</b></div>
       <div class="wz-receipt-thanks">Terima kasih telah berkunjung.</div>
     </div>
-    <div class="dialog-actions">
-      <button class="btn" onclick="closeModal()">Tutup</button>
-      <button class="btn primary" onclick="printTransactionReceipt()">🖨 Cetak Nota</button>
+    <div class="dialog-actions" style="justify-content:space-between;flex-wrap:wrap">
+      <label class="receipt-paper-pick">Kertas cetak
+        <select id="receiptPaperSelect" onchange="setReceiptPaper(this.value)">
+          <option value="80"${receiptPaperSpec().code==='80'?' selected':''}>80mm</option>
+          <option value="58"${receiptPaperSpec().code==='58'?' selected':''}>58mm</option>
+        </select>
+      </label>
+      <span style="display:flex;gap:8px">
+        <button class="btn" onclick="closeModal()">Tutup</button>
+        <button class="btn primary" onclick="printTransactionReceipt()">🖨 Cetak Nota</button>
+      </span>
     </div>
   `);
   window.__wzLastReceipt=Object.assign({},t,{customerName,serviceName,employeeName});
@@ -3265,12 +3322,43 @@ void legacyNotifications;
 
 })();
 
-// Auto-refresh: sinkronisasi seluruh data online
+/* ---- Ukuran kertas struk untuk printer thermal (58mm / 80mm) ----
+   Dipakai oleh halaman Pengaturan (script #1) dan dialog nota (script #2),
+   karena itu helper-nya sengaja dibuat sebagai fungsi global. */
+function receiptPaperSpec(){
+  const code=String(window.__wzReceiptPaper||db.profile?.receiptPaper||'80')==='58'?'58':'80';
+  return code==='58'
+    ? {code:'58',label:'58mm',content:'48mm',font:'10px'}
+    : {code:'80',label:'80mm',content:'72mm',font:'11px'};
+}
+function applyReceiptPaper(){
+  const spec=receiptPaperSpec(),root=document.documentElement;
+  root.style.setProperty('--wz-receipt-width',spec.content);
+  root.style.setProperty('--wz-receipt-font',spec.font);
+  return spec;
+}
+function setReceiptPaper(value){
+  window.__wzReceiptPaper=String(value)==='58'?'58':'80';
+  if(currentUser&&['owner','manager'].includes(currentUser.role)){
+    db.profile=db.profile||{};
+    db.profile.receiptPaper=window.__wzReceiptPaper;
+    save();
+  }
+  const spec=applyReceiptPaper();
+  toast('Ukuran kertas struk diset '+spec.label+'.');
+}
+
+// Auto-refresh: sinkronisasi seluruh data online.
+// hydrateAppState/syncBusiness berada di dalam IIFE bridge, jadi harus lewat
+// window.WZOnlineSync. Sebelumnya dipanggil langsung sehingga selalu gagal
+// dengan ReferenceError yang tertelan try/catch (auto-refresh tidak jalan).
 async function refreshAppData(){
   if(!currentUser)return false;
   try{
-    await hydrateAppState();
-    await syncBusiness();
+    const bridge=window.WZOnlineSync;
+    if(!bridge)return false;
+    await bridge.hydrate();
+    await bridge.business();
     if(typeof render==='function')render();
     return true;
   }catch(e){

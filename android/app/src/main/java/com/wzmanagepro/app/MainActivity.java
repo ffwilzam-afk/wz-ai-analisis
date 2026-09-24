@@ -38,9 +38,11 @@ public class MainActivity extends Activity {
             runOnUiThread(() -> {
                 PrintManager printManager = (PrintManager) getSystemService(PRINT_SERVICE);
                 if (printManager != null && web != null) {
+                    // createPrintDocumentAdapter(String) sudah deprecated sejak API 21;
+                    // versi tanpa argumen ini yang dipakai sekarang.
                     printManager.print(
                             "WZ MANAGE PRO",
-                            web.createPrintDocumentAdapter("WZ MANAGE PRO"),
+                            web.createPrintDocumentAdapter(),
                             new PrintAttributes.Builder().build()
                     );
                 }

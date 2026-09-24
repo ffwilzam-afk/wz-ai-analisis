@@ -2,6 +2,8 @@
   "project": "WZ MANAGE PRO",
   "mode": "FULL ONLINE",
   "checked_at": "2026-09-05",
+  "superseded_at": "2026-09-24",
+  "superseded_note": "Snapshot historis. Hanya berlaku untuk kondisi repo 5 Sep 2026; struktur file sudah berubah (lihat web-source/README.md). Verifikasi terbaru dijalankan lewat `npm test` di web-source/.",
   "client_persistence": "disabled",
   "server_source_of_truth": "Neon PostgreSQL",
   "business_online_endpoints": [
