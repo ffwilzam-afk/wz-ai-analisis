@@ -59,7 +59,45 @@ function statusFilter(value){
   return ['ACTIVE','TRIAL','EXPIRED','PENDING','CANCELLED','FAILED'].includes(v)?v:'';
 }
 
+async function ownerForumRoutes(ctx,req,res,path){
+  const { getPool, send, body, authUser } = ctx;
+  const user=await authUser(req);
+  if(!user)return send(res,401,{ok:false,error:'Belum login.'}),true;
+  if(user.role!=='owner')return send(res,403,{ok:false,error:'Akses hanya untuk Owner.'}),true;
+  const pool=getPool();
+  if(path==='owner-forum/messages'){
+    if(req.method==='GET'){
+      const r=await pool.query(`SELECT m.id,m.message,m.message_type AS "messageType",m.sticker_id AS "stickerId",m.reply_to_id AS "replyToId",m.created_at AS "createdAt",COALESCE(m.sender_user_id,m.sender_admin_id) AS "senderId",COALESCE(u.name,a.display_name,'Owner') AS "senderName",COALESCE(b.name,'') AS "businessName",COALESCE(p.avatar,'') AS "senderAvatar",m.sender_role AS "senderRole" FROM wz_owner_forum_messages m LEFT JOIN wz_users u ON u.id=m.sender_user_id LEFT JOIN wz_platform_admins a ON a.id=m.sender_admin_id LEFT JOIN wz_businesses b ON b.id=m.business_id LEFT JOIN wz_user_profiles p ON p.user_id=u.id WHERE m.sender_user_id IS NOT NULL OR m.sender_admin_id IS NOT NULL ORDER BY m.created_at ASC LIMIT 200`);
+      return send(res,200,{ok:true,scope:'global',messages:r.rows}),true;
+    }
+    if(req.method==='POST'){
+      const b=await body(req),message=String(b.message||'').trim(),messageType=String(b.messageType||'text'),stickerId=b.stickerId==null?null:String(b.stickerId),replyToId=b.replyToId==null?null:Number(b.replyToId);
+      if(!['text','sticker'].includes(messageType))return send(res,400,{ok:false,error:'Jenis pesan tidak valid.'}),true;
+      if(messageType==='text'&&!message)return send(res,400,{ok:false,error:'Pesan tidak boleh kosong.'}),true;
+      if(messageType==='sticker'&&!stickerId)return send(res,400,{ok:false,error:'Sticker tidak valid.'}),true;
+      if(replyToId!==null&&(!Number.isInteger(replyToId)||replyToId<1))return send(res,400,{ok:false,error:'Reply tidak valid.'}),true;
+      if(replyToId!==null&&!(await pool.query('SELECT id FROM wz_owner_forum_messages WHERE id=$1',[replyToId])).rowCount)return send(res,400,{ok:false,error:'Pesan yang dibalas tidak ditemukan.'}),true;
+      const r=await pool.query(`INSERT INTO wz_owner_forum_messages(sender_user_id,sender_role,business_id,message,message_type,sticker_id,reply_to_id) VALUES($1,'owner',$2,$3,$4,$5,$6) RETURNING id,message,message_type AS "messageType",sticker_id AS "stickerId",reply_to_id AS "replyToId",created_at AS "createdAt",sender_user_id AS "senderId",sender_role AS "senderRole"`,[user.id,user.business_id||null,message,messageType,stickerId,replyToId]);
+      await pool.query(`INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id) VALUES('owner_message','Pesan Owner baru',$1,$2,'business',$2)`,[`Owner ${user.name} mengirim pesan baru`,user.business_id||null]);
+      return send(res,201,{ok:true,scope:'global',message:{...r.rows[0],senderName:user.name,senderBusinessName:'',senderAvatar:'',senderRole:'owner'}}),true;
+    }
+    return send(res,405,{ok:false,error:'Method tidak didukung.'}),true;
+  }
+  if(path==='owner-forum/reactions'&&req.method==='POST'){
+    const b=await body(req),messageId=Number(b.messageId),reaction=String(b.reaction||'').trim();
+    if(!Number.isInteger(messageId)||messageId<1)return send(res,400,{ok:false,error:'Pesan tidak valid.'}),true;
+    if(!['👍','❤️','😂','😮','😢','🙏'].includes(reaction))return send(res,400,{ok:false,error:'Reaksi tidak valid.'}),true;
+    if(!(await pool.query('SELECT id FROM wz_owner_forum_messages WHERE id=$1',[messageId])).rowCount)return send(res,404,{ok:false,error:'Pesan tidak ditemukan.'}),true;
+    const existing=await pool.query('SELECT id FROM wz_owner_forum_reactions WHERE message_id=$1 AND user_id=$2 AND reaction=$3',[messageId,user.id,reaction]);
+    if(existing.rowCount){await pool.query('DELETE FROM wz_owner_forum_reactions WHERE id=$1',[existing.rows[0].id]);return send(res,200,{ok:true,reacted:false}),true}
+    await pool.query('INSERT INTO wz_owner_forum_reactions(message_id,user_id,reaction) VALUES($1,$2,$3) ON CONFLICT(message_id,user_id,reaction) DO NOTHING',[messageId,user.id,reaction]);
+    return send(res,200,{ok:true,reacted:true}),true;
+  }
+  return send(res,404,{ok:false,error:'Endpoint forum tidak ditemukan.'}),true;
+}
+
 module.exports=async function adminRoutes(ctx,req,res,path){
+  if(path.startsWith('owner-forum/'))return ownerForumRoutes(ctx,req,res,path);
   if(!path.startsWith('admin/'))return false;
   const q=queryOf(req);
 
@@ -206,6 +244,25 @@ module.exports=async function adminRoutes(ctx,req,res,path){
     const r=await p.query(`SELECT o.order_id AS "orderId",o.business_id AS "businessId",b.name AS "businessName",u.name AS owner,o.plan,o.billing_period AS "billingPeriod",o.amount,o.currency,o.status,o.payment_provider AS "paymentProvider",o.external_id AS "paymentReference",o.xendit_payment_id AS "xenditPaymentId",o.created_at AS "createdAt",o.paid_at AS "paidAt" FROM wz_subscription_orders o JOIN wz_businesses b ON b.id=o.business_id LEFT JOIN wz_users u ON u.business_id=o.business_id AND u.role='owner' WHERE ($1='' OR o.order_id ILIKE '%'||$1||'%' OR b.name ILIKE '%'||$1||'%' OR b.id ILIKE '%'||$1||'%') AND ($2='' OR o.status=$2) ORDER BY o.created_at DESC LIMIT $3 OFFSET $4`,[search,status,limit,offset]);
     const count=await p.query(`SELECT COUNT(*)::int AS total FROM wz_subscription_orders o JOIN wz_businesses b ON b.id=o.business_id WHERE ($1='' OR o.order_id ILIKE '%'||$1||'%' OR b.name ILIKE '%'||$1||'%' OR b.id ILIKE '%'||$1||'%') AND ($2='' OR o.status=$2)`,[search,status]);
     return ctx.send(res,200,page(r.rows,count.rows[0].total,{page:pageNo,limit}),true);
+  }
+
+  if(path==='admin/forum/messages' && req.method==='GET'){
+    const limit=intParam(q.get('limit'),200,1,200);
+    const r=await p.query(`SELECT m.id,m.message,m.message_type AS "messageType",m.sticker_id AS "stickerId",m.reply_to_id AS "replyToId",m.created_at AS "createdAt",COALESCE(u.id,m.sender_admin_id) AS "senderId",COALESCE(u.name,a.display_name,'Admin Platform') AS "senderName",COALESCE(b.name,'') AS "businessName",COALESCE(pr.avatar,'') AS "senderAvatar",m.sender_role AS "senderRole" FROM wz_owner_forum_messages m LEFT JOIN wz_users u ON u.id=m.sender_user_id LEFT JOIN wz_platform_admins a ON a.id=m.sender_admin_id LEFT JOIN wz_businesses b ON b.id=m.business_id LEFT JOIN wz_user_profiles pr ON pr.user_id=u.id WHERE m.sender_user_id IS NOT NULL OR m.sender_admin_id IS NOT NULL ORDER BY m.created_at ASC LIMIT $1`,[limit]);
+    return ctx.send(res,200,{ok:true,scope:'global',messages:r.rows},true);
+  }
+  if(path==='admin/forum/messages' && req.method==='POST'){
+    const b=await ctx.body(req),message=text(b.message,4000),messageType=text(b.messageType||'text',20),stickerId=text(b.stickerId,30),replyToId=b.replyToId==null?null:Number(b.replyToId);
+    if(messageType==='text'&&!message)return ctx.send(res,400,{ok:false,error:'Pesan tidak boleh kosong.'}),true;
+    if(messageType==='sticker'&&!stickerId)return ctx.send(res,400,{ok:false,error:'Sticker tidak valid.'}),true;
+    if(!['text','sticker'].includes(messageType))return ctx.send(res,400,{ok:false,error:'Jenis pesan tidak valid.'}),true;
+    if(replyToId!==null&&(!Number.isInteger(replyToId)||replyToId<1))return ctx.send(res,400,{ok:false,error:'Reply tidak valid.'}),true;
+    if(replyToId!==null&&!(await p.query('SELECT id FROM wz_owner_forum_messages WHERE id=$1',[replyToId])).rowCount)return ctx.send(res,400,{ok:false,error:'Pesan yang dibalas tidak ditemukan.'}),true;
+    const r=await p.query(`INSERT INTO wz_owner_forum_messages(sender_admin_id,sender_role,business_id,message,message_type,sticker_id,reply_to_id) VALUES($1,'platform_admin',NULL,$2,$3,$4,$5) RETURNING id,message,message_type AS "messageType",sticker_id AS "stickerId",reply_to_id AS "replyToId",created_at AS "createdAt",sender_admin_id AS "senderId",sender_role AS "senderRole"`,[admin.id,message,messageType,stickerId||null,replyToId]);
+    const created=r.rows[0];
+    await p.query(`INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id) VALUES('admin_message','Pesan Admin dikirim',$1,NULL,'forum',NULL)`,['Admin Platform mengirim pesan ke semua Owner']);
+    await audit(ctx,admin,'admin.forum.send',{targetType:'forum',targetId:'global',metadata:{messageId:String(created.id)}});
+    return ctx.send(res,201,{ok:true,scope:'global',message:{...created,senderName:admin.display_name,senderRole:'platform_admin'}}),true;
   }
 
   if(path==='admin/forum/conversations' && req.method==='GET'){

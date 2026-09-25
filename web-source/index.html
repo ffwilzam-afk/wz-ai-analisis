@@ -328,10 +328,28 @@ button,input,select,textarea{max-width:100%}
 
 .owner-forum-head{
   flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
   padding:16px;
   border-bottom:1px solid rgba(212,175,55,.2);
   background:linear-gradient(135deg,#111,#080808);
 }
+.owner-forum-help{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  flex:0 0 auto;
+  border:1px solid rgba(212,175,55,.45);
+  border-radius:999px;
+  padding:9px 12px;
+  background:#17130b;
+  color:#e7c86c;
+  font-size:12px;
+  font-weight:700;
+}
+.owner-forum-help:hover{background:#241c0d;border-color:#d4af37}
 
 .owner-forum-messages{
   flex:1 1 auto;
@@ -451,6 +469,8 @@ button,input,select,textarea{max-width:100%}
 }
 
 @media(max-width:600px){
+  .owner-forum-head{display:block}
+  .owner-forum-help{margin-top:12px}
   .owner-forum-page{
     height:calc(100vh - 154px - 68px - env(safe-area-inset-bottom));
     height:calc(100dvh - 154px - 68px - env(safe-area-inset-bottom));
@@ -1548,7 +1568,7 @@ function openTransaction(){
  <div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button type="button" id="saveTransactionBtn" class="btn primary" onclick="saveTransaction()">Simpan Transaksi</button></div>`);
  calcTx();
 }
-function calcTx(){const s=getService(document.getElementById('fService').value);const d=Number(document.getElementById('fDiscount').value)||0;document.getElementById('fTotal').value=rupiah(Math.max(0,Number(s?.price||0)-d))}
+function calcTx(){const serviceEl=document.getElementById('fService'),discountEl=document.getElementById('fDiscount'),totalEl=document.getElementById('fTotal');if(!serviceEl||!discountEl||!totalEl)return;const s=getService(serviceEl.value);const d=Number(discountEl.value)||0;totalEl.value=rupiah(Math.max(0,Number(s?.price||0)-d))}
 function saveTransaction(){
  const customerEl=document.getElementById('fCustomer');
  const serviceEl=document.getElementById('fService');
@@ -2465,7 +2485,7 @@ async function payrollSettingsPage(){
 
 function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${escapeHtml(String(db.profile.name||''))}"></label><label>Jabatan<input id="pRole" value="${escapeHtml(String(db.profile.role||''))}"></label><label class="full">Brand<input id="pBrand" value="${escapeHtml(String(db.profile.brand||''))}"></label><label class="full">Fokus<input id="pFocus" value="${escapeHtml(String(db.profile.focus||''))}"></label><label class="full">Ukuran Kertas Struk (thermal)<select id="pReceiptPaper"><option value="80"${receiptPaperSpec().code==='80'?' selected':''}>80mm (struk standar)</option><option value="58"${receiptPaperSpec().code==='58'?' selected':''}>58mm (struk kecil)</option></select></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
 function testNotificationSound(){const wasEnabled=db.profile.notificationSoundEnabled;db.profile.notificationSoundEnabled=true;playNotificationSound();db.profile.notificationSoundEnabled=wasEnabled;toast('Suara notifikasi diuji.',true);}
-function saveSettings(){if(!guard('settings'))return;db.profile.name=pName.value;db.profile.role=pRole.value;db.profile.brand=pBrand.value;db.profile.focus=pFocus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;db.profile.receiptPaper=document.getElementById('pReceiptPaper')?.value==='58'?'58':'80';window.__wzReceiptPaper=db.profile.receiptPaper;applyReceiptPaper();save();toast('Pengaturan disimpan.');render()}
+function saveSettings(){if(!guard('settings'))return;const name=document.getElementById('pName'),role=document.getElementById('pRole'),brand=document.getElementById('pBrand'),focus=document.getElementById('pFocus');if(!name||!role||!brand||!focus)return;db.profile.name=name.value;db.profile.role=role.value;db.profile.brand=brand.value;db.profile.focus=focus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;db.profile.receiptPaper=document.getElementById('pReceiptPaper')?.value==='58'?'58':'80';window.__wzReceiptPaper=db.profile.receiptPaper;applyReceiptPaper();save();toast('Pengaturan disimpan.');render()}
 
 
 let modalHistoryState=false;
@@ -2519,6 +2539,7 @@ async function ownerForumPage(){
             <h2 style="margin:4px 0 0">💬 Obrolan Owner</h2>
             <p class="muted" style="margin:4px 0 0">Forum bersama Owner WZ Manage Pro</p>
           </div>
+          <button type="button" class="owner-forum-help" onclick="ownerForumHelp()" title="Minta bantuan Admin">Bantuan Admin</button>
         </div>
 
         <div id="ownerForumMessages" class="owner-forum-messages">
@@ -2645,6 +2666,13 @@ async function ownerForumSend(){
   }
 }
 
+function ownerForumHelp(){
+  const input=document.getElementById('ownerForumInput');
+  if(!input)return;
+  if(!input.value.trim())input.value='Bantuan Admin: ';
+  input.focus();
+  input.setSelectionRange(input.value.length,input.value.length);
+}
 function ownerForumPickSticker(){
   const stickers=['😊','😂','❤️','👍','🙏','🔥','🎉','💈'];
   const value=prompt('Pilih sticker: '+stickers.join(' '));
@@ -2679,7 +2707,7 @@ function ownerSettingsPanel(){
  if(location.hash!=='#settings'||currentUser?.role!=='owner')return;
  const content=document.getElementById('content');if(!content||document.getElementById('ownerAnalyticsPeriod'))return;
  content.insertAdjacentHTML('beforeend',`<section class="card section" id="ownerSettingsPanel"><h3>Kontrol OWNER</h3><p class="muted">Kontrol pusat untuk pemantauan, backup, dan data bisnis.</p><div class="form"><label>Periode analisis default<select id="ownerAnalyticsPeriod"><option value="7">7 hari terakhir</option><option value="30">30 hari terakhir</option><option value="90">90 hari terakhir</option></select></label></div><div class="actions"><button class="btn primary" type="button" onclick="saveOwnerSettings()">Simpan Preferensi</button><button class="btn" type="button" onclick="go('analytics')">Buka Analisis</button><button class="btn" type="button" onclick="exportBackup()">Backup Data</button><button class="btn" type="button" onclick="exportOwnerAnalytics()">Export CSV</button><button class="btn" type="button" onclick="ownerRefreshBusiness()">Refresh Online</button><button class="btn danger" type="button" onclick="go('system')">Kelola Reset Bisnis</button></div></section>`);
- document.getElementById('ownerAnalyticsPeriod').value=db.profile.analyticsPeriod||'7';
+ const periodControl=document.getElementById('ownerAnalyticsPeriod');if(periodControl)periodControl.value=db.profile.analyticsPeriod||'7';
 }
 function saveOwnerSettings(){
  if(!currentUser||currentUser.role!=='owner')return;

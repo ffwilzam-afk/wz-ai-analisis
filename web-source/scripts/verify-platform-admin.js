@@ -64,8 +64,8 @@ async function main(){
       await invoke('/api/admin/dashboard',{cookie:`wz_session=${ownerToken}`,expected:401});
       roleChecks[role]={session_rejected:true};
     }
-    const owners=await pool.query(`SELECT u.id,u.business_id FROM wz_users u WHERE u.active=true AND u.role='owner' AND u.business_id IS NOT NULL GROUP BY u.id,u.business_id ORDER BY EXISTS(SELECT 1 FROM wz_owner_forum_messages m WHERE m.business_id=u.business_id) DESC,u.business_id LIMIT 2`);
-    let forumIsolation=null;
+    const owners=await pool.query(`SELECT u.id,u.business_id FROM wz_users u WHERE u.active=true AND u.role='owner' AND u.business_id IS NOT NULL GROUP BY u.id,u.business_id ORDER BY u.business_id LIMIT 2`);
+    let forumGlobal=null;
     if(owners.rowCount===2){
       const results=[];
       for(const owner of owners.rows){
@@ -73,15 +73,16 @@ async function main(){
         temporaryHashes.push(ownerHash);
         await pool.query('INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL \'15 minutes\')',[ownerHash,owner.id]);
         const body=await invoke('/api/owner-forum/messages',{cookie:`wz_session=${ownerToken}`});
-        if(body.businessId!==owner.business_id||body.messages.some(message=>message.businessId&&message.businessId!==owner.business_id))throw new Error('Isolasi forum Owner gagal.');
-        results.push({businessId:body.businessId,messages:body.messages.length});
+        if(body.scope!=='global'||!Array.isArray(body.messages))throw new Error('Forum global Owner gagal.');
+        results.push({businessId:owner.business_id,messages:body.messages.length});
       }
-      forumIsolation={owners_tested:results.length,results};
+      const sameMessageSet=results.length===2&&results[0].messages===results[1].messages;
+      forumGlobal={owners_tested:results.length,same_message_set:sameMessageSet,results};
     }
     await pool.query('DELETE FROM wz_platform_admin_sessions WHERE token_hash=ANY($1::text[])',[temporaryHashes]);
     await pool.query('DELETE FROM wz_sessions WHERE token_hash=ANY($1::text[])',[temporaryHashes]);
     temporaryHashes.length=0;
-    console.log(JSON.stringify({ok:true,account:{username:account.username,displayName:account.display_name,email:account.email,active:account.active},server_side_protection:{anonymous_admin_denied:true,tenant_sessions_denied:true,role_checks:roleChecks},features,forum_isolation:forumIsolation,temporary_sessions_cleaned:true},null,2));
+    console.log(JSON.stringify({ok:true,account:{username:account.username,displayName:account.display_name,email:account.email,active:account.active},server_side_protection:{anonymous_admin_denied:true,tenant_sessions_denied:true,role_checks:roleChecks},features,forum_global:forumGlobal,temporary_sessions_cleaned:true},null,2));
   }finally{
     if(temporaryHashes.length)await pool.query('DELETE FROM wz_platform_admin_sessions WHERE token_hash=ANY($1::text[])',[temporaryHashes]);
     if(temporaryHashes.length)await pool.query('DELETE FROM wz_sessions WHERE token_hash=ANY($1::text[])',[temporaryHashes]);

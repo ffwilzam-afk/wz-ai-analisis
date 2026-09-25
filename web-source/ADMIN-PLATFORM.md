@@ -27,10 +27,10 @@ npm run admin:provision -- --update --verify-live --current-username admin --use
 - Jalankan `npm run admin:preflight` untuk pemeriksaan read-only, lalu `npm run admin:migrate` dengan environment database production yang sudah dikonfirmasi.
 - Script migration memakai transaction, advisory lock, lock timeout, dan statement timeout; provisioning tidak menjalankan migration otomatis.
 - `npm run admin:verify` menjalankan pemeriksaan server-side dan endpoint read-only dengan sesi sementara yang dibersihkan otomatis; pengujian tidak mengubah data tenant.
-- Chat tetap memakai `wz_owner_forum_messages`, tetapi kini memiliki `business_id` dan `sender_admin_id`.
-- Endpoint Owner selalu mengambil tenant dari session server.
+- Obrolan Owner memakai `wz_owner_forum_messages` yang sama dan kini memiliki `business_id` serta `sender_admin_id` untuk konteks pengirim.
+- Endpoint Owner mengambil user dari session server; pesan Owner dan Admin dalam Obrolan Owner bersifat global sehingga dapat dibaca dan dibalas oleh semua Owner. Data tenant tetap terisolasi pada endpoint bisnis/data Owner lainnya.
 - Endpoint Admin hanya dapat dipakai oleh session `wz_admin_session`.
-- FCM pesan Admin hanya dikirim ke token owner dengan `business_id` yang sama.
+- Notifikasi FCM untuk pesan Owner tetap mengikuti `business_id` pengirim dan hanya dikirim kepada Owner tenant tersebut; pesan Obrolan Owner global tetap tersedia melalui forum.
 
 ## Menu Admin
 
