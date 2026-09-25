@@ -785,7 +785,7 @@ function toast(message,silent=false,notificationId){
  el.style.display='block';
  if(!silent)playNotificationSound();
  if(!silent)speakNotification(message);
- if(!silent)notifyAndroid(message,notificationId);
+ if(!silent&&currentUser&&['owner','manager'].includes(currentUser.role))notifyAndroid(message,notificationId);
  clearTimeout(window.__wzToastTimer);
  window.__wzToastTimer=setTimeout(()=>{el.style.display='none'},2200);
 }
@@ -923,7 +923,7 @@ function topbarAvatar(){
   const box=document.getElementById('wzTopAvatar');
   if(!box||!currentUser)return;
   const rawAvatar=String(currentUser.avatar||'').trim();
-  const avatar=/^(https?:\/\/|data:image\/)/i.test(rawAvatar)?rawAvatar:'';
+  const avatar=/^(https?:\/\/|data:image\/(?:png|jpe?g|gif|webp);)/i.test(rawAvatar)?rawAvatar:'';
   const initial=String(currentUser.name||currentUser.username||'?').trim().charAt(0).toUpperCase().replace(/[<>&"']/g,'');
   box.innerHTML=avatar?'<img src="'+avatar.replace(/"/g,'&quot;')+'" alt="">':(initial||'?');
 }
@@ -970,7 +970,7 @@ function updateTopbarBadges(){
   else refreshOwnerForumBadge();
 }
 
-function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','payrollSettings','ownerForum','system','subscription','auth','cs']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+currentUser.name+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
+function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','payrollSettings','ownerForum','system','subscription','auth','cs']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+escapeHtml(String(currentUser.name||''))+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
 function openCS(){const u=currentUser||{};const msg=`Halo CS WZ MANAGE PRO, saya membutuhkan bantuan.%0A%0ABisnis: ${encodeURIComponent(u.businessName||u.businessId||'-')}%0ACabang: ${encodeURIComponent(u.branchName||u.branchId||'-')}%0AAkun: ${encodeURIComponent(u.name||u.username||'-')}%0ARole: ${encodeURIComponent(u.role||'-')}%0A%0AMasalah:%20`;window.open('https://wa.me/6287777527161?text='+msg,'_blank')}
 function navBtn(m){if(m[0]==='cs')return `<button id="nav-cs" onclick="openCS()">💬 Bantuan & CS</button>`;const unread=m[0]==='notifications'?(db.notifications||[]).filter(x=>!x.read).length:0;return `<button id="nav-${m[0]}" data-nav="${m[0]}">${m[1]} ${m[2]}${unread?` <span class="pill red" style="font-size:10px;padding:2px 6px">${unread}</span>`:''}</button>`}
 function go(key){if(!guard(key))return;location.hash=key;render()}
@@ -1357,7 +1357,7 @@ function dashboard(branchId){
    <div class="feature" style="margin-top:12px">⏱️ <b>Estimasi operasional:</b> ${queue? 'Layanan berjalan normal':'Belum ada antrean'} <button class="btn small" style="float:right" onclick="go('operations')">LIHAT ANTREAN</button></div>
   </section>
   <section class="card"><div class="panel-title"><h3>JADWAL / TRANSAKSI TERBARU — ${branchLabel}</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>
-   ${recent.length?recent.slice(0,4).map(t=>`<div class="schedule-item"><span class="time">${t.date===today?'Hari ini':t.date}</span><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'} · ${getEmployee(t.employeeId)?.name||'-'}</div></div><span class="tag">${rupiah(t.total)}</span></div>`).join(''):'<div class="empty">Belum ada transaksi.</div>'}
+   ${recent.length?recent.slice(0,4).map(t=>`<div class="schedule-item"><span class="time">${escapeHtml(String(t.date===today?'Hari ini':t.date))}</span><div><b>${escapeHtml(String(getCustomer(t.customerId)?.name||'Walk-in'))}</b><div class="subtle">${escapeHtml(String(getService(t.serviceId)?.name||'-'))} · ${escapeHtml(String(getEmployee(t.employeeId)?.name||'-'))}</div></div><span class="tag">${rupiah(t.total)}</span></div>`).join(''):'<div class="empty">Belum ada transaksi.</div>'}
   </section>
  </div>
  <section class="card" style="margin-top:14px">
@@ -1500,7 +1500,7 @@ function dashboardFilter(){
 render();
 function txDetail(id){const t=db.transactions.find(x=>x.id===id);const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${escapeHtml(String(t.id))}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(confirm('Void transaksi ini?')){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
-function box(a,b){return `<div class="detail-box"><span class="label">${a}</span><strong>${b}</strong></div>`}
+function box(a,b){return `<div class="detail-box"><span class="label">${escapeHtml(String(a??''))}</span><strong>${escapeHtml(String(b??''))}</strong></div>`}
 
 let pendingAndroidNotification=null;
 
@@ -1543,10 +1543,10 @@ function shiftReportDetail(id){
  if(!currentUser||!['owner','manager'].includes(currentUser.role)){toast('Detail laporan hanya dapat dilihat Owner/Manager.',true);return}
  const e=getEmployee(r.employeeId);
  const branch=db.branches.find(b=>b.id===e?.branchId);
- const services=(r.services||[]).map(x=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #20242b"><span>${x.serviceName||getService(x.serviceId)?.name||'-'} × ${Number(x.qty||0)}</span><b>${rupiah(Number(x.total||0))}</b></div>`).join('')||'<div class="empty">Tidak ada layanan.</div>';
- const products=(r.products||[]).map(x=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #20242b"><span>${x.name||x.productName||'-'} × ${Number(x.qty||0)}</span><b>${rupiah(Number(x.total||0))}</b></div>`).join('')||'<div class="empty">Tidak ada produk.</div>';
+ const services=(r.services||[]).map(x=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(x.serviceName||getService(x.serviceId)?.name||'-'))} × ${Number(x.qty||0)}</span><b>${rupiah(Number(x.total||0))}</b></div>`).join('')||'<div class="empty">Tidak ada layanan.</div>';
+ const products=(r.products||[]).map(x=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(x.name||x.productName||'-'))} × ${Number(x.qty||0)}</span><b>${rupiah(Number(x.total||0))}</b></div>`).join('')||'<div class="empty">Tidak ada produk.</div>';
  show(`<span class="gold-label">DETAIL LAPORAN SHIFT</span>
- <h2>${r.employeeName||e?.name||r.employeeId||'-'}</h2>
+ <h2>${escapeHtml(String(r.employeeName||e?.name||r.employeeId||'-'))}</h2>
  <p class="muted">${r.date||'-'} · ${escapeHtml(String(r.shiftType||'-'))} · Cabang: ${escapeHtml(String(branch?.name||'-'))}</p>
  <div class="detail-grid">
   ${box('Pelanggan',Number(r.customers||0))}
@@ -1563,7 +1563,7 @@ function shiftReportDetail(id){
  <div class="goldline"></div>
  <h3>Layanan</h3>${services}
  <h3 style="margin-top:18px">Produk</h3>${products}
- <h3 style="margin-top:18px">Catatan Shift</h3><p class="muted">${r.note||'-'}</p>
+ <h3 style="margin-top:18px">Catatan Shift</h3><p class="muted">${escapeHtml(String(r.note||'-'))}</p>
  <div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`);
 }
 
@@ -1906,9 +1906,9 @@ function openEmployee(id){
  const name=e?e.name:'',role=e?e.role:'Barber',salary=e?e.salary:0,comm=e?e.commission:10,target=e?e.target:0;
  const password=a?a.password:defaultEmployeePassword(name);
  show(`<span class="gold-label">KARYAWAN</span><h2>${e?'Ubah Karyawan':'Tambah Karyawan'}</h2><div class="form">
- <label>Nama<input id="eName" value="${name.replaceAll('"','&quot;')}"></label>
+ <label>Nama<input id="eName" value="${escapeHtml(String(name))}"></label>
  <label>Role<select id="eRole"><option ${role==='Barber'?'selected':''}>Barber</option><option ${role==='Kasir'?'selected':''}>Kasir</option><option ${role==='Manager'?'selected':''}>Manager</option></select></label>
- <label>Cabang<select id="eBranch">${db.branches.filter(b=>b.active!==false).map(b=>`<option value="${b.id}" ${((e&&e.branchId)||defaultBranchId)===b.id?'selected':''}>${b.name}</option>`).join('')}</select></label>
+ <label>Cabang<select id="eBranch">${db.branches.filter(b=>b.active!==false).map(b=>`<option value="${escapeHtml(String(b.id))}" ${((e&&e.branchId)||defaultBranchId)===b.id?'selected':''}>${escapeHtml(String(b.name))}</option>`).join('')}</select></label>
  <label>Gaji Pokok<input id="eSalary" type="number" value="${salary||2000000}"></label><label>Komisi %<input id="eComm" type="number" value="0" readonly></label><label>Target<input id="eTarget" type="number" value="${target}"></label>
  <div class="goldline"></div><h3>Aturan Bonus Upah</h3>
  <p class="muted">Periode penggajian: <b>tanggal 24 sampai tanggal 24 bulan berikutnya</b>.</p>
@@ -1986,7 +1986,7 @@ async function saveCustomer(){
   }
   db.customers.push(c);save();closeModal();toast('Pelanggan ditambahkan.');render();
 }
-function customerDetail(id){const c=getCustomer(id),tx=db.transactions.filter(t=>t.customerId===id);show(`<span class="gold-label">PELANGGAN</span><h2>${escapeHtml(String(c?.name||'-'))}</h2><div class="detail-grid">${box('Telepon',escapeHtml(String(c?.phone||'-')))}${box('Kunjungan',c?.visits||0)}${box('Total Nilai',rupiah(c?.total))}</div><h3 style="margin-top:18px">Riwayat</h3>${tx.map(txRow).join('')||'<div class="empty">Belum ada transaksi.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+function customerDetail(id){const c=getCustomer(id),tx=db.transactions.filter(t=>t.customerId===id);show(`<span class="gold-label">PELANGGAN</span><h2>${escapeHtml(String(c?.name||'-'))}</h2><div class="detail-grid">${box('Telepon',c?.phone||'-')}${box('Kunjungan',c?.visits||0)}${box('Total Nilai',rupiah(c?.total))}</div><h3 style="margin-top:18px">Riwayat</h3>${tx.map(txRow).join('')||'<div class="empty">Belum ada transaksi.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 
 
 function services(){
@@ -2003,7 +2003,7 @@ function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return ale
 function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return alert('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return alert('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return alert('Durasi layanan tidak valid.');s.name=name;s.category=category;s.price=price;s.duration=duration;s.active=esActive.checked;save();closeModal();toast('Layanan berhasil diperbarui.');render()}
 
 function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',rupiah(revenue()),'finance')}${kpi('💸','Pengeluaran',rupiah(expenses()),'finance')}${kpi('📈','Laba',rupiah(profit()),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(e.date||''))} · ${escapeHtml(String(e.category||''))} · ${escapeHtml(String(e.note||''))}</span><b>${rupiah(e.amount)}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
-function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('tCustomer');if(c)c.value='';},50)}
+function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('fCustomer');if(c)c.value='';},50)}
 function openExpense(){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat"></label><label>Nominal<input id="xAmount" type="number"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}
 function saveExpense(){if(!guard('finance'))return;const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:xDate.value,category:xCat.value||'Operasional',amount:Number(xAmount.value)||0,note:xNote.value||''};db.expenses.push(x);save();closeModal();toast('Pengeluaran tersimpan.');render()}
 
@@ -2145,7 +2145,7 @@ function branches(){
 function openBranch(id){
  if(!guard('branches'))return;
  const b=id?db.branches.find(x=>x.id===id):null;
- show(`<span class="gold-label">CABANG</span><h2>${b?'Ubah Cabang':'Tambah Cabang'}</h2><div class="form"><label>Nama<input id="bName" value="${b?(b.name||'').replaceAll('"','&quot;'):''}"></label><label>Alamat<input id="bAddress" value="${b?(b.address||'').replaceAll('"','&quot;'):''}"></label><label>Status<select id="bActive"><option value="true" ${!b||b.active?'selected':''}>Aktif</option><option value="false" ${b&&b.active===false?'selected':''}>Nonaktif</option></select></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveBranch('${id||''}')">Simpan</button></div>`);
+ show(`<span class="gold-label">CABANG</span><h2>${b?'Ubah Cabang':'Tambah Cabang'}</h2><div class="form"><label>Nama<input id="bName" value="${b?escapeHtml(String(b.name||'')):''}"></label><label>Alamat<input id="bAddress" value="${b?escapeHtml(String(b.address||'')):''}"></label><label>Status<select id="bActive"><option value="true" ${!b||b.active?'selected':''}>Aktif</option><option value="false" ${b&&b.active===false?'selected':''}>Nonaktif</option></select></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveBranch('${id||''}')">Simpan</button></div>`);
 }
 async function saveBranch(id){
  if(!guard('branches'))return;
@@ -2188,8 +2188,8 @@ function profile(){
  const phone=currentUser.phone||emp?.phone||'';
  const email=currentUser.email||emp?.email||'';
  const avatar=currentUser.avatar||'';
- const contact=phone||email?`${phone?`<div>📞 ${phone}</div>`:''}${email?`<div>✉️ ${email}</div>`:''}`:'<span class="muted">Belum diisi</span>';
- const photo=avatar?`<img src="${avatar}" alt="Foto profil" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">`:`<div class="profile-avatar">${String(currentUser.name||'?').trim().charAt(0).toUpperCase()}</div>`;
+ const contact=phone||email?`${phone?`<div>📞 ${escapeHtml(String(phone))}</div>`:''}${email?`<div>✉️ ${escapeHtml(String(email))}</div>`:''}`:'<span class="muted">Belum diisi</span>';
+ const photo=avatar&&/^(https?:\/\/|data:image\/(?:png|jpe?g|gif|webp);)/i.test(String(avatar))?`<img src="${escapeHtml(String(avatar))}" alt="Foto profil" style="width:96px;height:96px;border-radius:50%;object-fit:cover;border:2px solid var(--gold)">`:`<div class="profile-avatar">${String(currentUser.name||'?').trim().charAt(0).toUpperCase()}</div>`;
  document.getElementById('content').innerHTML=`
  <div class="section-head"><div><span class="gold-label">AKUN</span><h1>Profil Saya</h1><p>Informasi akun yang sedang login.</p></div></div>
  <section class="card profile-card">
@@ -2214,9 +2214,9 @@ function editMyProfile(){
  const emp=currentUser.employeeId?getEmployee(currentUser.employeeId):null;
  show(`<span class="gold-label">PROFIL AKUN</span><h2>Ubah Profil</h2>
  <div class="form">
-  <label>Nama<input id="pName" value="${String(currentUser.name||'').replaceAll('"','&quot;')}" ${currentUser.role==='employee'?'readonly':''}></label>
+  <label>Nama<input id="pName" value="${escapeHtml(String(currentUser.name||''))}" ${currentUser.role==='employee'?'readonly':''}></label>
   <label>Username<input value="${currentUser.username||''}" readonly></label>
-  <label>Informasi Kontak<input id="pContact" value="${String(currentUser.phone||emp?.phone||'').replaceAll('"','&quot;')}" placeholder="Nomor telepon"></label>
+  <label>Informasi Kontak<input id="pContact" value="${escapeHtml(String(currentUser.phone||emp?.phone||''))}" placeholder="Nomor telepon"></label>
   <label>Foto Profil<input id="pAvatar" type="file" accept="image/*"></label>
  </div>
  <div class="dialog-actions"><button class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveMyProfile()">Simpan</button></div>`);
@@ -2288,7 +2288,8 @@ async function importBackup(event){
   const payload=JSON.parse(await file.text());
   if(!payload||payload.version!==2||!payload.appState||!payload.business)throw new Error('File backup WZ tidak valid.');
   if(!confirm('Restore backup online? Data pengaturan/master akan diganti, sedangkan transaksi dan laporan shift akan ditambahkan/diperbarui dari backup.'))return;
-  await window.WZOnlineEmployee.api('app-state',{method:'PUT',body:JSON.stringify({data:payload.appState})});
+  const currentState=await window.WZOnlineEmployee.api('app-state');
+  await window.WZOnlineEmployee.api('app-state',{method:'PUT',body:JSON.stringify({data:payload.appState,expectedUpdatedAt:currentState?.updatedAt||null})});
   const tx=Array.isArray(payload.business.transactions)?payload.business.transactions:[],sh=Array.isArray(payload.business.shiftReports)?payload.business.shiftReports:[];
   if(tx.length||sh.length)await window.WZOnlineEmployee.api('sync-business',{method:'POST',body:JSON.stringify({transactions:tx,shiftReports:sh})});
   if(Array.isArray(payload.employees)){
@@ -2406,7 +2407,8 @@ async function shiftTestReset(){
   const total=txCount+shiftCount;
  if(!confirm(`Hapus seluruh data transaksi (${txCount}) dan seluruh laporan tutup shift (${shiftCount})? Data karyawan, cabang, pelanggan, layanan, pengeluaran, dan pengaturan lain TIDAK akan dihapus.`))return;
  if(typeof window.WZOnlineBusiness?.reset!=='function'){alert('Reset online belum siap. Pastikan koneksi ke server tersedia.');return;}
- const result=await window.WZOnlineBusiness.reset();
+ let result;
+ try{result=await window.WZOnlineBusiness.reset()}catch(e){alert('Reset online gagal: '+(e.message||e));return}
  if(!result)return;
  closeModal();
  toast(`Berhasil menghapus ${result.transactions} transaksi dan ${result.shiftReports} laporan tutup shift.`);
@@ -2752,7 +2754,7 @@ function applyBusinessData(data){
       products:Array.isArray(r.products)?r.products:[]
     }));
   }
-  if(Array.isArray(data.notifications))db.notifications=data.notifications.map(item=>({...item,read:Boolean(item.readAt)}));
+  if(Array.isArray(data.notifications))db.notifications=data.notifications.map(item=>({...item,read:Boolean(item.readAt||item.read)}));
 }
 
 async function syncBusiness(){
@@ -2794,7 +2796,7 @@ async function syncBusiness(){
     return false;
   }
 }
-window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[]};
+window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[],reset:async function(){const result=await api('reset-business',{method:'POST'});db.transactions=[];db.shiftReports=[];return result;}};
 // Dipakai auto-refresh di luar IIFE ini (lihat refreshAppData).
 window.WZOnlineSync={hydrate:hydrateAppState,business:syncBusiness,employees:syncEmployeesFromServer,reset:resetTenantState};
 // Fungsi berikut dipanggil dari atribut onclick di HTML, jadi harus global.
@@ -3106,7 +3108,8 @@ window.login=async function(ev){
     const r=await api('auth/login',{method:'POST',body:JSON.stringify({username:u,password:p,businessId:String(document.getElementById('loginBusiness')?.value||'').trim()})});
     setActionLoading(60,'Memverifikasi akun...','MASUK KE SISTEM');
     if(err)err.style.display='none';
-    currentUser=r.user;
+    const authenticatedRole=['owner','manager'].includes(r.user?.role)?r.user.role:'employee';
+    currentUser={...r.user,role:authenticatedRole};
     window.WZOnlineSync?.reset?.();
     wzForumSeenSaved=false;wzForumUnread=0;wzForumCheckedAt=0;
     const screen=document.getElementById('loginScreen');
@@ -3136,7 +3139,9 @@ window.login=async function(ev){
 
 window.logout=async function(){
   try{await api('auth/logout',{method:'POST'})}catch{}
+  resetTenantState();
   currentUser=null;
+  if(location.hash)location.hash='';
   const app=document.getElementById('mainApp');
   if(app)app.style.display='none';
   if(typeof updateBottomNav==='function')updateBottomNav();
@@ -3289,13 +3294,13 @@ function renderTransactionReceipt(t){
     <div id="wzReceipt" class="wz-receipt">
       <div class="wz-receipt-head">
         <div class="gold-label">${escapeHtml(String(db.profile?.brand||'WZ MANAGE PRO'))}</div>
-        <h3>${db.branches?.find(b=>b.id===t.branchId)?.name||db.branches?.find(b=>b.id===currentUser?.branchId)?.name||'Cabang'}</h3>
-        <div class="subtle">${db.branches?.find(b=>b.id===t.branchId)?.address||db.branches?.find(b=>b.id===currentUser?.branchId)?.address||''}</div>
+        <h3>${escapeHtml(String(db.branches?.find(b=>b.id===t.branchId)?.name||db.branches?.find(b=>b.id===currentUser?.branchId)?.name||'Cabang'))}</h3>
+        <div class="subtle">${escapeHtml(String(db.branches?.find(b=>b.id===t.branchId)?.address||db.branches?.find(b=>b.id===currentUser?.branchId)?.address||''))}</div>
         <h2>NOTA TRANSAKSI</h2>
         <div class="subtle">${escapeHtml(String(t.id))}</div>
       </div>
       <div class="wz-receipt-meta">
-        <div><span>Tanggal</span><b>${t.date||'-'}</b></div>
+        <div><span>Tanggal</span><b>${escapeHtml(String(t.date||'-'))}</b></div>
         <div><span>Pelanggan</span><b>${escapeHtml(String(customerName))}</b></div>
         <div><span>Barber</span><b>${escapeHtml(String(employeeName))}</b></div>
       </div>
