@@ -15,6 +15,12 @@ npm run admin:provision -- --username admin_nama --name "Nama Admin" --email adm
 
 Script meminta password secara terminal. Jika Terminal workspace tidak tersedia, sementara dapat memakai key `WZ_ADMIN_INITIAL_PASSWORD` melalui Settings → Environment; key tersebut harus dihapus segera setelah provisioning. Script hanya menyimpan hash scrypt dan tidak mencetak password.
 
+Credential Admin yang sudah ada dapat diperbarui dan langsung diperiksa terhadap deployment production tanpa mencetak password:
+
+```bash
+npm run admin:provision -- --update --verify-live --current-username admin --username admin --name "Admin WZ Manage" --email admin@wzmanagepro.com
+```
+
 ## Data dan tenant isolation
 
 - `ADMIN-PLATFORM-V1-MIGRATION.sql` hanya menambahkan tabel/column/index secara non-destruktif.

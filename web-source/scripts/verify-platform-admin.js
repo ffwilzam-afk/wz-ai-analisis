@@ -30,8 +30,9 @@ async function main(){
   const pool=new Pool({connectionString:url,ssl:{rejectUnauthorized:false},max:1,connectionTimeoutMillis:10000});
   const temporaryHashes=[];
   try{
-    const admin=await pool.query(`SELECT id,username,email,display_name,active,password_hash FROM wz_platform_admins WHERE username='admin_wzmanage'`);
-    if(admin.rowCount!==1)throw new Error('Akun admin_wzmanage tidak ditemukan.');
+    const expectedUsername=process.argv.slice(2).find(value=>value.startsWith('--username='))?.slice(11)||'admin';
+    const admin=await pool.query(`SELECT id,username,email,display_name,active,password_hash FROM wz_platform_admins WHERE username=$1`,[expectedUsername]);
+    if(admin.rowCount!==1)throw new Error(`Akun ${expectedUsername} tidak ditemukan.`);
     const account=admin.rows[0];
     if(!account.active||!/^.+:.+$/.test(account.password_hash))throw new Error('Akun Admin tidak aktif atau hash password tidak valid.');
     const adminToken=token();

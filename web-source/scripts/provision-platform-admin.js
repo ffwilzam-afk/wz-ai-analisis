@@ -92,27 +92,55 @@ async function preflight(pool){
     },null,2));
   }finally{client.release()}
 }
+async function verifyLiveLogin(username,password){
+  const baseUrl=(arg('url')||'https://wz-ai-analisis-rust.vercel.app').replace(/\/+$/,'');
+  const response=await fetch(`${baseUrl}/api/admin/login`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+  const data=await response.json().catch(()=>({}));
+  const setCookie=response.headers.get('set-cookie')||'';
+  if(response.ok&&data.ok&&setCookie){
+    await fetch(`${baseUrl}/api/admin/logout`,{method:'POST',headers:{Cookie:setCookie.split(';')[0]}}).catch(()=>{});
+  }
+  console.log(JSON.stringify({live_login_ok:response.ok&&data.ok===true,status:response.status,username,displayName:data.admin?.displayName||null},null,2));
+  if(!response.ok||data.ok!==true)throw new Error('Login live production gagal. Periksa kesamaan database deployment dan credential.');
+}
 async function main(){
   const url=databaseUrl();
   if(!url)throw new Error('Database URL belum tersedia di environment.');
   const pool=new Pool({connectionString:url,ssl:{rejectUnauthorized:false},max:1,connectionTimeoutMillis:10000});
   try{
     if(flag('preflight'))return await preflight(pool);
+    const update=flag('update'),verifyLive=flag('verify-live');
     const username=arg('username').trim().toLowerCase();
+    const currentUsername=(arg('current-username')||username).trim().toLowerCase();
     const displayName=arg('name').trim();
     const email=arg('email').trim().toLowerCase();
     if(!/^[a-z0-9._-]{3,80}$/.test(username))throw new Error('Gunakan --username dengan 3-80 karakter a-z, 0-9, titik, underscore, atau strip.');
-    if(displayName.length<2||displayName.length>120)throw new Error('Gunakan --name berisi 2-120 karakter.');
+    if(!/^[a-z0-9._-]{3,80}$/.test(currentUsername))throw new Error('Username Admin existing tidak valid.');
     if(email&&(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)))throw new Error('Email tidak valid.');
-    const schema=await pool.query(`SELECT to_regclass('wz_platform_admins') AS admins,to_regclass('wz_platform_admin_sessions') AS sessions`);
-    if(!schema.rows[0].admins||!schema.rows[0].sessions)throw new Error('Schema Admin belum tersedia. Jalankan migration Admin terlebih dahulu.');
     const password=process.env.WZ_ADMIN_INITIAL_PASSWORD||await hidden('Password Admin (minimal 12 karakter): ');
     if(password.length<12||password.length>256)throw new Error('Password harus 12-256 karakter.');
     delete process.env.WZ_ADMIN_INITIAL_PASSWORD;
-    const existing=await pool.query('SELECT id FROM wz_platform_admins WHERE username=$1',[username]);
-    if(existing.rowCount)throw new Error('Username Admin sudah terdaftar.');
-    await pool.query('INSERT INTO wz_platform_admins(username,email,display_name,password_hash) VALUES($1,$2,$3,$4)',[username,email||null,displayName,hashPassword(password)]);
-    console.log(`Admin Platform ${username} berhasil dibuat. Password tidak dicetak atau disimpan di source.`);
+    if(verifyLive&&!update)return await verifyLiveLogin(username,password);
+    if(displayName.length<2||displayName.length>120)throw new Error('Gunakan --name berisi 2-120 karakter.');
+    const schema=await pool.query(`SELECT to_regclass('wz_platform_admins') AS admins,to_regclass('wz_platform_admin_sessions') AS sessions`);
+    if(!schema.rows[0].admins||!schema.rows[0].sessions)throw new Error('Schema Admin belum tersedia. Jalankan migration Admin terlebih dahulu.');
+    if(update){
+      const existing=await pool.query('SELECT id FROM wz_platform_admins WHERE username=$1',[currentUsername]);
+      if(!existing.rowCount)throw new Error('Username Admin existing tidak ditemukan.');
+      if(currentUsername!==username){
+        const conflict=await pool.query('SELECT id FROM wz_platform_admins WHERE username=$1 AND id<>$2',[username,existing.rows[0].id]);
+        if(conflict.rowCount)throw new Error('Username Admin baru sudah digunakan.');
+      }
+      await pool.query('UPDATE wz_platform_admins SET username=$1,email=$2,display_name=$3,password_hash=$4,active=true WHERE id=$5',[username,email||null,displayName,hashPassword(password),existing.rows[0].id]);
+      await pool.query('DELETE FROM wz_platform_admin_sessions WHERE admin_id=$1',[existing.rows[0].id]);
+      console.log(`Kredensial Admin Platform ${username} berhasil diperbarui. Password tidak dicetak atau disimpan di source.`);
+    }else{
+      const existing=await pool.query('SELECT id FROM wz_platform_admins WHERE username=$1',[username]);
+      if(existing.rowCount)throw new Error('Username Admin sudah terdaftar. Gunakan --update untuk memperbarui credential.');
+      await pool.query('INSERT INTO wz_platform_admins(username,email,display_name,password_hash) VALUES($1,$2,$3,$4)',[username,email||null,displayName,hashPassword(password)]);
+      console.log(`Admin Platform ${username} berhasil dibuat. Password tidak dicetak atau disimpan di source.`);
+    }
+    if(verifyLive)await verifyLiveLogin(username,password);
   }finally{await pool.end()}
 }
 main().catch(error=>{console.error(error.message||error);process.exitCode=1});
