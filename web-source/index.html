@@ -31,7 +31,7 @@ a{text-decoration:none;color:inherit}
 .nav button{width:100%;border:0;background:transparent;color:#ddd;text-align:left;padding:10px 12px;border-radius:8px;margin:2px 0}
 .nav button:hover,.nav button.active{background:linear-gradient(90deg,#624b17,#b58727);color:#fff}
 .main{margin-left:252px;width:calc(100% - 252px);min-width:0}.topbar{height:66px;position:sticky;top:0;z-index:10;background:#090b0eeb;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 24px;backdrop-filter:blur(8px)}
-.top-left{display:flex;align-items:center;gap:12px}.hamb{display:none}.crumb{color:#8d939d;font-size:12px}.top-actions{display:flex;gap:8px;align-items:center}.save-state{font-size:11px;color:var(--green)}
+.top-left{display:flex;align-items:center;gap:12px}.hamb{display:none;align-items:center;justify-content:center;background:transparent;border:0;color:var(--gold2);font-size:20px}.crumb{color:#8d939d;font-size:12px}.top-actions{display:flex;gap:8px;align-items:center}.save-state{font-size:11px;color:var(--green)}
 .content{max-width:1500px;margin:auto;padding:24px}
 .hero{display:grid;grid-template-columns:230px 1fr 180px;gap:24px;align-items:center;padding:18px;border:1px solid #725618;border-radius:16px;background:linear-gradient(135deg,#14130e,#0f1217 62%,#090b0f);box-shadow:var(--shadow)}
 .hero-photo{width:100%;height:300px;object-fit:cover;object-position:center top;border:1px solid #81621e;border-radius:12px;background:#111}
@@ -471,9 +471,16 @@ button,input,select,textarea{max-width:100%}
 
 .wz-top-icon:hover{
   background:rgba(214,168,79,.10);
+  color:#f4d98b;
 }
 
 .wz-top-icon{position:relative}
+.wz-gold-glyph{width:22px;height:22px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(214,168,79,.45))}
+.hamb .wz-gold-glyph{width:24px;height:24px;filter:drop-shadow(0 0 6px rgba(214,168,79,.5))}
+.wz-bottom-nav button .nav-icon{height:22px;display:inline-flex;align-items:center;justify-content:center}
+.wz-bottom-nav button .nav-icon .wz-gold-glyph{width:22px;height:22px;stroke-width:1.65;filter:drop-shadow(0 0 4px rgba(214,168,79,.32))}
+.wz-bottom-nav button.active .nav-icon .wz-gold-glyph{color:#f4d98b;filter:drop-shadow(0 0 7px rgba(239,208,120,.72))}
+.wz-bottom-nav button.active::after{content:"";position:absolute;left:50%;bottom:2px;width:28px;height:2px;transform:translateX(-50%);border-radius:99px;background:#efd078;box-shadow:0 0 8px rgba(239,208,120,.8)}
 .wz-badge{position:absolute;top:1px;right:1px;min-width:18px;height:18px;padding:0 5px;border-radius:999px;background:#ef5350;color:#fff;font:800 10px/18px system-ui,sans-serif;text-align:center;box-shadow:0 0 0 2px #090b0e;pointer-events:none}
 .wz-top-avatar{width:40px;height:40px;padding:0}
 .wz-top-avatar .wz-avatar{width:40px;height:40px;border-radius:50%;overflow:hidden;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#1c2027,#0d1015);border:1px solid #3c3524;color:var(--gold2);font:800 16px/1 system-ui,sans-serif}
@@ -502,6 +509,7 @@ button,input,select,textarea{max-width:100%}
   }
 
   .wz-bottom-nav button{
+    position:relative;
     flex:1;
     min-width:0;
     border:0;
@@ -564,15 +572,15 @@ button,input,select,textarea{max-width:100%}
 </aside>
 <main class="main">
  <header class="topbar">
-  <div class="top-left"><button class="hamb" onclick="toggleMenu()">☰</button><div><strong>WZ MANAGE PRO</strong><div class="crumb" id="crumb">Dashboard</div></div></div>
+  <div class="top-left"><button class="hamb" onclick="toggleMenu()" aria-label="Menu"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div><strong>WZ MANAGE PRO</strong><div class="crumb" id="crumb">Dashboard</div></div></div>
   <div class="top-actions">
    <span class="user-badge wz-top-hidden" id="roleBadge"></span>
    <span class="save-state wz-top-hidden" id="saveState">● Online</span>
    <button class="btn small wz-top-hidden" onclick="exportBackup()">Backup</button>
    <button class="btn small wz-top-hidden" onclick="document.getElementById('importFile').click()">Restore</button>
    <input id="importFile" type="file" accept=".json,application/json" hidden onchange="importBackup(event)">
-   <button id="wzTopChat" class="wz-top-icon" type="button" onclick="go('ownerForum')" aria-label="Chat">💬<span class="wz-badge" id="wzChatBadge" hidden></span></button>
-   <button id="wzTopBell" class="wz-top-icon" type="button" onclick="go('notifications')" aria-label="Notifikasi">🔔<span class="wz-badge" id="wzBellBadge" hidden></span></button>
+   <button id="wzTopChat" class="wz-top-icon" type="button" onclick="go('ownerForum')" aria-label="Chat"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 5.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H9l-4 3v-3a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01"/></svg><span class="wz-badge" id="wzChatBadge" hidden></span></button>
+   <button id="wzTopBell" class="wz-top-icon" type="button" onclick="go('notifications')" aria-label="Notifikasi"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6.5 10a5.5 5.5 0 0 1 11 0c0 6 2.5 6 2.5 7.5H4C4 16 6.5 16 6.5 10Z"/><path d="M9.5 20h5"/></svg><span class="wz-badge" id="wzBellBadge" hidden></span></button>
    <button class="wz-top-icon wz-top-avatar" type="button" onclick="go('profile')" aria-label="Profil"><span class="wz-avatar" id="wzTopAvatar">👤</span><span class="wz-online-dot" title="Online"></span></button>
   </div>
  </header>
@@ -582,19 +590,19 @@ button,input,select,textarea{max-width:100%}
 
 <nav class="wz-bottom-nav" id="wzBottomNav" style="display:none" aria-label="Navigasi utama">
   <button type="button" data-bottom-key="dashboard" onclick="bottomNavGo('dashboard')">
-    <span class="nav-icon">🏠</span><span class="nav-label">Beranda</span>
+    <span class="nav-icon"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m3.5 10.5 8.5-7 8.5 7"/><path d="M5.5 9.5V20h13V9.5M9.5 20v-5h5v5"/></svg></span><span class="nav-label">Beranda</span>
   </button>
   <button type="button" data-bottom-key="payrollSettings" onclick="bottomNavGo('payrollSettings')">
-    <span class="nav-icon">💵</span><span class="nav-label">Pengaturan Gaji</span>
+    <span class="nav-icon"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="6" width="17" height="13" rx="2"/><path d="M3.5 10h17M7 15h3"/></svg></span><span class="nav-label">Pengaturan Gaji</span>
   </button>
   <button type="button" data-bottom-key="reports" onclick="bottomNavGo('reports')">
-    <span class="nav-icon">📊</span><span class="nav-label">Laporan</span>
+    <span class="nav-icon"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 19.5h16M6.5 17V11M11 17V7M15.5 17v-4M20 17V4"/></svg></span><span class="nav-label">Laporan</span>
   </button>
   <button type="button" data-bottom-key="employees" onclick="bottomNavGo('employees')">
-    <span class="nav-icon">👥</span><span class="nav-label">Karyawan</span>
+    <span class="nav-icon"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><circle cx="9" cy="8" r="3"/><path d="M3.5 19c.4-3.1 2.2-5 5.5-5s5.1 1.9 5.5 5M16 5.5a3 3 0 0 1 0 5.8M16 14c2.5.3 4 1.9 4.5 4.5"/></svg></span><span class="nav-label">Karyawan</span>
   </button>
   <button type="button" data-bottom-key="subscription" onclick="bottomNavGo('subscription')">
-    <span class="nav-icon">💎</span><span class="nav-label">Langganan</span>
+    <span class="nav-icon"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="M3.5 9.5h17M7 14h3M16 14h1"/></svg></span><span class="nav-label">Langganan</span>
   </button>
 </nav>
 
@@ -911,6 +919,18 @@ function updateBottomNav(){
 let wzForumUnread=0;
 let wzForumCheckedAt=0;
 
+// Cache satu load subscription per sesi tenant agar auto-refresh tidak mengganti
+// halaman yang sudah stabil atau mengirim request berulang.
+let subscriptionViewCache=null;
+let subscriptionViewPromise=null;
+let subscriptionViewKey='';
+function subscriptionCacheKey(){
+  return [currentUser?.businessId||currentUser?.business||'',currentUser?.id||currentUser?.username||''].join('|');
+}
+function subscriptionViewIsActive(key){
+  return subscriptionCacheKey()===key&&location.hash.replace(/^#/,"")==='subscription';
+}
+
 function topbarBadge(id,count){
   const el=document.getElementById(id);
   if(!el)return;
@@ -976,10 +996,27 @@ function navBtn(m){if(m[0]==='cs')return `<button id="nav-cs" onclick="openCS()"
 function go(key){if(!guard(key))return;location.hash=key;render()}
 async function subscriptionPage(){
   const app=document.getElementById('content');
-  app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p>Memuat informasi subscription...</p></div>';
+  const key=subscriptionCacheKey();
+  const isActive=subscriptionViewIsActive(key);
+
+  if(subscriptionViewCache?.key===key){
+    if(isActive&&!app.querySelector('[data-subscription-loaded="true"]'))app.innerHTML=subscriptionViewCache.html;
+    return;
+  }
+
+  let request=subscriptionViewPromise;
+  if(!request||subscriptionViewKey!==key){
+    subscriptionViewKey=key;
+    if(isActive)app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p>Memuat informasi subscription...</p></div>';
+    request=window.api('subscription').then(r=>{
+      if(!r?.ok)throw new Error(r?.error||'Gagal mengambil data subscription.');
+      return r;
+    });
+    subscriptionViewPromise=request;
+  }
 
   try{
-    const r=await window.api('subscription');
+    const r=await request;
     if(!r.ok)throw new Error(r.error||'Gagal mengambil data subscription.');
 
     const s=r.subscription||{};
@@ -995,8 +1032,8 @@ async function subscriptionPage(){
 
     const active=status==='ACTIVE';
 
-    app.innerHTML=`
-      <div class="card">
+    const html=`
+      <div class="card" data-subscription-loaded="true">
         <h2>💳 Berlangganan</h2>
         <p style="color:var(--muted)">Kelola paket WZ MANAGE PRO untuk bisnis ini.</p>
 
@@ -1069,11 +1106,14 @@ async function subscriptionPage(){
         </div>
       </div>
     `;
+    if(subscriptionViewKey===key&&subscriptionCacheKey()===key)subscriptionViewCache={key,html};
+    if(subscriptionViewIsActive(key))app.innerHTML=html;
   }catch(e){
-    app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p style="color:#f66">'+String(e.message||e)+'</p></div>';
+    if(subscriptionViewIsActive(key))app.innerHTML='<div class="card"><h2>💳 Berlangganan</h2><p style="color:#f66">'+String(e.message||e)+'</p></div>';
+  }finally{
+    if(subscriptionViewPromise===request)subscriptionViewPromise=null;
   }
 }
-
 window.selectSubscriptionPlan=async function(plan,period){
   const prices={
     PRO:{MONTH:49000,YEAR:490000},
@@ -2636,6 +2676,9 @@ const NON_BUSINESS_KEYS=new Set([
 function resetTenantState(){
   clearTimeout(saveTimer);
   appStateUpdatedAt=null;
+  subscriptionViewCache=null;
+  subscriptionViewPromise=null;
+  subscriptionViewKey='';
   db.branches=[];
   db.employees=[];
   db.customers=[];
