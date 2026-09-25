@@ -5,6 +5,8 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.tts.TextToSpeech;
 
 import androidx.annotation.NonNull;
@@ -81,6 +83,8 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
                                             null,
                                             "wz_notification"
                                     );
+                                    new Handler(Looper.getMainLooper())
+                                            .postDelayed(tts::shutdown, 5000L);
                                 }
                             }
                         } catch (Exception ignored) {
@@ -95,6 +99,9 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
     private void showNotification(String title, String body, String type, String reportId) {
         NotificationManager manager =
                 (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        if (manager == null) {
+            return;
+        }
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel channel = new NotificationChannel(

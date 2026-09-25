@@ -571,8 +571,8 @@ button,input,select,textarea{max-width:100%}
    <button class="btn small wz-top-hidden" onclick="exportBackup()">Backup</button>
    <button class="btn small wz-top-hidden" onclick="document.getElementById('importFile').click()">Restore</button>
    <input id="importFile" type="file" accept=".json,application/json" hidden onchange="importBackup(event)">
-   <button class="wz-top-icon" type="button" onclick="go('ownerForum')" aria-label="Chat">💬<span class="wz-badge" id="wzChatBadge" hidden></span></button>
-   <button class="wz-top-icon" type="button" onclick="go('notifications')" aria-label="Notifikasi">🔔<span class="wz-badge" id="wzBellBadge" hidden></span></button>
+   <button id="wzTopChat" class="wz-top-icon" type="button" onclick="go('ownerForum')" aria-label="Chat">💬<span class="wz-badge" id="wzChatBadge" hidden></span></button>
+   <button id="wzTopBell" class="wz-top-icon" type="button" onclick="go('notifications')" aria-label="Notifikasi">🔔<span class="wz-badge" id="wzBellBadge" hidden></span></button>
    <button class="wz-top-icon wz-top-avatar" type="button" onclick="go('profile')" aria-label="Profil"><span class="wz-avatar" id="wzTopAvatar">👤</span><span class="wz-online-dot" title="Online"></span></button>
   </div>
  </header>
@@ -624,7 +624,7 @@ const initial={
 };
 
 const ANDROID_NOTIFICATION_TITLE='WZ MANAGE PRO';
-const ANDROID_NOTIFICATION_ICON='/public/notification-icon-96.png';
+const ANDROID_NOTIFICATION_ICON='/icons/icon-192.png';
 const androidNotificationKeys=new Map();
 const AUTH_DEFAULTS=[];
 
@@ -641,15 +641,15 @@ const ACCESS={
   ,'cs'],
   employee:[
     'dashboard','transactions','shiftReports','customers','services',
-    'operations','notifications','profile'
+    'operations','profile'
   ,'cs'],
   barber:[
     'dashboard','transactions','shiftReports','customers','services',
-    'operations','notifications','profile'
+    'operations','profile'
   ,'cs'],
   kasir:[
     'dashboard','transactions','shiftReports','customers','services',
-    'operations','notifications','profile','cs'
+    'operations','profile','cs'
   ]
 };
 
@@ -749,6 +749,16 @@ async function registerPushSubscription(){
   const saved=await fetch('/api/push/subscribe',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify(subscription)});
   return saved.ok;
  }catch(error){console.debug('Registrasi Web Push tidak tersedia.',error);return false}
+}
+async function unregisterPushSubscription(){
+  if(!('serviceWorker' in navigator)||!('PushManager' in window))return false;
+  try{
+    const registration=await navigator.serviceWorker.ready;
+    const subscription=await registration.pushManager.getSubscription();
+    if(!subscription)return false;
+    const response=await fetch('/api/push/unsubscribe',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({endpoint:subscription.endpoint})});
+    return response.ok;
+  }catch{return false}
 }
 function notifyAndroid(message,notificationId){
  if(!('Notification' in window)||Notification.permission!=='granted')return;
@@ -912,7 +922,8 @@ function topbarBadge(id,count){
 function topbarAvatar(){
   const box=document.getElementById('wzTopAvatar');
   if(!box||!currentUser)return;
-  const avatar=String(currentUser.avatar||'').trim();
+  const rawAvatar=String(currentUser.avatar||'').trim();
+  const avatar=/^(https?:\/\/|data:image\/)/i.test(rawAvatar)?rawAvatar:'';
   const initial=String(currentUser.name||currentUser.username||'?').trim().charAt(0).toUpperCase().replace(/[<>&"']/g,'');
   box.innerHTML=avatar?'<img src="'+avatar.replace(/"/g,'&quot;')+'" alt="">':(initial||'?');
 }
@@ -948,7 +959,12 @@ async function refreshOwnerForumBadge(){
 
 function updateTopbarBadges(){
   if(!currentUser)return;
-  topbarBadge('wzBellBadge',(db.notifications||[]).filter(x=>!x.read).length);
+  const canReceiveNotifications=['owner','manager'].includes(currentUser.role);
+  const chatButton=document.getElementById('wzTopChat');
+  const bellButton=document.getElementById('wzTopBell');
+  if(chatButton)chatButton.hidden=currentUser.role!=='owner';
+  if(bellButton)bellButton.hidden=!canReceiveNotifications;
+  topbarBadge('wzBellBadge',canReceiveNotifications?(db.notifications||[]).filter(x=>!x.read).length:0);
   topbarAvatar();
   if((location.hash||'').replace(/^#/,"")==='ownerForum')markOwnerForumSeen();
   else refreshOwnerForumBadge();
@@ -1106,7 +1122,7 @@ window.selectSubscriptionPlan=async function(plan,period){
 function render(){if(!currentUser)return;nav();updateBottomNav();updateTopbarBadges();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='payrollSettings')payrollSettingsPage();else if(key==='ownerForum')ownerForumPage();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){go(b.dataset.nav);document.getElementById('sidebar').classList.remove('open')}});window.onhashchange=render;
 
-function employeeDashboard(){const today=dateNow(),tx=db.transactions.filter(t=>t.date===today&&t.status==='SELESAI');document.getElementById('content').innerHTML=`<div class="dashboard-head"><div><span class="gold-label">EMPLOYEE WORKSPACE</span><div class="greeting">SELAMAT DATANG, ${currentUser.name.toUpperCase()}!</div><div class="subtle">Ringkasan pekerjaan hari ini · ${today}</div></div><button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button></div><section class="kpis">${kpi('🧾','Transaksi Hari Ini',tx.length,'transactions')}${kpi('👥','Pelanggan Terdaftar',db.customers.length,'customers')}${kpi('💈','Layanan Aktif',db.services.filter(s=>s.active).length,'services')}</section><div class="dashboard-grid"><section class="card"><div class="panel-title"><h3>AKSI KERJA</h3></div><div class="quick-grid"><div class="quick" onclick="openTransaction()"><span>🧾</span><b>Transaksi Baru</b></div><div class="quick" onclick="showWalkin()"><span>🚶</span><b>Walk-in</b></div><div class="quick" onclick="openCustomer()"><span>👤</span><b>Tambah Pelanggan</b></div><div class="quick" onclick="go('customers')"><span>🔎</span><b>Cari Pelanggan</b></div><div class="quick" onclick="go('services')"><span>📦</span><b>Lihat Layanan</b></div><div class="quick" onclick="go('operations')"><span>🕘</span><b>Absensi</b></div><div class="quick" onclick="go('shiftReports')"><span>📋</span><b>Tutup Shift</b></div></div></section><section class="card"><div class="panel-title"><h3>TRANSAKSI TERBARU</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>${tx.slice().reverse().slice(0,5).map(t=>`<div class="schedule-item"><span class="time">${t.date}</span><div><b>${getCustomer(t.customerId)?.name||'Walk-in'}</b><div class="subtle">${getService(t.serviceId)?.name||'-'}</div></div><span class="tag">SELESAI</span></div>`).join('')||'<div class="empty">Belum ada transaksi hari ini.</div>'}</section></div><section class="section-head"><div><span class="gold-label">ACCESS LEVEL</span><h2>Akses Karyawan</h2><p>Perhitungan gaji, bonus, upah, dan data keuangan sensitif hanya dapat dilihat Owner/Manager.</p></div></section>`}
+function employeeDashboard(){const today=dateNow(),tx=db.transactions.filter(t=>t.date===today&&t.status==='SELESAI');document.getElementById('content').innerHTML=`<div class="dashboard-head"><div><span class="gold-label">EMPLOYEE WORKSPACE</span><div class="greeting">SELAMAT DATANG, ${escapeHtml(String(currentUser.name||'').toUpperCase())}!</div><div class="subtle">Ringkasan pekerjaan hari ini · ${today}</div></div><button class="gold-btn" onclick="openTransaction()">🛒 MODE KASIR</button></div><section class="kpis">${kpi('🧾','Transaksi Hari Ini',tx.length,'transactions')}${kpi('👥','Pelanggan Terdaftar',db.customers.length,'customers')}${kpi('💈','Layanan Aktif',db.services.filter(s=>s.active).length,'services')}</section><div class="dashboard-grid"><section class="card"><div class="panel-title"><h3>AKSI KERJA</h3></div><div class="quick-grid"><div class="quick" onclick="openTransaction()"><span>🧾</span><b>Transaksi Baru</b></div><div class="quick" onclick="showWalkin()"><span>🚶</span><b>Walk-in</b></div><div class="quick" onclick="openCustomer()"><span>👤</span><b>Tambah Pelanggan</b></div><div class="quick" onclick="go('customers')"><span>🔎</span><b>Cari Pelanggan</b></div><div class="quick" onclick="go('services')"><span>📦</span><b>Lihat Layanan</b></div><div class="quick" onclick="go('operations')"><span>🕘</span><b>Absensi</b></div><div class="quick" onclick="go('shiftReports')"><span>📋</span><b>Tutup Shift</b></div></div></section><section class="card"><div class="panel-title"><h3>TRANSAKSI TERBARU</h3><button class="btn small" onclick="go('transactions')">SEMUA</button></div>${tx.slice().reverse().slice(0,5).map(t=>`<div class="schedule-item"><span class="time">${escapeHtml(String(t.date))}</span><div><b>${escapeHtml(String(getCustomer(t.customerId)?.name||'Walk-in'))}</b><div class="subtle">${escapeHtml(String(getService(t.serviceId)?.name||'-'))}</div></div><span class="tag">SELESAI</span></div>`).join('')||'<div class="empty">Belum ada transaksi hari ini.</div>'}</section></div><section class="section-head"><div><span class="gold-label">ACCESS LEVEL</span><h2>Akses Karyawan</h2><p>Perhitungan gaji, bonus, upah, dan data keuangan sensitif hanya dapat dilihat Owner/Manager.</p></div></section>`}
 
 
 function dashboardDateObj(iso){
@@ -1186,7 +1202,7 @@ function dashboardGraphDetail(type,key,label){
   body=`<div class="detail-grid">${box('Periode',bucket.label)}${box('POS',rupiah(pos.reduce((s,x)=>s+x.amount,0)))}${box('Tutup Shift',rupiah(shift.reduce((s,x)=>s+x.amount,0)))}${box('Total',rupiah(rows.reduce((s,x)=>s+x.amount,0)))}</div>`;
  }else if(type==='expense'){
   title=`Detail Pengeluaran — ${bucket.label}`;
-  body=`<div class="detail-grid">${box('Periode',bucket.label)}${box('Total',rupiah(expensesRows.reduce((s,x)=>s+x.amount,0)))}${box('Jumlah',expensesRows.length)}</div><div class="feature" style="margin-top:12px">${expensesRows.map(x=>`<div style="padding:7px 0;border-bottom:1px solid #20242b">${x.date} · ${x.source}${x.category?` · ${x.category}`:''} <b style="float:right">${rupiah(x.amount)}</b></div>`).join('')||'<div class="empty">Tidak ada pengeluaran pada periode ini.</div>'}</div>`;
+  body=`<div class="detail-grid">${box('Periode',bucket.label)}${box('Total',rupiah(expensesRows.reduce((s,x)=>s+x.amount,0)))}${box('Jumlah',expensesRows.length)}</div><div class="feature" style="margin-top:12px">${expensesRows.map(x=>`<div style="padding:7px 0;border-bottom:1px solid #20242b">${escapeHtml(String(x.date))} · ${x.source}${x.category?` · ${x.category}`:''} <b style="float:right">${rupiah(x.amount)}</b></div>`).join('')||'<div class="empty">Tidak ada pengeluaran pada periode ini.</div>'}</div>`;
  }else if(type==='profit'){
   const revenueValue=rows.reduce((s,x)=>s+x.amount,0), expenseValue=expensesRows.reduce((s,x)=>s+x.amount,0);
   title=`Detail Laba — ${bucket.label}`;
@@ -1213,7 +1229,7 @@ function dashboardGraphDetail(type,key,label){
    if(r.source==='TUTUP_SHIFT'){const original=(db.shiftReports||[]).find(x=>x.id===r.id);map[e.id].tx+=(original?.services||[]).reduce((s,x)=>s+Number(x.qty||0),0)}
   });
   title=`Detail Top Barber — ${bucket.label}`;
-  body=`<div class="feature">${Object.values(map).sort((a,b)=>b.amount-a.amount).map((x,i)=>`<div style="padding:8px 0;border-bottom:1px solid #20242b"><b>${i+1}. ${x.name}</b><span style="float:right">${rupiah(x.amount)}</span><div class="subtle">${x.tx} layanan/transaksi</div></div>`).join('')||'<div class="empty">Belum ada data barber pada periode ini.</div>'}</div>`;
+  body=`<div class="feature">${Object.values(map).sort((a,b)=>b.amount-a.amount).map((x,i)=>`<div style="padding:8px 0;border-bottom:1px solid #20242b"><b>${i+1}. ${escapeHtml(String(x.name))}</b><span style="float:right">${rupiah(x.amount)}</span><div class="subtle">${x.tx} layanan/transaksi</div></div>`).join('')||'<div class="empty">Belum ada data barber pada periode ini.</div>'}</div>`;
  }
  show(`<span class="gold-label">DETAIL GRAFIK</span><h2>${title}</h2>${body}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`);
 }
@@ -1388,10 +1404,10 @@ function dashboard(branchId){
  </div>
  <div class="dashboard-grid three" style="margin-top:14px">
   <section class="card"><div class="panel-title"><h3>LAYANAN TERLARIS — ${branchLabel}</h3><span class="subtle">POS + Tutup Shift</span><button class="btn small" onclick="go('services')">LIHAT SEMUA</button></div>
-   <div class="bar-list">${serviceStats.slice(0,5).map(x=>`<div class="bar-row"><span>${x.name}</span><div class="bar-track"><div class="bar-fill" style="width:${(x.count/maxSvc)*100}%"></div></div><b>${x.count} trx</b></div>`).join('')||'<div class="empty">Belum ada data.</div>'}</div>
+   <div class="bar-list">${serviceStats.slice(0,5).map(x=>`<div class="bar-row"><span>${escapeHtml(String(x.name))}</span><div class="bar-track"><div class="bar-fill" style="width:${(x.count/maxSvc)*100}%"></div></div><b>${x.count} trx</b></div>`).join('')||'<div class="empty">Belum ada data.</div>'}</div>
   </section>
   <section class="card"><div class="panel-title"><h3>TOP BARBER — ${branchLabel}</h3><button class="btn small" onclick="go('employees')">LIHAT SEMUA</button></div>
-   ${barberStats.slice(0,5).map((x,i)=>`<div class="rank"><span class="rankno">${i+1}</span><div><b>${x.name}</b><div class="subtle">${x.tx} transaksi · KPI ${x.eval}%</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada barber.</div>'}
+   ${barberStats.slice(0,5).map((x,i)=>`<div class="rank"><span class="rankno">${i+1}</span><div><b>${escapeHtml(String(x.name))}</b><div class="subtle">${x.tx} transaksi · KPI ${x.eval}%</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada barber.</div>'}
   </section>
   <section class="card"><div class="panel-title"><h3>PELANGGAN AKTIF</h3><span class="subtle">Semua periode</span></div>
    ${box('Total Pelanggan',businessCustomersCount())}${box('Pelanggan Baru',db.customers.filter(c=>c.status==='Baru').length)}${box('Pelanggan Aktif',db.customers.filter(c=>c.status==='Aktif').length)}
@@ -1424,8 +1440,7 @@ function dashboard(branchId){
 function kpi(icon,label,value,key){return `<div class="kpi clickable" onclick="go('${key}')"><div class="kpi-icon">${icon}</div><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-change">Klik untuk detail →</div></div>`}
 function quick(icon,title,text,key){return `<div class="card clickable" onclick="go('${key}')"><div style="font-size:25px">${icon}</div><h3>${title}</h3><p class="muted">${text}</p><span class="pill gold">BUKA →</span></div>`}
 function metricLine(a,b){return `<div class="feature" style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #20242b"><span class="muted">${a}</span><b>${b}</b></div>`}
-function txRow(t){let c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);return `<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${t.id} · ${c?.name||'-'} · ${s?.name||'-'}</span><b>${rupiah(t.total)}</b></div>`}
-
+function txRow(t){let c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);return `<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(t.id))} · ${escapeHtml(String(c?.name||'-'))} · ${escapeHtml(String(s?.name||'-'))}</span><b>${rupiah(t.total)}</b></div>`}
 function transactions(){
  const rows=db.transactions.slice().reverse();
  document.getElementById('content').innerHTML=`
@@ -1433,12 +1448,12 @@ function transactions(){
  <div class="card toolbar"><input id="txSearch" placeholder="Cari nomor/pelanggan/barber..." oninput="filterTransactions()"><select id="txStatus" onchange="filterTransactions()"><option value="">Semua Status</option><option>SELESAI</option><option>VOID</option></select></div>
  <section class="card table-wrap"><table class="table"><thead><tr><th>No</th><th>Tanggal</th><th>Pelanggan</th><th>Layanan</th><th>Barber</th><th>Total</th><th>Pembayaran</th><th>Status</th><th></th></tr></thead><tbody id="txBody">${rows.map(txTable).join('')}</tbody></table>${!rows.length?'<div class="empty">Belum ada transaksi.</div>':''}</section>`;
 }
-function txTable(t){const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);return `<tr><td>${t.id}</td><td>${t.date}</td><td>${c?.name||'-'}</td><td>${s?.name||'-'}</td><td>${e?.name||'-'}</td><td>${rupiah(t.total)}</td><td>${t.payment}</td><td><span class="pill ${t.status==='VOID'?'red':''}">${t.status}</span></td><td><button class="btn small" onclick="txDetail('${t.id}')">Detail</button></td></tr>`}
+function txTable(t){const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);return `<tr><td>${escapeHtml(String(t.id))}</td><td>${escapeHtml(String(t.date))}</td><td>${escapeHtml(String(c?.name||'-'))}</td><td>${escapeHtml(String(s?.name||'-'))}</td><td>${escapeHtml(String(e?.name||'-'))}</td><td>${rupiah(t.total)}</td><td>${escapeHtml(String(t.payment))}</td><td><span class="pill ${t.status==='VOID'?'red':''}">${escapeHtml(String(t.status))}</span></td><td><button class="btn small" onclick="txDetail('${escapeHtml(String(t.id))}')">Detail</button></td></tr>`}
 function filterTransactions(){const q=(document.getElementById('txSearch').value||'').toLowerCase(),st=document.getElementById('txStatus').value;document.querySelectorAll('#txBody tr').forEach(r=>r.style.display=(!st||r.textContent.includes(st))&&(!q||r.textContent.toLowerCase().includes(q))?'':'none')}
 function openTransaction(){
- const c=db.customers.map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
- const s=db.services.filter(x=>x.active).map(x=>`<option value="${x.id}">${x.name} — ${rupiah(x.price)}</option>`).join('');
- const e=db.employees.filter(x=>x.active).map(x=>`<option value="${x.id}">${x.name}</option>`).join('');
+ const c=db.customers.map(x=>`<option value="${x.id}">${escapeHtml(String(x.name))}</option>`).join('');
+ const s=db.services.filter(x=>x.active).map(x=>`<option value="${x.id}">${escapeHtml(String(x.name))} — ${rupiah(x.price)}</option>`).join('');
+ const e=db.employees.filter(x=>x.active).map(x=>`<option value="${x.id}">${escapeHtml(String(x.name))}</option>`).join('');
  show(`<span class="gold-label">TRANSAKSI BARU</span><h2>Simpan Transaksi</h2><div class="form">
  <label>Pelanggan<select id="fCustomer">${c}</select></label>
  <label>Layanan<select id="fService" onchange="calcTx()">${s}</select></label>
@@ -1483,7 +1498,7 @@ function dashboardFilter(){
  if(el)el.innerHTML=`<b>${list.length}</b> transaksi · Pendapatan <b>${rupiah(r)}</b> · Pengeluaran <b>${rupiah(ex)}</b> · Laba <b>${rupiah(r-ex)}</b>`;
 }
 render();
-function txDetail(id){const t=db.transactions.find(x=>x.id===id);const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${t.id}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+function txDetail(id){const t=db.transactions.find(x=>x.id===id);const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${escapeHtml(String(t.id))}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(confirm('Void transaksi ini?')){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
 function box(a,b){return `<div class="detail-box"><span class="label">${a}</span><strong>${b}</strong></div>`}
 
@@ -1532,7 +1547,7 @@ function shiftReportDetail(id){
  const products=(r.products||[]).map(x=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid #20242b"><span>${x.name||x.productName||'-'} × ${Number(x.qty||0)}</span><b>${rupiah(Number(x.total||0))}</b></div>`).join('')||'<div class="empty">Tidak ada produk.</div>';
  show(`<span class="gold-label">DETAIL LAPORAN SHIFT</span>
  <h2>${r.employeeName||e?.name||r.employeeId||'-'}</h2>
- <p class="muted">${r.date||'-'} · ${r.shiftType||'-'} · Cabang: ${branch?.name||'-'}</p>
+ <p class="muted">${r.date||'-'} · ${escapeHtml(String(r.shiftType||'-'))} · Cabang: ${escapeHtml(String(branch?.name||'-'))}</p>
  <div class="detail-grid">
   ${box('Pelanggan',Number(r.customers||0))}
   ${box('Total Pembayaran',rupiah(r.totalPayment||0))}
@@ -1574,7 +1589,7 @@ function shiftReports(){
      <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Shift</th><th>Pelanggan</th><th>Total Pembayaran</th><th>Omzet</th><th>Selisih Kasir</th></tr></thead>
      <tbody>
       ${currentReports.map(r=>`<tr onclick="shiftReportDetail('${String(r.id).replace(/'/g,"\\'")}')" style="cursor:pointer">
-       <td>${r.date||'-'}</td><td>${r.employeeName||'-'}</td><td>${r.shiftType||'-'}</td>
+       <td>${r.date||'-'}</td><td>${escapeHtml(String(r.employeeName||'-'))}</td><td>${escapeHtml(String(r.shiftType||'-'))}</td>
        <td>${r.customers||0}</td><td>${rupiah(r.totalPayment||0)}</td><td>${rupiah(r.totalOmzet||0)}</td>
        <td>${rupiah(r.cashDifference||0)}</td>
       </tr>`).join('')||'<tr><td colspan="7" class="empty">Belum ada laporan shift.</td></tr>'}
@@ -1626,7 +1641,7 @@ function shiftReports(){
     ${services.filter(s=>s.active!==false).map((s,i)=>{
       const old=(existing?.services||[]).find(x=>x.serviceId===s.id);
       return `<div class="feature" style="display:grid;grid-template-columns:1.4fr 80px 100px;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid #20242b">
-       <span><b>${s.name}</b><small class="muted"> ${rupiah(s.price)}</small></span>
+       <span><b>${escapeHtml(String(s.name))}</b><small class="muted"> ${rupiah(s.price)}</small></span>
        <input class="sr-service-qty" data-service="${s.id}" data-price="${s.price}" type="number" min="0" value="${old?.qty||0}" oninput="calcShiftReport()" ${existing?'disabled':''}>
        <b class="sr-service-total" data-total="${s.id}">${rupiah((old?.qty||0)*s.price)}</b>
       </div>`;
@@ -1872,7 +1887,7 @@ function employees(){
  if(!guard('employees'))return;
  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">EMPLOYEE</span><h1>Karyawan & KPI</h1><p>Kelola karyawan, akun login, password, dan laporan.</p></div><button class="btn primary" onclick="openEmployee()">＋ Tambah Karyawan</button></div><div class="grid">${db.employees.filter(e=>String(e.role||'').toLowerCase()!=='owner').map(e=>{
  const tx=db.transactions.filter(t=>t.employeeId===e.id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===e.id),branch=db.branches.find(b=>b.id===e.branchId),rev=tx.reduce((s,t)=>s+Number(t.total||0),0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),ach=e.target?Math.min(100,rev/e.target*100):0,acc=accountForEmployee(e.id),pay=calculatePayroll(e.id);
- return `<div class="card"><span class="gold-label">${e.role}</span><h3 style="margin-top:7px">${e.name}</h3><p class="muted">${e.id} · ${e.active?'Aktif':'Nonaktif'} · Cabang: ${branch?.name||'Belum dipilih'}</p><div class="bar-row" style="grid-template-columns:70px 1fr 45px"><span>KPI</span><div class="bar"><i style="width:${ach}%"></i></div><span class="bar-num">${ach.toFixed(0)}%</span></div><p>Aktivitas <b>${tx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0)}</b> · Omzet <b class="payroll-revenue">${rupiah(rev)}</b></p><p>Upah periode berjalan <b class="payroll-wage">${rupiah(pay.totalPay)}</b> · Bonus <b class="payroll-bonus">${rupiah(pay.totalBonus)}</b></p><p class="muted">Login: <b>${acc?'karyawan':'Belum dibuat'}</b></p><div class="dialog-actions"><button class="btn small" onclick="employeeDetail('${e.id}')">Lihat laporan</button><button class="btn small" onclick="openEmployee('${e.id}')">Ubah</button><button class="btn small danger" onclick="deleteEmployee('${e.id}')">Hapus</button></div></div>`}).join('')}</div>`;
+ return `<div class="card"><span class="gold-label">${escapeHtml(String(e.role))}</span><h3 style="margin-top:7px">${escapeHtml(String(e.name))}</h3><p class="muted">${escapeHtml(String(e.id))} · ${e.active?'Aktif':'Nonaktif'} · Cabang: ${escapeHtml(String(branch?.name||'Belum dipilih'))}</p><div class="bar-row" style="grid-template-columns:70px 1fr 45px"><span>KPI</span><div class="bar"><i style="width:${ach}%"></i></div><span class="bar-num">${ach.toFixed(0)}%</span></div><p>Aktivitas <b>${tx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0)}</b> · Omzet <b class="payroll-revenue">${rupiah(rev)}</b></p><p>Upah periode berjalan <b class="payroll-wage">${rupiah(pay.totalPay)}</b> · Bonus <b class="payroll-bonus">${rupiah(pay.totalBonus)}</b></p><p class="muted">Login: <b>${acc?'karyawan':'Belum dibuat'}</b></p><div class="dialog-actions"><button class="btn small" onclick="employeeDetail('${escapeHtml(String(e.id))}')">Lihat laporan</button><button class="btn small" onclick="openEmployee('${escapeHtml(String(e.id))}')">Ubah</button><button class="btn small danger" onclick="deleteEmployee('${escapeHtml(String(e.id))}')">Hapus</button></div></div>`}).join('')}</div>`;
 }
 function deleteEmployee(id){
  if(!guard('employees'))return;const e=getEmployee(id);if(!e)return;
@@ -1884,7 +1899,7 @@ function deleteEmployee(id){
  saveAccounts(getAccounts().filter(a=>!(a.role==='employee'&&a.employeeId===id)));
  save();closeModal();toast('Karyawan dan akun login dihapus.');render();
 }
-function employeeDetail(id){if(!currentUser||currentUser.role==='employee'){toast('Detail upah hanya dapat dilihat Owner/Manager.');return}const e=getEmployee(id),branch=db.branches.find(b=>b.id===e?.branchId),ptx=db.transactions.filter(t=>t.employeeId===id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===id),rev=ptx.reduce((s,t)=>s+t.total,0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),pay=calculatePayroll(id),comm=pay?.totalBonus||0,att=db.attendance.filter(a=>a.employeeId===id),late=att.filter(a=>a.status==='Terlambat').length;show(`<span class="gold-label">LAPORAN KARYAWAN</span><h2>${e.name}</h2><p class="muted">${e.role} · ${e.id} · Cabang: ${branch?.name||'Belum dipilih'}</p><div class="detail-grid">${box('Hadir',e.attendance)}${box('Terlambat',late)}${box('Aktivitas',ptx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0))}${box('Pendapatan',rupiah(rev))}${box('Komisi',rupiah(comm))}${box('Payroll',rupiah(pay))}${box('Target',rupiah(e.target))}${box('Realisasi',e.target?((rev/e.target)*100).toFixed(1)+'%':'-')}${box('Evaluasi',e.eval+'/100')}</div><div class="goldline"></div><h3>Riwayat Transaksi POS</h3>${ptx.map(txRow).join('')||'<div class="empty">Belum ada transaksi POS.</div>'}<h3 style="margin-top:18px">Laporan Tutup Shift</h3>${srs.map(r=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${r.date} · ${r.shiftType||'-'} · ${r.customers||0} pelanggan</span><b>${rupiah(r.totalOmzet||0)}</b></div>`).join('')||'<div class="empty">Belum ada laporan tutup shift.</div>'}<h3 style="margin-top:18px">Rincian Perhitungan Upah</h3>${pay?payrollSummaryHtml(pay):'<div class="empty">Belum ada data payroll.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+function employeeDetail(id){if(!currentUser||currentUser.role==='employee'){toast('Detail upah hanya dapat dilihat Owner/Manager.');return}const e=getEmployee(id),branch=db.branches.find(b=>b.id===e?.branchId),ptx=db.transactions.filter(t=>t.employeeId===id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===id),rev=ptx.reduce((s,t)=>s+t.total,0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),pay=calculatePayroll(id),comm=pay?.totalBonus||0,att=db.attendance.filter(a=>a.employeeId===id),late=att.filter(a=>a.status==='Terlambat').length;show(`<span class="gold-label">LAPORAN KARYAWAN</span><h2>${escapeHtml(String(e.name))}</h2><p class="muted">${escapeHtml(String(e.role))} · ${escapeHtml(String(e.id))} · Cabang: ${escapeHtml(String(branch?.name||'Belum dipilih'))}</p><div class="detail-grid">${box('Hadir',e.attendance)}${box('Terlambat',late)}${box('Aktivitas',ptx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0))}${box('Pendapatan',rupiah(rev))}${box('Komisi',rupiah(comm))}${box('Payroll',rupiah(pay))}${box('Target',rupiah(e.target))}${box('Realisasi',e.target?((rev/e.target)*100).toFixed(1)+'%':'-')}${box('Evaluasi',e.eval+'/100')}</div><div class="goldline"></div><h3>Riwayat Transaksi POS</h3>${ptx.map(txRow).join('')||'<div class="empty">Belum ada transaksi POS.</div>'}<h3 style="margin-top:18px">Laporan Tutup Shift</h3>${srs.map(r=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(r.date))} · ${escapeHtml(String(r.shiftType||'-'))} · ${r.customers||0} pelanggan</span><b>${rupiah(r.totalOmzet||0)}</b></div>`).join('')||'<div class="empty">Belum ada laporan tutup shift.</div>'}<h3 style="margin-top:18px">Rincian Perhitungan Upah</h3>${pay?payrollSummaryHtml(pay):'<div class="empty">Belum ada data payroll.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 function openEmployee(id){
  if(!guard('employees'))return;
  const e=id?getEmployee(id):null,a=e?accountForEmployee(id):null;
@@ -1953,20 +1968,41 @@ async function saveEmployee(id){
 function customers(){
  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">CUSTOMER</span><h1>Pelanggan</h1><p>Data pelanggan, kunjungan dan nilai transaksi.</p></div><button class="btn primary" onclick="openCustomer()">＋ Tambah Pelanggan</button></div>
  <section class="card toolbar"><input id="cuSearch" placeholder="Cari nama/telepon..." oninput="filterRows('cuBody','cuSearch')"></section>
- <section class="card table-wrap"><table class="table"><thead><tr><th>ID</th><th>Nama</th><th>Telepon</th><th>Kunjungan</th><th>Total Nilai</th><th>Status</th><th></th></tr></thead><tbody id="cuBody">${db.customers.map(c=>`<tr><td>${c.id}</td><td>${c.name}</td><td>${c.phone||'-'}</td><td>${c.visits||0}</td><td>${rupiah(c.total)}</td><td><span class="pill">${c.status||'Aktif'}</span></td><td><button class="btn small" onclick="customerDetail('${c.id}')">Detail</button></td></tr>`).join('')}</tbody></table></section>`;
+ <section class="card table-wrap"><table class="table"><thead><tr><th>ID</th><th>Nama</th><th>Telepon</th><th>Kunjungan</th><th>Total Nilai</th><th>Status</th><th></th></tr></thead><tbody id="cuBody">${db.customers.map(c=>`<tr><td>${escapeHtml(String(c.id))}</td><td>${escapeHtml(String(c.name))}</td><td>${escapeHtml(String(c.phone||'-'))}</td><td>${c.visits||0}</td><td>${rupiah(c.total)}</td><td><span class="pill">${escapeHtml(String(c.status||'Aktif'))}</span></td><td><button class="btn small" onclick="customerDetail('${escapeHtml(String(c.id))}')">Detail</button></td></tr>`).join('')}</tbody></table></section>`;
 }
 function filterRows(body,inp){const q=document.getElementById(inp).value.toLowerCase();document.querySelectorAll('#'+body+' tr').forEach(r=>r.style.display=r.textContent.toLowerCase().includes(q)?'':'none')}
 function openCustomer(){show(`<span class="gold-label">PELANGGAN</span><h2>Tambah Pelanggan</h2><div class="form"><label>Nama<input id="cName"></label><label>Telepon<input id="cPhone"></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveCustomer()">Simpan</button></div>`)}
-function saveCustomer(){const c={id:'C'+String(db.customers.length+1).padStart(3,'0'),name:cName.value,phone:cPhone.value,visits:0,total:0,status:'Aktif'};if(!c.name)return alert('Isi nama pelanggan');db.customers.push(c);save();closeModal();toast('Pelanggan ditambahkan.');render()}
-function customerDetail(id){const c=getCustomer(id),tx=db.transactions.filter(t=>t.customerId===id);show(`<span class="gold-label">PELANGGAN</span><h2>${c.name}</h2><div class="detail-grid">${box('Telepon',c.phone||'-')}${box('Kunjungan',c.visits||0)}${box('Total Nilai',rupiah(c.total))}</div><h3 style="margin-top:18px">Riwayat</h3>${tx.map(txRow).join('')||'<div class="empty">Belum ada transaksi.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+async function saveCustomer(){
+  const c={id:'C'+String(db.customers.length+1).padStart(3,'0'),name:document.getElementById('cName')?.value.trim()||'',phone:document.getElementById('cPhone')?.value.trim()||'',visits:0,total:0,status:'Aktif'};
+  if(!c.name)return alert('Isi nama pelanggan');
+  if(currentUser?.role==='employee'){
+    try{
+      const customers=[...(db.customers||[]),c];
+      if(!window.WZOnlineStateSave?.persistEmployee)throw new Error('Simpan pelanggan online belum siap.');
+      await window.WZOnlineStateSave.persistEmployee({customers});
+      db.customers=customers;closeModal();toast('Pelanggan ditambahkan.');render();
+    }catch(e){toast('Pelanggan gagal disimpan: '+e.message,true)}
+    return;
+  }
+  db.customers.push(c);save();closeModal();toast('Pelanggan ditambahkan.');render();
+}
+function customerDetail(id){const c=getCustomer(id),tx=db.transactions.filter(t=>t.customerId===id);show(`<span class="gold-label">PELANGGAN</span><h2>${escapeHtml(String(c?.name||'-'))}</h2><div class="detail-grid">${box('Telepon',escapeHtml(String(c?.phone||'-')))}${box('Kunjungan',c?.visits||0)}${box('Total Nilai',rupiah(c?.total))}</div><h3 style="margin-top:18px">Riwayat</h3>${tx.map(txRow).join('')||'<div class="empty">Belum ada transaksi.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 
-function services(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SERVICE</span><h1>Layanan & Promo</h1><p>Kelola daftar layanan dan harga.</p></div><button class="btn primary" onclick="openService()">＋ Tambah Layanan</button></div><div class="grid">${db.services.map(s=>`<div class="card"><span class="gold-label">${s.category}</span><h3>${s.name}</h3><div class="value">${rupiah(s.price)}</div><p class="muted">${s.duration} menit</p><span class="pill">${s.active?'Aktif':'Nonaktif'}</span><div class="dialog-actions" style="margin-top:12px"><button type="button" class="btn small" onclick="editService('${s.id}')">Edit</button></div></div>`).join('')}</div>`}
+
+function services(){
+  const canManage=['owner','manager'].includes(currentUser?.role);
+  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SERVICE</span><h1>Layanan & Promo</h1><p>Daftar layanan dan harga.</p></div>${canManage?'<button class="btn primary" onclick="openService()">＋ Tambah Layanan</button>':''}</div><div class="grid">${db.services.map(s=>`<div class="card"><span class="gold-label">${escapeHtml(String(s.category||''))}</span><h3>${escapeHtml(String(s.name||''))}</h3><div class="value">${rupiah(s.price)}</div><p class="muted">${escapeHtml(String(s.duration||0))} menit</p><span class="pill">${s.active?'Aktif':'Nonaktif'}</span>${canManage?`<div class="dialog-actions" style="margin-top:12px"><button class="btn small" onclick="editService('${escapeHtml(String(s.id))}')">Edit</button></div>`:''}</div>`).join('')}</div>`;
+}
 function openService(){show(`<span class="gold-label">LAYANAN</span><h2>Tambah Layanan</h2><div class="form"><label>Nama<input id="sName"></label><label>Kategori<input id="sCat"></label><label>Harga<input id="sPrice" type="number"></label><label>Durasi (menit)<input id="sDur" type="number" value="45"></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveService()">Simpan</button></div>`)}
-function saveService(){const s={id:'S'+String(db.services.length+1).padStart(3,'0'),name:sName.value.trim(),category:sCat.value.trim()||'Umum',price:Number(sPrice.value)||0,duration:Number(sDur.value)||45,active:true};if(!s.name)return alert('Isi nama layanan');db.services.push(s);save();closeModal();toast('Layanan ditambahkan.');render()}
+function saveService(){
+  if(!['owner','manager'].includes(currentUser?.role))return toast('Hanya Owner/Manager yang dapat menambah layanan.',true);
+  const s={id:'S'+String(db.services.length+1).padStart(3,'0'),name:document.getElementById('sName')?.value.trim()||'',category:document.getElementById('sCat')?.value.trim()||'Umum',price:Number(document.getElementById('sPrice')?.value)||0,duration:Number(document.getElementById('sDur')?.value)||45,active:true};
+  if(!s.name)return alert('Isi nama layanan');db.services.push(s);save();closeModal();toast('Layanan ditambahkan.');render();
+}
 function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
 function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return alert('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return alert('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return alert('Durasi layanan tidak valid.');s.name=name;s.category=category;s.price=price;s.duration=duration;s.active=esActive.checked;save();closeModal();toast('Layanan berhasil diperbarui.');render()}
 
-function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',rupiah(revenue()),'finance')}${kpi('💸','Pengeluaran',rupiah(expenses()),'finance')}${kpi('📈','Laba',rupiah(profit()),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${e.date} · ${e.category} · ${e.note||''}</span><b>${rupiah(e.amount)}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
+function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',rupiah(revenue()),'finance')}${kpi('💸','Pengeluaran',rupiah(expenses()),'finance')}${kpi('📈','Laba',rupiah(profit()),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(e.date||''))} · ${escapeHtml(String(e.category||''))} · ${escapeHtml(String(e.note||''))}</span><b>${rupiah(e.amount)}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
 function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('tCustomer');if(c)c.value='';},50)}
 function openExpense(){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat"></label><label>Nominal<input id="xAmount" type="number"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}
 function saveExpense(){if(!guard('finance'))return;const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:xDate.value,category:xCat.value||'Operasional',amount:Number(xAmount.value)||0,note:xNote.value||''};db.expenses.push(x);save();closeModal();toast('Pengeluaran tersimpan.');render()}
@@ -2034,7 +2070,7 @@ function exportOwnerAnalytics(){
 }
 function analytics(){
  const range=analyticsRange(),from=document.getElementById('analyticsFrom')?.value||range.from,to=document.getElementById('analyticsTo')?.value||range.to,feed=ownerBusinessFeed().filter(x=>x.date>=from&&x.date<=to),revenueValue=feed.reduce((s,x)=>s+Number(x.amount||0),0),expenseValue=feed.reduce((s,x)=>s+Number(x.expense||0),0)+db.expenses.filter(x=>x.date>=from&&x.date<=to).reduce((s,x)=>s+Number(x.amount||0),0),serviceStats=analyticsServiceStats(from,to),employees=analyticsEmployeeStats(from,to),avg=feed.length?revenueValue/feed.length:0,chartItems=analyticsChartItems(from,to,feed),expenseItems=chartItems.map(x=>({...x,value:feed.filter(r=>r.date===x.key).reduce((s,r)=>s+Number(r.expense||0),0)+db.expenses.filter(r=>r.date===x.key).reduce((s,r)=>s+Number(r.amount||0),0)})),profitItems=chartItems.map((x,i)=>({...x,value:x.value-expenseItems[i].value}));
- document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">ANALYTICS</span><h1>Analisis Bisnis</h1><p>Panel statistik OWNER untuk membaca performa, tren, dan kesehatan bisnis.</p></div><button class="btn" onclick="exportOwnerAnalytics()">Download CSV</button></div><section class="card section"><div class="panel-title"><h3>Periode Analisis</h3><span class="subtle">${from} sampai ${to}</span></div><div class="form"><label>Dari<input id="analyticsFrom" type="date" value="${from}" onchange="analytics()"></label><label>Sampai<input id="analyticsTo" type="date" value="${to}" onchange="analytics()"></label></div></section><div class="grid">${boxCard('Pendapatan',rupiah(revenueValue))}${boxCard('Pengeluaran',rupiah(expenseValue))}${boxCard('Laba Bersih',rupiah(revenueValue-expenseValue))}${boxCard('Rata-rata Data',rupiah(avg))}</div><div class="dashboard-grid" style="margin-top:14px"><section class="card"><div class="panel-title"><h3>TREND PENDAPATAN</h3><span class="subtle">Klik titik untuk detail</span></div>${ownerLineChart('revenue',chartItems,'blue','Pendapatan')}</section><section class="card"><div class="panel-title"><h3>TREND LABA</h3><span class="subtle">Pendapatan dikurangi biaya</span></div>${ownerLineChart('profit',profitItems,'green','Laba Bersih')}</section></div><section class="card section"><h3>Performa Layanan</h3>${serviceStats.map(x=>`<div class="bar-row"><span>${x.name}</span><div class="bar"><i style="width:${serviceStats[0]?.rev?(x.rev/serviceStats[0].rev)*100:0}%"></i></div><span class="bar-num">${rupiah(x.rev)}</span></div>`).join('')||'<div class="empty">Belum ada data layanan.</div>'}</section><section class="card section"><h3>Top Karyawan</h3>${employees.slice(0,5).map((x,i)=>`<div class="schedule-item"><div><b>${i+1}. ${x.name}</b><div class="subtle">${x.tx} pelanggan/transaksi</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada data karyawan.</div>'}</section><section class="card section"><h3>Sumber Data</h3><div class="detail-grid">${box('POS',rupiah(feed.filter(x=>x.source==='POS').reduce((s,x)=>s+x.amount,0)))}${box('Tutup Shift',rupiah(feed.filter(x=>x.source==='TUTUP_SHIFT').reduce((s,x)=>s+x.amount,0)))}${box('Pelanggan',feed.reduce((s,x)=>s+Number(x.customers||0),0))}${box('Periode',`${from} - ${to}`)}</div></section>`;
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">ANALYTICS</span><h1>Analisis Bisnis</h1><p>Panel statistik OWNER untuk membaca performa, tren, dan kesehatan bisnis.</p></div><button class="btn" onclick="exportOwnerAnalytics()">Download CSV</button></div><section class="card section"><div class="panel-title"><h3>Periode Analisis</h3><span class="subtle">${from} sampai ${to}</span></div><div class="form"><label>Dari<input id="analyticsFrom" type="date" value="${from}" onchange="analytics()"></label><label>Sampai<input id="analyticsTo" type="date" value="${to}" onchange="analytics()"></label></div></section><div class="grid">${boxCard('Pendapatan',rupiah(revenueValue))}${boxCard('Pengeluaran',rupiah(expenseValue))}${boxCard('Laba Bersih',rupiah(revenueValue-expenseValue))}${boxCard('Rata-rata Data',rupiah(avg))}</div><div class="dashboard-grid" style="margin-top:14px"><section class="card"><div class="panel-title"><h3>TREND PENDAPATAN</h3><span class="subtle">Klik titik untuk detail</span></div>${ownerLineChart('revenue',chartItems,'blue','Pendapatan')}</section><section class="card"><div class="panel-title"><h3>TREND LABA</h3><span class="subtle">Pendapatan dikurangi biaya</span></div>${ownerLineChart('profit',profitItems,'green','Laba Bersih')}</section></div><section class="card section"><h3>Performa Layanan</h3>${serviceStats.map(x=>`<div class="bar-row"><span>${escapeHtml(String(x.name))}</span><div class="bar"><i style="width:${serviceStats[0]?.rev?(x.rev/serviceStats[0].rev)*100:0}%"></i></div><span class="bar-num">${rupiah(x.rev)}</span></div>`).join('')||'<div class="empty">Belum ada data layanan.</div>'}</section><section class="card section"><h3>Top Karyawan</h3>${employees.slice(0,5).map((x,i)=>`<div class="schedule-item"><div><b>${i+1}. ${escapeHtml(String(x.name))}</b><div class="subtle">${x.tx} pelanggan/transaksi</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada data karyawan.</div>'}</section><section class="card section"><h3>Sumber Data</h3><div class="detail-grid">${box('POS',rupiah(feed.filter(x=>x.source==='POS').reduce((s,x)=>s+x.amount,0)))}${box('Tutup Shift',rupiah(feed.filter(x=>x.source==='TUTUP_SHIFT').reduce((s,x)=>s+x.amount,0)))}${box('Pelanggan',feed.reduce((s,x)=>s+Number(x.customers||0),0))}${box('Periode',`${from} - ${to}`)}</div></section>`;
 }
 function boxCard(a,b){return `<div class="card"><div class="label">${a}</div><div class="value">${b}</div></div>`}
 
@@ -2095,16 +2131,16 @@ function historicalView(){
 }
 function analytics(){
  if(!guard('analytics'))return;const range=analyticsRange(),from=document.getElementById('analyticsFrom')?.value||range.from,to=document.getElementById('analyticsTo')?.value||range.to,metric=analyticsMetric(from,to),serviceStats=analyticsServiceStats(from,to),employees=analyticsEmployeeStats(from,to),feed=metric.rows,chartItems=analyticsChartItems(from,to,feed),expenseItems=chartItems.map(x=>({...x,value:feed.filter(row=>row.date===x.key).reduce((sum,row)=>sum+Number(row.expense||0),0)+(db.expenses||[]).filter(row=>row.date===x.key).reduce((sum,row)=>sum+Number(row.amount||0),0)})),profitItems=chartItems.map((x,index)=>({...x,value:x.value-expenseItems[index].value}));
- document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">ANALYTICS</span><h1>Analisis Bisnis</h1><p>Statistik dan rekap historis dari data server.</p></div><button class="btn" onclick="exportOwnerAnalytics()">Download CSV</button></div><section class="card section"><div class="panel-title"><h3>Periode Analisis</h3><span class="subtle">${from} sampai ${to}</span></div><div class="form"><label>Dari<input id="analyticsFrom" type="date" value="${from}" onchange="analytics()"></label><label>Sampai<input id="analyticsTo" type="date" value="${to}" onchange="analytics()"></label></div></section><section class="card section"><h3>Rekap Statistik</h3><div class="dashboard-grid" style="align-items:center"><div>${analyticsDonut(metric)}</div>${analyticsMetricBoxes(metric)}</div></section><div class="grid">${boxCard('Pelanggan',metric.pelanggan)}${boxCard('Omzet',rupiah(metric.omzet))}${boxCard('Pengeluaran',rupiah(metric.pengeluaran))}${boxCard('Laba Bersih',rupiah(metric.laba))}</div><div class="dashboard-grid" style="margin-top:14px"><section class="card"><div class="panel-title"><h3>TREND PENDAPATAN</h3><span class="subtle">Klik titik untuk detail</span></div>${ownerLineChart('revenue',chartItems,'blue','Pendapatan')}</section><section class="card"><div class="panel-title"><h3>TREND LABA</h3><span class="subtle">Pendapatan dikurangi biaya</span></div>${ownerLineChart('profit',profitItems,'green','Laba Bersih')}</section></div><section class="card section"><h3>Performa Layanan</h3>${serviceStats.map(x=>`<div class="bar-row"><span>${x.name}</span><div class="bar"><i style="width:${serviceStats[0]?.rev?(x.rev/serviceStats[0].rev)*100:0}%"></i></div><span class="bar-num">${rupiah(x.rev)}</span></div>`).join('')||'<div class="empty">Belum ada data layanan.</div>'}</section><section class="card section"><h3>Top Karyawan</h3>${employees.slice(0,5).map((x,i)=>`<div class="schedule-item"><div><b>${i+1}. ${x.name}</b><div class="subtle">${x.tx} pelanggan/transaksi</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada data karyawan.</div>'}</section><section class="card section" id="historicalPanel"><div>${historicalView()}</div></section><div id="historicalPrint" class="historical-print-only"></div>`;
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">ANALYTICS</span><h1>Analisis Bisnis</h1><p>Statistik dan rekap historis dari data server.</p></div><button class="btn" onclick="exportOwnerAnalytics()">Download CSV</button></div><section class="card section"><div class="panel-title"><h3>Periode Analisis</h3><span class="subtle">${from} sampai ${to}</span></div><div class="form"><label>Dari<input id="analyticsFrom" type="date" value="${from}" onchange="analytics()"></label><label>Sampai<input id="analyticsTo" type="date" value="${to}" onchange="analytics()"></label></div></section><section class="card section"><h3>Rekap Statistik</h3><div class="dashboard-grid" style="align-items:center"><div>${analyticsDonut(metric)}</div>${analyticsMetricBoxes(metric)}</div></section><div class="grid">${boxCard('Pelanggan',metric.pelanggan)}${boxCard('Omzet',rupiah(metric.omzet))}${boxCard('Pengeluaran',rupiah(metric.pengeluaran))}${boxCard('Laba Bersih',rupiah(metric.laba))}</div><div class="dashboard-grid" style="margin-top:14px"><section class="card"><div class="panel-title"><h3>TREND PENDAPATAN</h3><span class="subtle">Klik titik untuk detail</span></div>${ownerLineChart('revenue',chartItems,'blue','Pendapatan')}</section><section class="card"><div class="panel-title"><h3>TREND LABA</h3><span class="subtle">Pendapatan dikurangi biaya</span></div>${ownerLineChart('profit',profitItems,'green','Laba Bersih')}</section></div><section class="card section"><h3>Performa Layanan</h3>${serviceStats.map(x=>`<div class="bar-row"><span>${escapeHtml(String(x.name))}</span><div class="bar"><i style="width:${serviceStats[0]?.rev?(x.rev/serviceStats[0].rev)*100:0}%"></i></div><span class="bar-num">${rupiah(x.rev)}</span></div>`).join('')||'<div class="empty">Belum ada data layanan.</div>'}</section><section class="card section"><h3>Top Karyawan</h3>${employees.slice(0,5).map((x,i)=>`<div class="schedule-item"><div><b>${i+1}. ${escapeHtml(String(x.name))}</b><div class="subtle">${x.tx} pelanggan/transaksi</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada data karyawan.</div>'}</section><section class="card section" id="historicalPanel"><div>${historicalView()}</div></section><div id="historicalPrint" class="historical-print-only"></div>`;
 }
 
-function notifications(){const n=(db.notifications||[]).slice().reverse();document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">NOTIFICATIONS</span><h1>Notifikasi</h1><p>${n.filter(x=>!x.read).length} belum dibaca.</p></div><button class="btn" onclick="markRead()">Tandai semua dibaca</button></div><section class="card">${n.map(x=>`<div class="feature" style="padding:13px 0;border-bottom:1px solid #20242b;${x.read?'opacity:.65':''}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${x.title}</b><div class="muted">${x.message}</div><small class="muted">${x.date}</small></div>${x.read?'':'<button class="btn small" onclick="markNotificationRead(\''+x.id+'\')">Tandai dibaca</button>'}</div></div>`).join('')||'<div class="empty">Belum ada notifikasi.</div>'}</section>`}
+function notifications(){const n=(db.notifications||[]).slice().reverse();document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">NOTIFICATIONS</span><h1>Notifikasi</h1><p>${n.filter(x=>!x.read).length} belum dibaca.</p></div><button class="btn" onclick="markRead()">Tandai semua dibaca</button></div><section class="card">${n.map(x=>`<div class="feature" style="padding:13px 0;border-bottom:1px solid #20242b;${x.read?'opacity:.65':''}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${escapeHtml(String(x.title))}</b><div class="muted">${escapeHtml(String(x.message))}</div><small class="muted">${escapeHtml(String(x.date))}</small></div>${x.read?'':'<button class="btn small" onclick="markNotificationRead(\''+x.id+'\')">Tandai dibaca</button>'}</div></div>`).join('')||'<div class="empty">Belum ada notifikasi.</div>'}</section>`}
 function markNotificationRead(id){const item=(db.notifications||[]).find(x=>String(x.id)===String(id));if(!item)return;item.read=true;save();render()}
 function markRead(){(db.notifications||[]).forEach(x=>x.read=true);save();render()}
 
 function branches(){
- if(!guard('branches'))return;
- document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">BRANCHES</span><h1>Cabang</h1><p>Kelola cabang bisnis.</p></div><button class="btn primary" onclick="openBranch()">＋ Tambah Cabang</button></div><div class="grid">${db.branches.map(b=>`<div class="card"><h3>${b.name}</h3><p class="muted">${b.address||'-'}</p><span class="pill">${b.active?'Aktif':'Nonaktif'}</span><div class="dialog-actions"><button class="btn small" onclick="openBranch('${b.id}')">Ubah Cabang</button></div></div>`).join('')}</div>`;
+  if(!guard('branches'))return;
+  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">BRANCHES</span><h1>Cabang</h1><p>Kelola cabang bisnis.</p></div><button class="btn primary" onclick="openBranch()">＋ Tambah Cabang</button></div><div class="grid">${db.branches.map(b=>`<div class="card"><h3>${escapeHtml(String(b.name||''))}</h3><p class="muted">${escapeHtml(String(b.address||'-'))}</p><span class="pill">${b.active?'Aktif':'Nonaktif'}</span><div class="dialog-actions"><button class="btn small" onclick="openBranch('${escapeHtml(String(b.id))}')">Ubah Cabang</button></div></div>`).join('')}</div>`;
 }
 function openBranch(id){
  if(!guard('branches'))return;
@@ -2157,7 +2193,7 @@ function profile(){
  document.getElementById('content').innerHTML=`
  <div class="section-head"><div><span class="gold-label">AKUN</span><h1>Profil Saya</h1><p>Informasi akun yang sedang login.</p></div></div>
  <section class="card profile-card">
-  <div class="profile-top">${photo}<div><h2 style="margin:0">${currentUser.name||'-'}</h2><div class="subtle">${roleLabel}</div><span class="pill gold" style="margin-top:8px">AKTIF</span></div></div>
+  <div class="profile-top">${photo}<div><h2 style="margin:0">${escapeHtml(String(currentUser.name||'-'))}</h2><div class="subtle">${roleLabel}</div><span class="pill gold" style="margin-top:8px">AKTIF</span></div></div>
   <div class="detail-grid">
    ${box('Nama',currentUser.name||'-')}
    ${box('Username',username)}
@@ -2342,7 +2378,7 @@ async function payrollSettingsPage(){
  </section>`;
 }
 
-function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${db.profile.name}"></label><label>Jabatan<input id="pRole" value="${db.profile.role}"></label><label class="full">Brand<input id="pBrand" value="${db.profile.brand}"></label><label class="full">Fokus<input id="pFocus" value="${db.profile.focus}"></label><label class="full">Ukuran Kertas Struk (thermal)<select id="pReceiptPaper"><option value="80"${receiptPaperSpec().code==='80'?' selected':''}>80mm (struk standar)</option><option value="58"${receiptPaperSpec().code==='58'?' selected':''}>58mm (struk kecil)</option></select></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
+function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${escapeHtml(String(db.profile.name||''))}"></label><label>Jabatan<input id="pRole" value="${escapeHtml(String(db.profile.role||''))}"></label><label class="full">Brand<input id="pBrand" value="${escapeHtml(String(db.profile.brand||''))}"></label><label class="full">Fokus<input id="pFocus" value="${escapeHtml(String(db.profile.focus||''))}"></label><label class="full">Ukuran Kertas Struk (thermal)<select id="pReceiptPaper"><option value="80"${receiptPaperSpec().code==='80'?' selected':''}>80mm (struk standar)</option><option value="58"${receiptPaperSpec().code==='58'?' selected':''}>58mm (struk kecil)</option></select></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
 function testNotificationSound(){const wasEnabled=db.profile.notificationSoundEnabled;db.profile.notificationSoundEnabled=true;playNotificationSound();db.profile.notificationSoundEnabled=wasEnabled;toast('Suara notifikasi diuji.',true);}
 function saveSettings(){if(!guard('settings'))return;db.profile.name=pName.value;db.profile.role=pRole.value;db.profile.brand=pBrand.value;db.profile.focus=pFocus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;db.profile.receiptPaper=document.getElementById('pReceiptPaper')?.value==='58'?'58':'80';window.__wzReceiptPaper=db.profile.receiptPaper;applyReceiptPaper();save();toast('Pengaturan disimpan.');render()}
 
@@ -2530,7 +2566,7 @@ async function ownerForumSendSticker(stickerId){
   }
 }
 
-function systemPage(){if(!guard('system'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SYSTEM & DATA</span><h1>Sistem & Data</h1><p>Perawatan data online dan informasi sistem.</p></div></div><div class="grid">${boxCard('Transaksi',db.transactions.length)}${boxCard('Karyawan',db.employees.length)}${boxCard('Pelanggan',db.customers.length)}${boxCard('Layanan',db.services.length)}${boxCard('Pengeluaran',db.expenses.length)}${boxCard('Absensi',db.attendance.length)}</div><section class="card section"><h3>Backup & Restore</h3><p class="muted">Backup disimpan sebagai JSON dan dapat dipindahkan ke perangkat lain.</p><div class="actions"><button class="btn primary" onclick="exportBackup()">Download Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore Backup</button></div></section><section id="shift-test-reset-card" class="card section" style="margin-top:16px"><span class="gold-label">TESTING</span><h3 style="margin-top:8px">Reset Laporan Tutup Shift</h3><p class="muted">Khusus Manager/Owner. Hapus seluruh data transaksi dan seluruh laporan tutup shift untuk memulai pengujian dari kondisi kosong.</p><button type="button" id="resetShiftTestingBtn" class="btn">Hapus Semua Transaksi & Laporan Tutup Shift</button></section><section class="card section" style="margin-top:16px"><span class="gold-label">DEBUG FCM</span><h3 style="margin-top:8px">FCM Token</h3><p class="muted" id="fcmDebugStatus">Token: ${window.WZNativeFcmToken?window.WZNativeFcmToken.substring(0,30)+'...':('Belum ada token')}</p><button type="button" class="btn" onclick="syncNativeFcmToken().then(ok=>toast(ok?'Token berhasil disimpan!':'Gagal simpan token.',!ok))">Sync FCM Token</button></section>`}
+function systemPage(){if(!guard('system'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SYSTEM & DATA</span><h1>Sistem & Data</h1><p>Perawatan data online dan informasi sistem.</p></div></div><div class="grid">${boxCard('Transaksi',db.transactions.length)}${boxCard('Karyawan',db.employees.length)}${boxCard('Pelanggan',db.customers.length)}${boxCard('Layanan',db.services.length)}${boxCard('Pengeluaran',db.expenses.length)}${boxCard('Absensi',db.attendance.length)}</div><section class="card section"><h3>Backup & Restore</h3><p class="muted">Backup disimpan sebagai JSON dan dapat dipindahkan ke perangkat lain.</p><div class="actions"><button class="btn primary" onclick="exportBackup()">Download Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore Backup</button></div></section><section id="shift-test-reset-card" class="card section" style="margin-top:16px"><span class="gold-label">TESTING</span><h3 style="margin-top:8px">Reset Laporan Tutup Shift</h3><p class="muted">Khusus Manager/Owner. Hapus seluruh data transaksi dan seluruh laporan tutup shift untuk memulai pengujian dari kondisi kosong.</p><button type="button" id="resetShiftTestingBtn" class="btn">Hapus Semua Transaksi & Laporan Tutup Shift</button></section>`}
 
 document.addEventListener('click',function(e){
  const btn=e.target.closest('#resetShiftTestingBtn');
@@ -2596,6 +2632,8 @@ const NON_BUSINESS_KEYS=new Set([
 ]);
 
 function resetTenantState(){
+  clearTimeout(saveTimer);
+  appStateUpdatedAt=null;
   db.branches=[];
   db.employees=[];
   db.customers=[];
@@ -2665,7 +2703,13 @@ function queueAppStateSave(){
   clearTimeout(saveTimer);
   saveTimer=setTimeout(()=>persistAppState(),250);
 }
-window.WZOnlineStateSave={persist:persistAppState,queue:queueAppStateSave};
+async function persistEmployeeState(partial){
+  if(!currentUser||currentUser.role!=='employee'||!partial||typeof partial!=='object'||Array.isArray(partial))return false;
+  const saved=await api('app-state',{method:'PUT',body:JSON.stringify({data:partial,expectedUpdatedAt:appStateUpdatedAt})});
+  appStateUpdatedAt=saved?.updatedAt||appStateUpdatedAt;
+  return true;
+}
+window.WZOnlineStateSave={persist:persistAppState,queue:queueAppStateSave,persistEmployee:persistEmployeeState};
 
 function applyBusinessData(data){
   if(!data||typeof data!=='object')return;
@@ -2752,7 +2796,7 @@ async function syncBusiness(){
 }
 window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[]};
 // Dipakai auto-refresh di luar IIFE ini (lihat refreshAppData).
-window.WZOnlineSync={hydrate:hydrateAppState,business:syncBusiness,employees:syncEmployeesFromServer};
+window.WZOnlineSync={hydrate:hydrateAppState,business:syncBusiness,employees:syncEmployeesFromServer,reset:resetTenantState};
 // Fungsi berikut dipanggil dari atribut onclick di HTML, jadi harus global.
 window.printTransactionReceipt=printTransactionReceipt;
 window.markServerNotificationRead=markServerNotificationRead;
@@ -2761,22 +2805,14 @@ window.savePayrollSettings=savePayrollSettings;
 window.syncNativeFcmToken=syncNativeFcmToken;
 
 async function syncNativeFcmToken(){
-  // Sengaja tanpa console log / toast: sinkronisasi token dijalankan otomatis
-  // (dan diulang berkali-kali), sehingga diagnostik di sini akan mengganggu.
+  // Employee tidak menerima notifikasi; token native dilepas dari server.
   if(!currentUser)return false;
-
   const fcmToken=String(window.WZNativeFcmToken||'').trim();
   if(!fcmToken)return false;
-
   try{
-    await api('push/fcm-token',{
-      method:'POST',
-      body:JSON.stringify({token:fcmToken})
-    });
+    await api('push/fcm-token',{method:'POST',body:JSON.stringify({token:fcmToken})});
     return true;
-  }catch(e){
-    return false;
-  }
+  }catch(e){return false}
 }
 
 window.WZOnlineFcm={sync:syncNativeFcmToken};
@@ -2905,7 +2941,8 @@ async function savePayrollSettings(){
 
 async function fullHydrate(){
   if(!currentUser)return false;
-  if(typeof Notification!=='undefined'&&Notification.permission==='granted')registerPushSubscription().catch(()=>{});
+  if(currentUser.role==='employee')unregisterPushSubscription().catch(()=>{});
+  else if(typeof Notification!=='undefined'&&Notification.permission==='granted')registerPushSubscription().catch(()=>{});
   await hydrateAppState();
 
   try{
@@ -3070,6 +3107,8 @@ window.login=async function(ev){
     setActionLoading(60,'Memverifikasi akun...','MASUK KE SISTEM');
     if(err)err.style.display='none';
     currentUser=r.user;
+    window.WZOnlineSync?.reset?.();
+    wzForumSeenSaved=false;wzForumUnread=0;wzForumCheckedAt=0;
     const screen=document.getElementById('loginScreen');
     const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
     setActionLoading(75,'Memuat data akun dan bisnis...','MASUK KE SISTEM');
@@ -3249,25 +3288,25 @@ function renderTransactionReceipt(t){
   show(`
     <div id="wzReceipt" class="wz-receipt">
       <div class="wz-receipt-head">
-        <div class="gold-label">${db.profile?.brand||'WZ MANAGE PRO'}</div>
+        <div class="gold-label">${escapeHtml(String(db.profile?.brand||'WZ MANAGE PRO'))}</div>
         <h3>${db.branches?.find(b=>b.id===t.branchId)?.name||db.branches?.find(b=>b.id===currentUser?.branchId)?.name||'Cabang'}</h3>
         <div class="subtle">${db.branches?.find(b=>b.id===t.branchId)?.address||db.branches?.find(b=>b.id===currentUser?.branchId)?.address||''}</div>
         <h2>NOTA TRANSAKSI</h2>
-        <div class="subtle">${t.id}</div>
+        <div class="subtle">${escapeHtml(String(t.id))}</div>
       </div>
       <div class="wz-receipt-meta">
         <div><span>Tanggal</span><b>${t.date||'-'}</b></div>
-        <div><span>Pelanggan</span><b>${customerName}</b></div>
-        <div><span>Barber</span><b>${employeeName}</b></div>
+        <div><span>Pelanggan</span><b>${escapeHtml(String(customerName))}</b></div>
+        <div><span>Barber</span><b>${escapeHtml(String(employeeName))}</b></div>
       </div>
       <div class="wz-receipt-line"></div>
       <div class="wz-receipt-item">
-        <div><b>${serviceName}</b><span>${rupiah(price)}</span></div>
+        <div><b>${escapeHtml(String(serviceName))}</b><span>${rupiah(price)}</span></div>
         ${discount>0?`<div class="subtle">Diskon <span>-${rupiah(discount)}</span></div>`:''}
       </div>
       <div class="wz-receipt-line"></div>
       <div class="wz-receipt-total"><span>TOTAL</span><strong>${rupiah(total)}</strong></div>
-      <div class="wz-receipt-payment">Pembayaran: <b>${payment}</b></div>
+      <div class="wz-receipt-payment">Pembayaran: <b>${escapeHtml(String(payment))}</b></div>
       <div class="wz-receipt-thanks">Terima kasih telah berkunjung.</div>
     </div>
     <div class="dialog-actions" style="justify-content:space-between;flex-wrap:wrap">
@@ -3309,7 +3348,6 @@ window.voidTx=async function(id){
 
 const legacySaveShiftReport=window.saveShiftReport;
 window.saveShiftReport=async function(){
-  console.log('[SHIFT] override saveShiftReport CALLED');
   const c=typeof calcShiftReport==='function'?calcShiftReport():null;
   if(c){
     if(Number(c.serviceTotal||0)<=0){toast('Laporan belum bisa disimpan. Isi minimal 1 layanan terlebih dahulu.');return;}
@@ -3359,7 +3397,7 @@ async function markAllServerNotificationsRead(){
 const legacyNotifications=window.notifications;
 window.notifications=function(){
   const n=(db.notifications||[]).slice().reverse();
-  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">NOTIFICATIONS</span><h1>Notifikasi</h1><p>${n.filter(x=>!x.read).length} belum dibaca.</p></div><button class="btn" onclick="markAllServerNotificationsRead()">Tandai semua dibaca</button></div><section class="card">${n.map(x=>`<div class="feature" style="padding:13px 0;border-bottom:1px solid #20242b;${x.read?'opacity:.65':''}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${x.title}</b><div class="muted">${x.message}</div><small class="muted">${x.createdAt?new Date(x.createdAt).toLocaleString('id-ID'):(x.date||'-')}</small></div>${x.read?'':'<button class="btn small" onclick="markServerNotificationRead(\''+x.id+'\')">Tandai dibaca</button>'}</div></div>`).join('')||'<div class="empty">Belum ada notifikasi.</div>'}</section>`;
+  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">NOTIFICATIONS</span><h1>Notifikasi</h1><p>${n.filter(x=>!x.read).length} belum dibaca.</p></div><button class="btn" onclick="markAllServerNotificationsRead()">Tandai semua dibaca</button></div><section class="card">${n.map(x=>`<div class="feature" style="padding:13px 0;border-bottom:1px solid #20242b;${x.read?'opacity:.65':''}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${escapeHtml(String(x.title))}</b><div class="muted">${escapeHtml(String(x.message))}</div><small class="muted">${x.createdAt?new Date(x.createdAt).toLocaleString('id-ID'):(x.date||'-')}</small></div>${x.read?'':'<button class="btn small" onclick="markServerNotificationRead(\''+x.id+'\')">Tandai dibaca</button>'}</div></div>`).join('')||'<div class="empty">Belum ada notifikasi.</div>'}</section>`;
 };
 void legacyNotifications;
 

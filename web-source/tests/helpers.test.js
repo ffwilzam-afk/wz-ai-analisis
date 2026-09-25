@@ -6,8 +6,9 @@ const assert = require('node:assert');
 const {
   hashPassword, verifyPassword, token, tokenHash,
   defaultUsername, defaultPassword, normalizeBusinessId, safeServerError,
-  xenditSafeName, cookie, validMoney, validDate, validTransaction, validShift
+  xenditSafeName, cookie, body, validMoney, validDate, validTransaction, validShift
 } = require('../lib/helpers.js');
+const { Readable } = require('node:stream');
 
 test('hashPassword/verifyPassword: cocok dengan password benar', () => {
   const stored = hashPassword('rahasia123');
@@ -69,6 +70,24 @@ test('validDate: format YYYY-MM-DD saja', () => {
   assert.equal(validDate(''), false);
 });
 
+test('validDate: menolak tanggal yang tidak nyata', () => {
+  assert.equal(validDate('2024-02-29'), true);
+  assert.equal(validDate('2026-02-29'), false);
+  assert.equal(validDate('2026-99-99'), false);
+  assert.equal(validDate('2025-02-29'), false);
+});
+
+test('body: JSON invalid dan request terlalu besar memiliki status yang jelas', async () => {
+  await assert.rejects(
+    body(Readable.from(['{invalid'])),
+    error => error.statusCode === 400
+  );
+  await assert.rejects(
+    body(Readable.from(['123456789']), 5),
+    error => error.statusCode === 413
+  );
+});
+
 test('validMoney: hanya angka atau string numerik yang terisi', () => {
   assert.equal(validMoney(0), true);
   assert.equal(validMoney(15000), true);
@@ -107,6 +126,12 @@ test('validTransaction: total harus sama dengan harga - diskon', () => {
   assert.equal(validTransaction({ ...base, payment: 'Bitcoin' }), false);
   assert.equal(validTransaction({ ...base, status: 'BATAL' }), false);
   assert.equal(validTransaction({ ...base, date: '2026/09/24' }), false);
+});
+
+test('validTransaction: menolak nominal kosong dan tanggal tidak nyata', () => {
+  const base = { date: '2026-09-24', servicePrice: 50000, discount: 10000, total: 40000, status: 'SELESAI', payment: 'Tunai' };
+  assert.equal(validTransaction({ ...base, servicePrice: '', discount: '', total: '' }), false);
+  assert.equal(validTransaction({ ...base, date: '2026-99-99' }), false);
 });
 
 test('validShift: selisih kasir harus nol dan kas fisik konsisten', () => {

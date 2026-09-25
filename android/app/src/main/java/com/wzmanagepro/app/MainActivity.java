@@ -18,6 +18,8 @@ import android.webkit.WebSettings;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
 
+import org.json.JSONObject;
+
 import com.google.firebase.messaging.FirebaseMessaging;
 
 public class MainActivity extends Activity {
@@ -30,6 +32,7 @@ public class MainActivity extends Activity {
     private WebView web;
     private String pendingNotificationType = "";
     private String pendingNotificationReportId = "";
+    private boolean pageReady = false;
     private static MainActivity activeInstance;
 
     public class AndroidPrintBridge {
@@ -83,8 +86,15 @@ public class MainActivity extends Activity {
 
         web.setWebViewClient(new WebViewClient() {
             @Override
+            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                super.onPageStarted(view, url, favicon);
+                pageReady = false;
+            }
+
+            @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                pageReady = true;
                 loadFcmTokenIntoWebView();
                 handlePendingNotification();
             }
@@ -103,6 +113,17 @@ public class MainActivity extends Activity {
                                 "WhatsApp tidak terpasang di perangkat.",
                                 Toast.LENGTH_SHORT
                         ).show();
+                    }
+                    return true;
+                }
+
+                String host = request.getUrl().getHost();
+                if (("http".equalsIgnoreCase(request.getUrl().getScheme())
+                        || "https".equalsIgnoreCase(request.getUrl().getScheme()))
+                        && !"wz-ai-analisis-rust.vercel.app".equalsIgnoreCase(host)) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
+                    } catch (Exception ignored) {
                     }
                     return true;
                 }
@@ -131,6 +152,7 @@ public class MainActivity extends Activity {
         if (savedInstanceState != null) {
             web.restoreState(savedInstanceState);
         } else {
+            pageReady = false;
             web.loadUrl(START_URL);
         }
 
@@ -158,23 +180,19 @@ public class MainActivity extends Activity {
     }
 
     private void handlePendingNotification() {
-        if (web == null || pendingNotificationReportId == null
+        if (web == null || !pageReady || pendingNotificationReportId == null
                 || pendingNotificationReportId.isEmpty()) {
             return;
         }
 
-        String safeType = pendingNotificationType
-                .replace("\\", "\\\\")
-                .replace("'", "\\'");
-        String safeReportId = pendingNotificationReportId
-                .replace("\\", "\\\\")
-                .replace("'", "\\'");
+        String safeType = JSONObject.quote(pendingNotificationType == null ? "" : pendingNotificationType);
+        String safeReportId = JSONObject.quote(pendingNotificationReportId);
 
         String js =
-                "window.WZNotificationType='" + safeType + "';" +
-                "window.WZNotificationReportId='" + safeReportId + "';" +
+                "window.WZNotificationType=" + safeType + ";" +
+                "window.WZNotificationReportId=" + safeReportId + ";" +
                 "if(typeof window.WZHandleNotification==='function')" +
-                "{window.WZHandleNotification('" + safeType + "','" + safeReportId + "');}";
+                "{window.WZHandleNotification(" + safeType + "," + safeReportId + ");}";
 
         web.evaluateJavascript(js, null);
 
@@ -194,18 +212,14 @@ public class MainActivity extends Activity {
             return;
         }
 
-        String safeType = (type == null ? "" : type)
-                .replace("\\", "\\\\")
-                .replace("'", "\\'");
-        String safeReportId = (reportId == null ? "" : reportId)
-                .replace("\\", "\\\\")
-                .replace("'", "\\'");
+        String safeType = JSONObject.quote(type == null ? "" : type);
+        String safeReportId = JSONObject.quote(reportId == null ? "" : reportId);
 
         String js =
-                "window.WZNotificationType='" + safeType + "';" +
-                "window.WZNotificationReportId='" + safeReportId + "';" +
+                "window.WZNotificationType=" + safeType + ";" +
+                "window.WZNotificationReportId=" + safeReportId + ";" +
                 "if(typeof window.WZHandleNotification==='function')" +
-                "{window.WZHandleNotification('" + safeType + "','" + safeReportId + "');}";
+                "{window.WZHandleNotification(" + safeType + "," + safeReportId + ");}";
 
         runOnUiThread(() -> web.evaluateJavascript(js, null));
     }
@@ -235,18 +249,10 @@ public class MainActivity extends Activity {
                 .getToken()
                 .addOnCompleteListener(task -> {
                     if (!task.isSuccessful()) {
-                        android.util.Log.e("WZ_FCM", "getToken FAILED", task.getException());
-
                         return;
                     }
 
-                    android.util.Log.d("WZ_FCM", "getToken SUCCESS");
-
-
                     String token = task.getResult();
-                    if (token == null || token.isEmpty()) {
-
-                    }
 
                     if (token != null && !token.isEmpty()) {
                         getSharedPreferences("wz_fcm", MODE_PRIVATE)

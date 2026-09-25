@@ -63,17 +63,13 @@ function getFirebaseMessaging(){
 
 function pushConfigured(){return !!(process.env.VAPID_PUBLIC_KEY&&process.env.VAPID_PRIVATE_KEY&&process.env.VAPID_SUBJECT)}
 async function sendFcmNotification({businessId,senderId,title,body,data={}}){
-  console.log('[FCM] START configured=',firebaseConfigured(),'business=',String(businessId||''),'sender=',String(senderId||''));
   let messaging;
   try{
     messaging=getFirebaseMessaging();
-    console.log('[FCM] INIT_OK=',!!messaging);
   }catch(error){
-    console.error('[FCM] INIT_FAILED code=',String(error?.code||''),'message=',String(error?.message||error));
     return;
   }
   if(!messaging || !businessId){
-    console.log('[FCM] SKIP no_messaging_or_business');
     return;
   }
 
@@ -87,7 +83,6 @@ async function sendFcmNotification({businessId,senderId,title,body,data={}}){
     [businessId,senderId]
   );
 
-  console.log('[FCM] recipient_count=',recipients.rowCount,'business_id=',businessId,'sender_id=',senderId);
 
   await Promise.all(recipients.rows.map(async row=>{
     try{
@@ -105,9 +100,7 @@ async function sendFcmNotification({businessId,senderId,title,body,data={}}){
           }
         }
       });
-      console.log('[FCM] send_success recipient_id=',row.id);
     }catch(error){
-      console.error('[FCM] send_failed recipient_id=',row.id,'code=',String(error?.code||''),'message=',String(error?.message||error));
       const code=String(error?.code||'');
       if(
         code==='messaging/registration-token-not-registered' ||
@@ -1054,7 +1047,7 @@ async function handler(req,res){
         transactions:tx.rows,
         shiftReports:sh.rows,
         branches:branches.rows,
-        notifications
+        notifications:['owner','manager'].includes(u.role)?notifications:[]
       });
     }
 
@@ -1123,6 +1116,8 @@ async function handler(req,res){
       const u=await authUser(req);
       if(!u||!['owner','manager'].includes(u.role))
         return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengelola cabang.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
 
       const b=await body(req);
       const id=String(b.id||'').trim();
@@ -1154,18 +1149,20 @@ async function handler(req,res){
       const u=await authUser(req);
       if(!u||!['owner','manager'].includes(u.role))
         return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengelola cabang.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
 
       const id=new URL(req.url,'http://localhost').searchParams.get('id');
       if(!id)
         return send(res,400,{ok:false,error:'ID cabang wajib diisi.'});
 
       const emp=await getPool().query(
-        'SELECT COUNT(*)::int AS count FROM wz_employees WHERE branch_id=$1 AND business_id=$2 AND active=true',
+        'SELECT COUNT(*)::int AS count FROM wz_employees WHERE branch_id=$1 AND business_id=$2',
         [id,u.business_id]
       );
 
       if(Number(emp.rows[0]?.count||0)>0)
-        return send(res,400,{ok:false,error:'Cabang masih memiliki karyawan aktif. Nonaktifkan karyawan atau cabang terlebih dahulu.'});
+        return send(res,400,{ok:false,error:'Cabang masih memiliki karyawan. Pindahkan atau hapus karyawan terlebih dahulu.'});
 
       const r=await getPool().query(
         'DELETE FROM wz_branches WHERE id=$1 AND business_id=$2 RETURNING id',
@@ -1234,41 +1231,48 @@ async function handler(req,res){
       const r=await getPool().query('SELECT data,updated_at AS "updatedAt" FROM wz_app_states WHERE business_id=$1',[u.business_id]);
       let data=r.rowCount?r.rows[0].data:{};
       if(u.role==='employee'){
-        data={customers:Array.isArray(data?.customers)?data.customers:[],services:Array.isArray(data?.services)?data.services:[],branches:Array.isArray(data?.branches)?data.branches:[],notifications:Array.isArray(data?.notifications)?data.notifications:[]};
+        // Employee tidak menerima notifikasi bisnis dari server.
+        data={customers:Array.isArray(data?.customers)?data.customers:[],services:Array.isArray(data?.services)?data.services:[],branches:Array.isArray(data?.branches)?data.branches:[]};
       }else if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Akses ditolak.'});
       return send(res,200,{ok:true,data,updatedAt:r.rowCount?r.rows[0].updatedAt:null});
     }
     if(path==='app-state' && req.method==='PUT'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
       const b=await body(req);const data=b?.data;
       if(!data||typeof data!=='object'||Array.isArray(data))return send(res,400,{ok:false,error:'Data aplikasi tidak valid.'});
+      const expectedUpdatedAt=b?.expectedUpdatedAt?new Date(b.expectedUpdatedAt):null;
+      if(b?.expectedUpdatedAt&&(!expectedUpdatedAt||Number.isNaN(expectedUpdatedAt.getTime())))
+        return send(res,400,{ok:false,error:'Timestamp konflik tidak valid.'});
+      const current=await getPool().query('SELECT data,updated_at AS "updatedAt" FROM wz_app_states WHERE business_id=$1',[u.business_id]);
+      if(expectedUpdatedAt&&current.rowCount&&new Date(current.rows[0].updatedAt).getTime()!==expectedUpdatedAt.getTime())
+        return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
+      const currentData=current.rowCount&&current.rows[0].data&&typeof current.rows[0].data==='object'?current.rows[0].data:{};
       if(u.role==='employee'){
         const customers=Array.isArray(data.customers)?data.customers:[];
         if(JSON.stringify(customers).length>4*1024*1024)return send(res,413,{ok:false,error:'Data pelanggan terlalu besar.'});
-        const current=await getPool().query('SELECT data FROM wz_app_states WHERE business_id=$1',[u.business_id]);
-        const merged=current.rowCount&&current.rows[0].data&&typeof current.rows[0].data==='object'?{...current.rows[0].data,customers}: {customers};
-        await getPool().query(`INSERT INTO wz_app_states(business_id,data,updated_at) VALUES($1,$2::jsonb,NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_at=NOW()`,[u.business_id,JSON.stringify(merged)]);
-        return send(res,200,{ok:true});
+        const payload=JSON.stringify({...currentData,customers});
+        const saved=expectedUpdatedAt
+          ?await getPool().query(`UPDATE wz_app_states SET data=$2::jsonb,updated_at=NOW() WHERE business_id=$1 AND updated_at=$3 RETURNING updated_at AS "updatedAt"`,[u.business_id,payload,expectedUpdatedAt])
+          :await getPool().query(`INSERT INTO wz_app_states(business_id,data,updated_at) VALUES($1,$2::jsonb,NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_at=NOW() RETURNING updated_at AS "updatedAt"`,[u.business_id,payload]);
+        if(expectedUpdatedAt&&!saved.rowCount)return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
+        return send(res,200,{ok:true,updatedAt:saved.rows[0]?.updatedAt||null});
       }
       if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat menyimpan data online.'});
-      const current=await getPool().query(
-        'SELECT data FROM wz_app_states WHERE business_id=$1',
-        [u.business_id]
-      );
-      const currentData=current.rowCount&&current.rows[0].data&&typeof current.rows[0].data==='object'
-        ? current.rows[0].data
-        : {};
       const mergedData={
         ...data,
-        ...(!Object.prototype.hasOwnProperty.call(data,'notifications') &&
-           Array.isArray(currentData.notifications)
+        ...(!Object.prototype.hasOwnProperty.call(data,'notifications')&&Array.isArray(currentData.notifications)
           ? {notifications:currentData.notifications}
           : {})
       };
       const payload=JSON.stringify(mergedData);
       if(payload.length>8*1024*1024)return send(res,413,{ok:false,error:'Data aplikasi terlalu besar.'});
-      await getPool().query(`INSERT INTO wz_app_states(business_id,data,updated_at) VALUES($1,$2::jsonb,NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_at=NOW()`,[u.business_id,payload]);
-      return send(res,200,{ok:true});
+      const saved=expectedUpdatedAt
+        ?await getPool().query(`UPDATE wz_app_states SET data=$2::jsonb,updated_at=NOW() WHERE business_id=$1 AND updated_at=$3 RETURNING updated_at AS "updatedAt"`,[u.business_id,payload,expectedUpdatedAt])
+        :await getPool().query(`INSERT INTO wz_app_states(business_id,data,updated_at) VALUES($1,$2::jsonb,NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_at=NOW() RETURNING updated_at AS "updatedAt"`,[u.business_id,payload]);
+      if(expectedUpdatedAt&&!saved.rowCount)return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
+      return send(res,200,{ok:true,updatedAt:saved.rows[0]?.updatedAt||null});
     }
     if(path==='profile' && req.method==='GET'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
@@ -1299,6 +1303,8 @@ async function handler(req,res){
     if(path==='reset-business' && req.method==='POST'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mereset data bisnis.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
       const client=await getPool().connect();
       try{
         await client.query('BEGIN');
@@ -1351,7 +1357,6 @@ async function handler(req,res){
         body:`Laporan shift ${shift.employeeName||shift.employeeId||''} tersedia.`,
         data:{type:'shift_report',reportId:shift.id}
       }).catch(e=>{
-        console.error('[FCM] sync_business ERROR',String(e?.message||e));
       })));
       return send(res,200,{ok:true,transactions:txs.length,shiftReports:shifts.length});
     }
@@ -1373,7 +1378,13 @@ async function handler(req,res){
       const c=await getPool().connect();try{await c.query('BEGIN');await c.query(`INSERT INTO wz_transactions(id,date,customer_id,customer_name,service_id,service_name,service_price,employee_id,employee_name,total,payment,status,discount,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14) ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,total=EXCLUDED.total,updated_at=NOW() WHERE wz_transactions.business_id=EXCLUDED.business_id`,[t.id,t.date,t.customerId||null,t.customerName||null,t.serviceId||null,t.serviceName||null,servicePrice,t.employeeId,te.name,total,t.payment||'Tunai',t.status||'SELESAI',discount,u.business_id]);await c.query('COMMIT');return send(res,200,{ok:true,id:t.id});}catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
     }
     if(path==='transaction/void' && req.method==='POST'){
-      const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});const b=await body(req);const r=await getPool().query("UPDATE wz_transactions SET status='VOID',updated_at=NOW() WHERE id=$1 AND business_id=$4 AND ($2<>'employee' OR employee_id=$3) RETURNING id",[b.id,u.role,u.employee_id,u.business_id]);if(!r.rowCount)return send(res,404,{ok:false,error:'Transaksi tidak ditemukan atau tidak boleh diubah.'});return send(res,200,{ok:true});
+      const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
+      const b=await body(req);
+      const r=await getPool().query("UPDATE wz_transactions SET status='VOID',updated_at=NOW() WHERE id=$1 AND business_id=$4 AND ($2<>'employee' OR employee_id=$3) RETURNING id",[b.id,u.role,u.employee_id,u.business_id]);
+      if(!r.rowCount)return send(res,404,{ok:false,error:'Transaksi tidak ditemukan atau tidak boleh diubah.'});
+      return send(res,200,{ok:true});
     }
     if(path==='shift-report' && req.method==='POST'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
@@ -1411,7 +1422,6 @@ async function handler(req,res){
         ]
       );
       await sendShiftPushes({...r,businessId:u.business_id},u.id).catch(()=>{});
-      console.log('[FCM] shift_report calling sendFcmNotification business_id=',u.business_id,'sender_id=',u.id);
       await sendFcmNotification({
         businessId:u.business_id,
         senderId:u.id,
@@ -1419,7 +1429,6 @@ async function handler(req,res){
         body:`Laporan shift ${r.employeeName||r.employeeId||''} tersedia.`,
         data:{type:'shift_report',reportId:r.id}
       }).catch(e=>{
-        console.error('[FCM] shift_report ERROR',String(e?.message||e));
       });
       return send(res,200,{ok:true,id:r.id});
     }
@@ -1446,6 +1455,8 @@ async function handler(req,res){
     }
     if(path==='employees' && (req.method==='POST'||req.method==='PUT')){
       const u=await authUser(req);if(!u||!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengelola karyawan.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
       const b=await body(req);const p=getPool();
       const requestedId=String(b.id||'').trim();
       if(req.method==='PUT' && requestedId){
@@ -1502,6 +1513,8 @@ async function handler(req,res){
     }
     if(path==='employees' && req.method==='DELETE'){
       const u=await authUser(req);if(!u||!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Akses ditolak.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
       const id=new URL(req.url,'http://localhost').searchParams.get('id');if(!id)return send(res,400,{ok:false,error:'ID karyawan wajib diisi.'});
       const client=await getPool().connect();try{await client.query('BEGIN');await client.query('DELETE FROM wz_users WHERE employee_id=$1 AND business_id=$2',[id,u.business_id]);const r=await client.query('DELETE FROM wz_employees WHERE id=$1 AND business_id=$2 RETURNING id',[id,u.business_id]);if(!r.rowCount){await client.query('ROLLBACK');return send(res,404,{ok:false,error:'Karyawan tidak ditemukan.'});}await client.query('COMMIT');return send(res,200,{ok:true});}catch(e){await client.query('ROLLBACK');throw e}finally{client.release()};
     }
@@ -1543,6 +1556,8 @@ async function handler(req,res){
       if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       if(!['owner','manager'].includes(u.role))
         return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengatur sistem upah.'});
+      const access=await getSubscriptionAccess(u.business_id);
+      if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
 
       const b=await body(req);
       const payrollType=String(b.payrollType||'BASE_PLUS_SERVICE_BONUS').trim();
@@ -1742,6 +1757,10 @@ async function handler(req,res){
     }
 
     return send(res,404,{ok:false,error:'Endpoint tidak ditemukan.'});
-  }catch(e){console.error(e);return send(res,500,{ok:false,error:safeServerError(e)});}
+  }catch(e){
+    console.error(e);
+    const status=Number(e?.statusCode);
+    return send(res,status>=400&&status<600?status:500,{ok:false,error:safeServerError(e)});
+  }
 }
 module.exports=handler;

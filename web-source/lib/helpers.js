@@ -41,7 +41,26 @@ function xenditSafeName(name){
 }
 function cookie(name,value,maxAge){return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${process.env.NODE_ENV==='production'?'; Secure':''}`}
 function send(res,status,data,headers={}){res.statusCode=status;for(const [k,v] of Object.entries(headers))res.setHeader(k,v);res.setHeader('Content-Type','application/json; charset=utf-8');res.end(JSON.stringify(data));}
-async function body(req){let s='';for await(const c of req)s+=c;return s?JSON.parse(s):{};}
+async function body(req,maxBytes=8*1024*1024){
+  let s='',size=0;
+  for await(const chunk of req){
+    const buf=Buffer.isBuffer(chunk)?chunk:Buffer.from(chunk);
+    size+=buf.length;
+    if(size>maxBytes){
+      const error=new Error('Data request terlalu besar.');
+      error.statusCode=413;
+      throw error;
+    }
+    s+=buf.toString('utf8');
+  }
+  if(!s)return {};
+  try{return JSON.parse(s)}
+  catch{
+    const error=new Error('Format JSON tidak valid.');
+    error.statusCode=400;
+    throw error;
+  }
+}
 
 function validMoney(n){
   // Ketat: hanya menerima angka atau string numerik yang benar-benar terisi.
@@ -51,10 +70,17 @@ function validMoney(n){
   const value=Number(n);
   return Number.isFinite(value)&&value>=0;
 }
-function validDate(value){return /^\d{4}-\d{2}-\d{2}$/.test(String(value||''));}
+function validDate(value){
+  const match=/^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value||''));
+  if(!match)return false;
+  const year=Number(match[1]),month=Number(match[2]),day=Number(match[3]);
+  const date=new Date(Date.UTC(year,month-1,day));
+  return date.getUTCFullYear()===year&&date.getUTCMonth()===month-1&&date.getUTCDate()===day;
+}
 function validTransaction(t){
-  const servicePrice=Number(t.servicePrice||0),discount=Number(t.discount||0),total=Number(t.total||0);
-  return validDate(t.date)&&validMoney(servicePrice)&&validMoney(discount)&&validMoney(total)&&discount<=servicePrice&&Math.abs(total-Math.max(0,servicePrice-discount))<=0.001&&['SELESAI','VOID'].includes(String(t.status||'SELESAI'))&&['Tunai','QRIS','Transfer'].includes(String(t.payment||'Tunai'));
+  if(!t||typeof t!=='object')return false;
+  const servicePrice=Number(t.servicePrice),discount=Number(t.discount),total=Number(t.total);
+  return validDate(t.date)&&validMoney(t.servicePrice)&&validMoney(t.discount)&&validMoney(t.total)&&discount<=servicePrice&&Math.abs(total-Math.max(0,servicePrice-discount))<=0.001&&['SELESAI','VOID'].includes(String(t.status||'SELESAI'))&&['Tunai','QRIS','Transfer'].includes(String(t.payment||'Tunai'));
 }
 function validShift(r){
   const values=['openingCash','cash','qris','cashExpense','physicalCash','totalPayment','expectedCash','cashDifference','serviceTotal','productTotal','totalOmzet'];
