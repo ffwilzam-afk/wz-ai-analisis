@@ -45,6 +45,13 @@ a{text-decoration:none;color:inherit}
 .form{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.form label{display:grid;gap:6px;color:#b2b7bf;font-size:12px}.form .full{grid-column:1/-1}
 .modal{display:none;position:fixed;inset:0;background:#000c;align-items:center;justify-content:center;padding:16px;z-index:50}.modal.open{display:flex}.dialog{width:min(820px,100%);max-height:92vh;overflow:auto;background:#11151a;border:1px solid #73561b;border-radius:14px;padding:20px;box-shadow:var(--shadow)}.dialog h2{font:700 24px Georgia,serif;margin:7px 0 12px}.dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.detail-box{border:1px solid #282d34;border-radius:9px;background:#0b0e12;padding:12px}.detail-box strong{display:block;font-size:18px;margin-top:6px}.result{white-space:pre-wrap;word-break:break-word;background:#07090b;border:1px solid #272b31;padding:12px;border-radius:9px;color:#cfd3d9;font-size:12px}
 .modal-backdrop{position:absolute;inset:0;background:rgba(5,7,10,0.72);backdrop-filter:blur(4px)}
+.subscription-confirm{width:min(430px,100%);margin:auto;text-align:center}
+.subscription-confirm .confirm-brand{font:800 12px/1.2 Arial,Helvetica,sans-serif;letter-spacing:.22em;color:var(--gold2);text-transform:uppercase}
+.subscription-confirm h2{font-size:22px;margin:12px 0 8px}
+.subscription-confirm p{color:var(--muted);line-height:1.5;margin:0 0 18px}
+.subscription-confirm .confirm-price{color:var(--gold2);font-weight:800;font-size:18px;margin:0 0 6px}
+.subscription-confirm .dialog-actions{justify-content:center;margin-top:0}
+.subscription-confirm .btn{min-width:96px}
 .modal-card{position:relative;width:min(520px,100%);max-height:92vh;overflow:auto;background:linear-gradient(180deg,#11151a,#0c0f13);border:1px solid #73561b;border-radius:18px;padding:22px;box-shadow:0 18px 56px rgba(0,0,0,.45);z-index:2}
 #registerBusinessModal{position:fixed;inset:0;display:none;align-items:center;justify-content:center;padding:18px;z-index:110;background:rgba(3,5,8,.72)}
 #registerBusinessModal .modal-card{
@@ -307,21 +314,32 @@ button,input,select,textarea{max-width:100%}
 </style>
 <style>
 .owner-forum-page{
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  height:calc(100vh - 170px);
+  height:calc(100dvh - 170px);
+  max-height:calc(100vh - 170px);
+  max-height:calc(100dvh - 170px);
   background:#0b0b0b;
   border:1px solid rgba(212,175,55,.28);
   border-radius:16px;
 }
 
 .owner-forum-head{
+  flex:0 0 auto;
   padding:16px;
   border-bottom:1px solid rgba(212,175,55,.2);
   background:linear-gradient(135deg,#111,#080808);
 }
 
 .owner-forum-messages{
-  min-height:420px;
-  max-height:65vh;
+  flex:1 1 auto;
+  min-height:0;
+  max-height:none;
   overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
   padding:16px 12px;
   background:
     radial-gradient(circle at top right,rgba(212,175,55,.06),transparent 35%),
@@ -379,12 +397,14 @@ button,input,select,textarea{max-width:100%}
 
 .owner-forum-text{
   display:inline-block;
+  max-width:100%;
   padding:10px 13px;
   border-radius:4px 14px 14px 14px;
   background:#151515;
   border:1px solid #292929;
   color:#eee;
   line-height:1.45;
+  overflow-wrap:anywhere;
   word-break:break-word;
 }
 
@@ -395,6 +415,7 @@ button,input,select,textarea{max-width:100%}
 }
 
 .owner-forum-compose{
+  flex:0 0 auto;
   display:flex;
   align-items:center;
   gap:8px;
@@ -430,18 +451,15 @@ button,input,select,textarea{max-width:100%}
 }
 
 @media(max-width:600px){
-  .owner-forum-messages{
-    min-height:calc(100vh - 300px);
-    max-height:none;
+  .owner-forum-page{
+    height:calc(100vh - 154px - 68px - env(safe-area-inset-bottom));
+    height:calc(100dvh - 154px - 68px - env(safe-area-inset-bottom));
+    max-height:calc(100vh - 154px - 68px - env(safe-area-inset-bottom));
+    max-height:calc(100dvh - 154px - 68px - env(safe-area-inset-bottom));
   }
 
   .owner-forum-head{
     padding:13px;
-  }
-
-  .owner-forum-compose{
-    position:sticky;
-    bottom:0;
   }
 
   .owner-forum-send{
@@ -918,6 +936,7 @@ function updateBottomNav(){
 
 let wzForumUnread=0;
 let wzForumCheckedAt=0;
+let wzForumSeenAt=0;
 
 // Cache satu load subscription per sesi tenant agar auto-refresh tidak mengganti
 // halaman yang sudah stabil atau mengirim request berulang.
@@ -952,10 +971,12 @@ let wzForumSeenSaved=false;
 
 function markOwnerForumSeen(){
   db.profile=db.profile||{};
-  db.profile.ownerForumSeenAt=new Date().toISOString();
-  if(wzForumUnread){wzForumUnread=0;topbarBadge('wzChatBadge',0)}
-  // Cukup satu kali per sesi: mencegah save app-state berulang tiap render
-  // (save ulang memicu hydrate+render lagi dan membuat halaman berkedip).
+  const now=Date.now();
+  wzForumSeenAt=Math.max(wzForumSeenAt,now);
+  db.profile.ownerForumSeenAt=new Date(wzForumSeenAt).toISOString();
+  wzForumUnread=0;
+  topbarBadge('wzChatBadge',0);
+  // Satu persist per sesi; hydrate mempertahankan seenAt lokal sampai server menyimpan.
   if(wzForumSeenSaved)return;
   wzForumSeenSaved=true;
   window.WZOnlineStateSave?.queue?.();
@@ -968,7 +989,8 @@ async function refreshOwnerForumBadge(){
   try{
     const r=await window.api('owner-forum/messages');
     const list=Array.isArray(r.messages)?r.messages:[];
-    const seen=Date.parse((db.profile||{}).ownerForumSeenAt||'')||(Date.now()-86400000);
+    const profileSeen=Date.parse((db.profile||{}).ownerForumSeenAt||'')||0;
+    const seen=Math.max(wzForumSeenAt||0,profileSeen)||(Date.now()-86400000);
     wzForumUnread=list.filter(m=>Date.parse(m.createdAt||0)>seen).length;
     topbarBadge('wzChatBadge',wzForumUnread);
   }catch{
@@ -1114,6 +1136,34 @@ async function subscriptionPage(){
     if(subscriptionViewPromise===request)subscriptionViewPromise=null;
   }
 }
+let subscriptionConfirmResolver=null;
+
+function resolveSubscriptionConfirm(value){
+  const resolve=subscriptionConfirmResolver;
+  if(!resolve)return;
+  subscriptionConfirmResolver=null;
+  closeModal();
+  resolve(Boolean(value));
+}
+window.resolveSubscriptionConfirm=resolveSubscriptionConfirm;
+
+function showSubscriptionConfirm(label,periodLabel,amount){
+  if(subscriptionConfirmResolver)resolveSubscriptionConfirm(false);
+  return new Promise(resolve=>{
+    subscriptionConfirmResolver=resolve;
+    show(`<div class="subscription-confirm">
+      <div class="confirm-brand">WZ MANAGE PRO</div>
+      <h2>Berlangganan ${escapeHtml(label)} ${escapeHtml(periodLabel)}</h2>
+      <p class="confirm-price">Harga: Rp ${Number(amount).toLocaleString('id-ID')}</p>
+      <p>Lanjut ke pembayaran Xendit?</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" onclick="resolveSubscriptionConfirm(false)">BATAL</button>
+        <button type="button" class="btn primary" onclick="resolveSubscriptionConfirm(true)">OKE</button>
+      </div>
+    </div>`);
+  });
+}
+
 window.selectSubscriptionPlan=async function(plan,period){
   const prices={
     PRO:{MONTH:49000,YEAR:490000},
@@ -1122,19 +1172,13 @@ window.selectSubscriptionPlan=async function(plan,period){
 
   const amount=prices?.[plan]?.[period];
   if(!amount){
-    alert('Paket atau periode subscription tidak valid.');
+    toast('Paket atau periode subscription tidak valid.',true);
     return;
   }
 
   const label=plan==='PRO_MAX'?'PRO MAX':'PRO';
   const periodLabel=period==='YEAR'?'12 Bulan':'30 Hari';
-
-  const confirmed=confirm(
-    `Berlangganan ${label} ${periodLabel}\\n\\n`+
-    `Harga: Rp ${amount.toLocaleString('id-ID')}\\n\\n`+
-    `Lanjut ke pembayaran Xendit?`
-  );
-
+  const confirmed=await showSubscriptionConfirm(label,periodLabel,amount);
   if(!confirmed)return;
 
   try{
@@ -1155,7 +1199,7 @@ window.selectSubscriptionPlan=async function(plan,period){
     window.location.href=paymentUrl;
   }catch(error){
     console.error('Subscription order error:',error);
-    alert(`Gagal membuat pembayaran:\\n${error?.message||error}`);
+    toast('Gagal membuat pembayaran: '+(error?.message||error),true);
   }
 };
 
@@ -2438,7 +2482,7 @@ function closeModal(){
  if(modal)modal.classList.remove('open');
  if(modalHistoryState){modalHistoryState=false;if(history.state?.wzModal)history.back()}
 }
-window.addEventListener('popstate',()=>{const modal=document.getElementById('modal');if(modal?.classList.contains('open')){modal.classList.remove('open');modalHistoryState=false}});
+window.addEventListener('popstate',()=>{const modal=document.getElementById('modal');if(modal?.classList.contains('open')){modal.classList.remove('open');modalHistoryState=false;if(typeof resolveSubscriptionConfirm==='function')resolveSubscriptionConfirm(false)}});
 
 async function shiftTestReset(){
  if(!guard('system'))return;
@@ -2457,12 +2501,16 @@ async function shiftTestReset(){
 
 function auth(){if(!guard('auth'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SECURITY</span><h1>Keamanan</h1><p>Aplikasi menggunakan autentikasi server dan data bisnis online.</p></div></div><div class="grid">${boxCard('Mode','Online')}${boxCard('Storage','Neon PostgreSQL')}${boxCard('Backup','JSON')}${boxCard('Session','Server')}</div><section class="card section"><h3>Peringatan</h3><p class="muted">Jangan membuka file backup JSON di tempat umum. Data bisnis disimpan pada server dan dapat diakses dari perangkat lain.</p></section>`}
 
+let ownerForumLoadPromise=null;
+let ownerForumLoaded=false;
+
 async function ownerForumPage(){
   if(!guard('ownerForum'))return;
 
   const content=document.getElementById('content');
 
   if(!document.getElementById('ownerForumMessages')){
+    ownerForumLoaded=false;
     content.innerHTML=`
       <section class="card section owner-forum-page" style="padding:0;overflow:hidden">
         <div class="owner-forum-head">
@@ -2494,7 +2542,9 @@ async function ownerForumPage(){
     `;
   }
 
-  await ownerForumLoad();
+  markOwnerForumSeen();
+  const loaded=await ownerForumLoad();
+  if(loaded===null&&document.getElementById('ownerForumMessages')&&!ownerForumLoaded)await ownerForumLoad();
 }
 
 function escapeHtml(value){
@@ -2507,27 +2557,37 @@ function escapeHtml(value){
   }[ch]));
 }
 
-async function ownerForumLoad(){
+async function ownerForumLoad(options={}){
   const box=document.getElementById('ownerForumMessages');
   if(!box)return;
+  const force=options?.force===true;
+  if(ownerForumLoadPromise)return ownerForumLoadPromise;
+  if(ownerForumLoaded&&!force)return;
 
-  try{
-    const r=await window.api('owner-forum/messages');
-    if(!r.ok)throw new Error(r.error||'Gagal memuat obrolan.');
+  const wasNearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;
+  const previousScroll=box.scrollTop;
+  const request=(async()=>{
+    try{
+      const r=await window.api('owner-forum/messages');
+      if(!r.ok)throw new Error(r.error||'Gagal memuat obrolan.');
 
-    const messages=Array.isArray(r.messages)?r.messages:[];
-
-    if(!messages.length){
-      box.innerHTML='<div class="muted" style="padding:32px;text-align:center">Belum ada obrolan.</div>';
-      return;
+      const messages=Array.isArray(r.messages)?r.messages:[];
+      if(document.getElementById('ownerForumMessages')!==box)return null;
+      box.innerHTML=messages.length?messages.map(ownerForumMessageHtml).join(''):'<div class="muted" style="padding:32px;text-align:center">Belum ada obrolan.</div>';
+      ownerForumLoaded=true;
+      box.scrollTop=wasNearBottom?box.scrollHeight:previousScroll;
+      return messages;
+    }catch(e){
+      if(document.getElementById('ownerForumMessages')!==box)return null;
+      box.innerHTML='<div class="muted" style="padding:24px;text-align:center">Gagal memuat obrolan.</div>';
+      ownerForumLoaded=false;
+      toast(e.message||'Gagal memuat obrolan.',true);
+      return [];
     }
-
-    box.innerHTML=messages.map(ownerForumMessageHtml).join('');
-    box.scrollTop=box.scrollHeight;
-  }catch(e){
-    box.innerHTML='<div class="muted" style="padding:24px;text-align:center">Gagal memuat obrolan.</div>';
-    toast(e.message||'Gagal memuat obrolan.',true);
-  }
+  })();
+  ownerForumLoadPromise=request;
+  try{return await request}
+  finally{if(ownerForumLoadPromise===request)ownerForumLoadPromise=null}
 }
 
 function ownerForumMessageHtml(m){
@@ -2576,7 +2636,7 @@ async function ownerForumSend(){
     if(!r.ok)throw new Error(r.error||'Pesan gagal dikirim.');
 
     input.value='';
-    await ownerForumLoad();
+    await ownerForumLoad({force:true});
   }catch(e){
     toast(e.message||'Pesan gagal dikirim.',true);
   }finally{
@@ -2602,7 +2662,7 @@ async function ownerForumSendSticker(stickerId){
 
     if(!r.ok)throw new Error(r.error||'Sticker gagal dikirim.');
 
-    await ownerForumLoad();
+    await ownerForumLoad({force:true});
   }catch(e){
     toast(e.message||'Sticker gagal dikirim.',true);
   }
@@ -2676,6 +2736,10 @@ const NON_BUSINESS_KEYS=new Set([
 function resetTenantState(){
   clearTimeout(saveTimer);
   appStateUpdatedAt=null;
+  wzForumSeenAt=0;
+  wzForumSeenSaved=false;
+  wzForumCheckedAt=0;
+  wzForumUnread=0;
   subscriptionViewCache=null;
   subscriptionViewPromise=null;
   subscriptionViewKey='';
@@ -2707,6 +2771,12 @@ async function hydrateAppState(){
     const hasState=Object.keys(state).length>0;
     if(hasState){
       Object.assign(db,state);
+      const serverSeen=Date.parse((db.profile||{}).ownerForumSeenAt||'')||0;
+      if(wzForumSeenAt>serverSeen){
+        db.profile={...(db.profile||{}),ownerForumSeenAt:new Date(wzForumSeenAt).toISOString()};
+      }else if(serverSeen){
+        wzForumSeenAt=serverSeen;
+      }
     }
     appStateUpdatedAt=r.updatedAt||null;
     db.__onlineStateLoaded=true;
