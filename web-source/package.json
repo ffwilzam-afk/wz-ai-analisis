@@ -3,8 +3,12 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "check": "node --check \"api/[...path].js\" && node --check lib/helpers.js && node --check sw.js",
-    "test": "npm run check && node --test"
+    "check": "node --check \"api/[...path].js\" && node --check lib/helpers.js && node --check lib/routes/admin.js && node --check scripts/provision-platform-admin.js && node --check scripts/migrate-platform-admin.js && node --check scripts/verify-platform-admin.js && node --check sw.js",
+    "test": "npm run check && node --test",
+    "admin:preflight": "node scripts/provision-platform-admin.js --preflight",
+    "admin:migrate": "node scripts/migrate-platform-admin.js",
+    "admin:provision": "node scripts/provision-platform-admin.js",
+    "admin:verify": "node scripts/verify-platform-admin.js"
   },
   "dependencies": {
     "firebase-admin": "^14.4.0",

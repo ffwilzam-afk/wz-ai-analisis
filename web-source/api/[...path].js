@@ -14,7 +14,8 @@ const {
 // responsnya sendiri, dan handler berhenti begitu res.writableEnded bernilai true.
 const routeModules = [
   require('../lib/routes/auth.js'),
-  require('../lib/routes/push.js')
+  require('../lib/routes/push.js'),
+  require('../lib/routes/admin.js')
 ];
 
 // Helper yang dibagikan ke modul rute.
@@ -22,7 +23,7 @@ function routeContext(){
   return {
     getPool, send, body, cookie,
     token, tokenHash, hashPassword, verifyPassword,
-    authUser, normalizeBusinessId, pushConfigured
+    authUser, normalizeBusinessId, pushConfigured, sendBusinessForumPush
   };
 }
 
@@ -111,6 +112,34 @@ async function sendFcmNotification({businessId,senderId,title,body,data={}}){
           [row.id,businessId]
         );
       }
+    }
+  }));
+}
+
+async function sendBusinessForumPush({businessId,title,body,data={}}){
+  let messaging;
+  try{messaging=getFirebaseMessaging()}catch{return}
+  if(!messaging||!businessId)return;
+  const p=getPool();
+  const recipients=await p.query(
+    `SELECT t.id,t.token
+     FROM wz_fcm_tokens t
+     JOIN wz_users u ON u.id=t.user_id
+     WHERE t.business_id=$1 AND u.business_id=$1 AND u.role='owner' AND u.active=true`,
+    [businessId]
+  );
+  await Promise.all(recipients.rows.map(async row=>{
+    try{
+      await messaging.send({
+        token:row.token,
+        notification:{title,body},
+        data:Object.fromEntries(Object.entries(data).map(([k,v])=>[String(k),String(v)])),
+        android:{priority:'high',notification:{channelId:'wz_manage_pro',sound:'default'}}
+      });
+    }catch(error){
+      const code=String(error?.code||'');
+      if(code==='messaging/registration-token-not-registered'||code==='messaging/invalid-registration-token')
+        await p.query('DELETE FROM wz_fcm_tokens WHERE id=$1 AND business_id=$2',[row.id,businessId]);
     }
   }));
 }
@@ -300,9 +329,66 @@ async function schema(){
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS wz_platform_admins(
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      email TEXT,
+      display_name TEXT NOT NULL,
+      password_hash TEXT NOT NULL,
+      active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      last_login_at TIMESTAMPTZ
+    );
+    CREATE TABLE IF NOT EXISTS wz_platform_admin_sessions(
+      token_hash TEXT PRIMARY KEY,
+      admin_id BIGINT NOT NULL REFERENCES wz_platform_admins(id) ON DELETE CASCADE,
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS wz_platform_admin_sessions_exp_idx ON wz_platform_admin_sessions(expires_at);
+    CREATE TABLE IF NOT EXISTS wz_admin_audit_logs(
+      id BIGSERIAL PRIMARY KEY,
+      admin_id BIGINT REFERENCES wz_platform_admins(id) ON DELETE SET NULL,
+      action TEXT NOT NULL,
+      target_type TEXT,
+      target_id TEXT,
+      business_id TEXT REFERENCES wz_businesses(id) ON DELETE SET NULL,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS wz_admin_audit_logs_created_idx ON wz_admin_audit_logs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS wz_admin_audit_logs_business_idx ON wz_admin_audit_logs(business_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS wz_admin_notifications(
+      id BIGSERIAL PRIMARY KEY,
+      type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      message TEXT NOT NULL,
+      business_id TEXT REFERENCES wz_businesses(id) ON DELETE CASCADE,
+      target_type TEXT,
+      target_id TEXT,
+      read_at TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS wz_admin_notifications_created_idx ON wz_admin_notifications(created_at DESC);
+    CREATE INDEX IF NOT EXISTS wz_admin_notifications_business_idx ON wz_admin_notifications(business_id,created_at DESC);
+    CREATE TABLE IF NOT EXISTS wz_system_settings(
+      key TEXT PRIMARY KEY,
+      value JSONB NOT NULL DEFAULT '{}'::jsonb,
+      updated_by BIGINT REFERENCES wz_platform_admins(id) ON DELETE SET NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS wz_admin_forum_reads(
+      admin_id BIGINT NOT NULL REFERENCES wz_platform_admins(id) ON DELETE CASCADE,
+      business_id TEXT NOT NULL REFERENCES wz_businesses(id) ON DELETE CASCADE,
+      last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      PRIMARY KEY(admin_id,business_id)
+    );
     CREATE TABLE IF NOT EXISTS wz_owner_forum_messages(
       id BIGSERIAL PRIMARY KEY,
-      sender_user_id BIGINT NOT NULL REFERENCES wz_users(id) ON DELETE CASCADE,
+      sender_user_id BIGINT REFERENCES wz_users(id) ON DELETE CASCADE,
+      sender_admin_id BIGINT REFERENCES wz_platform_admins(id) ON DELETE SET NULL,
+      sender_role TEXT NOT NULL DEFAULT 'owner',
+      business_id TEXT REFERENCES wz_businesses(id),
       message TEXT NOT NULL DEFAULT '',
       message_type TEXT NOT NULL DEFAULT 'text'
         CHECK (message_type IN ('text','sticker')),
@@ -310,10 +396,16 @@ async function schema(){
       reply_to_id BIGINT REFERENCES wz_owner_forum_messages(id) ON DELETE SET NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE wz_owner_forum_messages ADD COLUMN IF NOT EXISTS sender_admin_id BIGINT REFERENCES wz_platform_admins(id) ON DELETE SET NULL;
+    ALTER TABLE wz_owner_forum_messages ADD COLUMN IF NOT EXISTS sender_role TEXT NOT NULL DEFAULT 'owner';
+    ALTER TABLE wz_owner_forum_messages ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
+    ALTER TABLE wz_owner_forum_messages ALTER COLUMN sender_user_id DROP NOT NULL;
+    UPDATE wz_owner_forum_messages m SET business_id=u.business_id FROM wz_users u WHERE m.business_id IS NULL AND m.sender_user_id=u.id;
 
     CREATE INDEX IF NOT EXISTS wz_owner_forum_messages_created_idx
       ON wz_owner_forum_messages(created_at);
-
+    CREATE INDEX IF NOT EXISTS wz_owner_forum_messages_business_created_idx
+      ON wz_owner_forum_messages(business_id,created_at DESC);
     CREATE INDEX IF NOT EXISTS wz_owner_forum_messages_sender_idx
       ON wz_owner_forum_messages(sender_user_id);
 
@@ -576,6 +668,14 @@ async function handler(req,res){
           referenceId
         ]);
 
+        if(r.rowCount){
+          await p.query(
+            `INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id)
+             VALUES('payment_paid','Pembayaran subscription berhasil',$1,$2,'business',$2)`,
+            [`Order ${referenceId} berhasil dibayar`,r.rows[0].business_id]
+          );
+        }
+
         if(r.rowCount && r.rows[0].billing_period==='YEAR'){
           await p.query(`
             UPDATE wz_subscriptions
@@ -822,6 +922,12 @@ async function handler(req,res){
         amount,
         expiresAt
       ]);
+
+      await p.query(
+        `INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id)
+         VALUES('subscription_order','Order subscription baru',$1,$2,'business',$2)`,
+        [`Order ${orderId} menunggu pembayaran Xendit`,u.business_id]
+      );
 
       const customer={
         reference_id:String(`${u.business_id}${orderId}`).replace(/[^A-Za-z0-9]/g,''),
@@ -1614,6 +1720,7 @@ async function handler(req,res){
       const u=await authUser(req);
       if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       if(u.role!=='owner')return send(res,403,{ok:false,error:'Akses hanya untuk Owner.'});
+      if(!u.business_id)return send(res,403,{ok:false,error:'Business tidak tersedia.'});
 
       const pool=getPool();
 
@@ -1626,18 +1733,21 @@ async function handler(req,res){
             m.sticker_id AS "stickerId",
             m.reply_to_id AS "replyToId",
             m.created_at AS "createdAt",
-            u.id AS "senderUserId",
-            u.name AS "senderName",
-            COALESCE(p.avatar,'') AS "senderAvatar"
+            COALESCE(m.sender_user_id,m.sender_admin_id) AS "senderId",
+            COALESCE(u.name,a.display_name,'Owner') AS "senderName",
+            COALESCE(p.avatar,'') AS "senderAvatar",
+            m.sender_role AS "senderRole"
           FROM wz_owner_forum_messages m
-          JOIN wz_users u ON u.id=m.sender_user_id
+          LEFT JOIN wz_users u ON u.id=m.sender_user_id
+          LEFT JOIN wz_platform_admins a ON a.id=m.sender_admin_id
           LEFT JOIN wz_user_profiles p ON p.user_id=u.id
-          WHERE u.role='owner' AND u.active=true
-          ORDER BY m.created_at DESC
-          LIMIT 100
-        `);
+          WHERE m.business_id=$1
+            AND (m.sender_user_id IS NOT NULL OR m.sender_admin_id IS NOT NULL)
+          ORDER BY m.created_at ASC
+          LIMIT 200
+        `,[u.business_id]);
 
-        return send(res,200,{ok:true,messages:r.rows.reverse()});
+        return send(res,200,{ok:true,businessId:u.business_id,messages:r.rows});
       }
 
       if(req.method==='POST'){
@@ -1649,49 +1759,47 @@ async function handler(req,res){
 
         if(!['text','sticker'].includes(messageType))
           return send(res,400,{ok:false,error:'Jenis pesan tidak valid.'});
-
         if(messageType==='text' && !message)
           return send(res,400,{ok:false,error:'Pesan tidak boleh kosong.'});
-
         if(messageType==='sticker' && !stickerId)
           return send(res,400,{ok:false,error:'Sticker tidak valid.'});
-
         if(replyToId!==null && (!Number.isInteger(replyToId)||replyToId<1))
           return send(res,400,{ok:false,error:'Reply tidak valid.'});
 
         if(replyToId!==null){
-          const replyCheck=await pool.query(`
-            SELECT m.id
-            FROM wz_owner_forum_messages m
-            JOIN wz_users u ON u.id=m.sender_user_id
-            WHERE m.id=$1 AND u.role='owner' AND u.active=true
-          `,[replyToId]);
-
+          const replyCheck=await pool.query(
+            'SELECT id FROM wz_owner_forum_messages WHERE id=$1 AND business_id=$2',
+            [replyToId,u.business_id]
+          );
           if(!replyCheck.rowCount)
             return send(res,400,{ok:false,error:'Pesan yang dibalas tidak ditemukan.'});
         }
 
         const r=await pool.query(`
           INSERT INTO wz_owner_forum_messages
-            (sender_user_id,message,message_type,sticker_id,reply_to_id)
-          VALUES($1,$2,$3,$4,$5)
+            (sender_user_id,sender_role,business_id,message,message_type,sticker_id,reply_to_id)
+          VALUES
+            ($1,'owner',$2,$3,$4,$5,$6)
           RETURNING
             id,
             message,
             message_type AS "messageType",
             sticker_id AS "stickerId",
             reply_to_id AS "replyToId",
-            created_at AS "createdAt"
-        `,[u.id,message,messageType,stickerId,replyToId]);
+            created_at AS "createdAt",
+            sender_user_id AS "senderId",
+            sender_role AS "senderRole"
+        `,[u.id,u.business_id,message,messageType,stickerId,replyToId]);
+
+        await pool.query(
+          `INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id)
+           VALUES('owner_message','Pesan Owner baru',$1,$2,'business',$2)`,
+          [`Owner ${u.name} mengirim pesan baru`,u.business_id]
+        );
 
         return send(res,201,{
           ok:true,
-          message:{
-            ...r.rows[0],
-            senderUserId:u.id,
-            senderName:u.name,
-            senderAvatar:''
-          }
+          message:{...r.rows[0],senderName:u.name,senderAvatar:'',senderRole:'owner'}
         });
       }
 
@@ -1723,12 +1831,10 @@ async function handler(req,res){
 
       const pool=getPool();
 
-      const messageCheck=await pool.query(`
-        SELECT m.id
-        FROM wz_owner_forum_messages m
-        JOIN wz_users sender ON sender.id=m.sender_user_id
-        WHERE m.id=$1 AND sender.role='owner' AND sender.active=true
-      `,[messageId]);
+      const messageCheck=await pool.query(
+        'SELECT m.id FROM wz_owner_forum_messages m WHERE m.id=$1 AND m.business_id=$2',
+        [messageId,u.business_id]
+      );
 
       if(!messageCheck.rowCount)
         return send(res,404,{ok:false,error:'Pesan tidak ditemukan.'});

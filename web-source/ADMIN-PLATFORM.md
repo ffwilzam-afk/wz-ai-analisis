@@ -1,0 +1,33 @@
+# WZ MANAGE PRO V11 — Admin Platform
+
+Admin Platform tersedia di `/admin.html` dan memakai API catch-all yang sama (`/api/admin/...`) tanpa menambah Serverless Function.
+
+## Authentication
+
+- Admin memakai `wz_admin_session` HttpOnly cookie, terpisah dari `wz_session` tenant.
+- Role Admin tidak disimpan di `wz_users` dan tidak dapat dipromosikan dari frontend.
+- Tidak ada password default. Akun pertama dibuat secara interaktif:
+
+```bash
+cd web-source
+npm run admin:provision -- --username admin_nama --name "Nama Admin" --email admin@example.com
+```
+
+Script meminta password secara terminal. Jika Terminal workspace tidak tersedia, sementara dapat memakai key `WZ_ADMIN_INITIAL_PASSWORD` melalui Settings → Environment; key tersebut harus dihapus segera setelah provisioning. Script hanya menyimpan hash scrypt dan tidak mencetak password.
+
+## Data dan tenant isolation
+
+- `ADMIN-PLATFORM-V1-MIGRATION.sql` hanya menambahkan tabel/column/index secara non-destruktif.
+- Jalankan `npm run admin:preflight` untuk pemeriksaan read-only, lalu `npm run admin:migrate` dengan environment database production yang sudah dikonfirmasi.
+- Script migration memakai transaction, advisory lock, lock timeout, dan statement timeout; provisioning tidak menjalankan migration otomatis.
+- `npm run admin:verify` menjalankan pemeriksaan server-side dan endpoint read-only dengan sesi sementara yang dibersihkan otomatis; pengujian tidak mengubah data tenant.
+- Chat tetap memakai `wz_owner_forum_messages`, tetapi kini memiliki `business_id` dan `sender_admin_id`.
+- Endpoint Owner selalu mengambil tenant dari session server.
+- Endpoint Admin hanya dapat dipakai oleh session `wz_admin_session`.
+- FCM pesan Admin hanya dikirim ke token owner dengan `business_id` yang sama.
+
+## Menu Admin
+
+Dashboard, Business, Owner/User, Subscription, Paket, Pembayaran, Obrolan Owner, Notification, Audit Log, dan Pengaturan Sistem tersedia di UI Admin. Dashboard dan tabel menggunakan query server-side dengan pencarian, filter, serta pagination.
+
+Tidak ada endpoint hapus tenant otomatis, tidak ada secret yang dikirim ke frontend, dan perubahan Admin-sensitive masuk ke `wz_admin_audit_logs`.

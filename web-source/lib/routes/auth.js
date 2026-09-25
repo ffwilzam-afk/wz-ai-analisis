@@ -20,7 +20,7 @@ module.exports = async function authRoutes(ctx, req, res, path){
       await c.query('INSERT INTO wz_branches(id,name,active,business_id) VALUES($1,$2,true,$3)',[branchId,branchName,businessId]);
       await c.query("INSERT INTO wz_employees(id,name,role,branch_id,salary,target,active,business_id) VALUES($1,$2,'Owner',$3,2000000,4500000,true,$4)",[employeeId,ownerName,branchId,businessId]);
       const ur=await c.query("INSERT INTO wz_users(username,password_hash,role,name,employee_id,business_id) VALUES($1,$2,'owner',$3,$4,$5) RETURNING id",[username,hashPassword(password),ownerName,employeeId,businessId]);
-      await c.query('INSERT INTO wz_app_states(business_id,data) VALUES($1,$2::jsonb)',[businessId,'{}']);
+      await c.query('INSERT INTO wz_app_states(business_id,data) VALUES($1,$2::jsonb)',[businessId,'{}']);await c.query("INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id) VALUES('business_new','Business baru',$1,$2,'business',$2)",['Business baru: '+businessName,businessId]);
       await c.query(`
         INSERT INTO wz_subscriptions
           (business_id,plan,status,trial_started_at,trial_ends_at,current_period_start,current_period_end)

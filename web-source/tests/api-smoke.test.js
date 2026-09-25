@@ -121,3 +121,22 @@ test('modul rute tidak mengambil alih path lain', async () => {
   await handler(makeReq('/api/business'), res);
   assert.notEqual(res.statusCode, 404, 'rute business masih ada di file utama');
 });
+
+test('Admin API menolak request tanpa sesi Admin', async () => {
+  const res = makeRes();
+  await handler(makeReq('/api/admin/dashboard'), res);
+  assert.equal(res.statusCode, 401);
+  assert.match(res.body.error, /Admin login diperlukan/i);
+});
+
+test('Admin login tanpa kredensial ditolak', async () => {
+  const res = makeRes();
+  await handler(makeReq('/api/admin/login', 'POST'), res);
+  assert.equal(res.statusCode, 400);
+});
+
+test('session tenant tidak mendapat akses Admin', async () => {
+  const res = makeRes();
+  await handler(makeReq('/api/admin/me', 'GET', 'wz_session=tenant-session'), res);
+  assert.equal(res.statusCode, 401);
+});
