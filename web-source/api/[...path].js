@@ -1323,48 +1323,78 @@ async function handler(req,res){
         return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengubah notifikasi.'});
 
       const b=await body(req);
-      const state=await getPool().query(
-        'SELECT data FROM wz_app_states WHERE business_id=$1',
-        [u.business_id]
-      );
+      const now=new Date().toISOString();
 
-      if(!state.rowCount)
-        return send(res,404,{ok:false,error:'Data aplikasi bisnis tidak ditemukan.'});
+      // Status read harus benar-benar persisten. Baris app_state dikunci
+      // (FOR UPDATE) selama read-modify-write supaya penyimpanan app-state yang
+      // berjalan bersamaan tidak menimpa penanda "sudah dibaca" ini, dan
+      // sebaliknya. Tanpa kunci, autosave yang sedang berjalan bisa menulis
+      // ulang data lama dan unread muncul lagi setelah refresh.
+      const c=await getPool().connect();
+      let notifications=[];
+      try{
+        await c.query('BEGIN');
+        const state=await c.query(
+          'SELECT data FROM wz_app_states WHERE business_id=$1 FOR UPDATE',
+          [u.business_id]
+        );
 
-      const data=state.rows[0].data&&typeof state.rows[0].data==='object'
-        ? {...state.rows[0].data}
-        : {};
+        if(!state.rowCount){
+          await c.query('ROLLBACK');
+          return send(res,404,{ok:false,error:'Data aplikasi bisnis tidak ditemukan.'});
+        }
 
-      const notifications=Array.isArray(data.notifications)
-        ? data.notifications.map(item=>({...item}))
-        : [];
+        const data=state.rows[0].data&&typeof state.rows[0].data==='object'
+          ? {...state.rows[0].data}
+          : {};
 
-      if(b?.all===true){
-        notifications.forEach(item=>{
+        notifications=Array.isArray(data.notifications)
+          ? data.notifications.map(item=>({...item}))
+          : [];
+
+        if(b?.all===true){
+          notifications.forEach(item=>{
+            if(item.read&&item.readAt)return;
+            item.read=true;
+            item.readAt=item.readAt||now;
+          });
+        }else{
+          const id=String(b?.id||'');
+          if(!id){
+            await c.query('ROLLBACK');
+            return send(res,400,{ok:false,error:'ID notifikasi wajib diisi.'});
+          }
+
+          const item=notifications.find(x=>String(x.id)===id);
+          if(!item){
+            await c.query('ROLLBACK');
+            return send(res,404,{ok:false,error:'Notifikasi tidak ditemukan.'});
+          }
+
           item.read=true;
-          item.readAt=new Date().toISOString();
+          item.readAt=item.readAt||now;
+        }
+
+        data.notifications=notifications;
+
+        const saved=await c.query(
+          `UPDATE wz_app_states
+           SET data=$2::jsonb,updated_at=NOW()
+           WHERE business_id=$1
+           RETURNING updated_at AS "updatedAt"`,
+          [u.business_id,JSON.stringify(data)]
+        );
+
+        await c.query('COMMIT');
+        return send(res,200,{
+          ok:true,
+          notifications,
+          updatedAt:saved.rows[0]?.updatedAt||null
         });
-      }else{
-        const id=String(b?.id||'');
-        if(!id)return send(res,400,{ok:false,error:'ID notifikasi wajib diisi.'});
-
-        const item=notifications.find(x=>String(x.id)===id);
-        if(!item)return send(res,404,{ok:false,error:'Notifikasi tidak ditemukan.'});
-
-        item.read=true;
-        item.readAt=new Date().toISOString();
-      }
-
-      data.notifications=notifications;
-
-      await getPool().query(
-        `UPDATE wz_app_states
-         SET data=$2::jsonb,updated_at=NOW()
-         WHERE business_id=$1`,
-        [u.business_id,JSON.stringify(data)]
-      );
-
-      return send(res,200,{ok:true});
+      }catch(e){
+        await c.query('ROLLBACK').catch(()=>{});
+        throw e;
+      }finally{c.release()}
     }
 
     if(path==='app-state' && req.method==='GET'){

@@ -27,7 +27,7 @@ module.exports = async function authRoutes(ctx, req, res, path){
         VALUES
           ($1,'TRIAL','ACTIVE',NOW(),NOW()+INTERVAL '35 days',NOW(),NOW()+INTERVAL '35 days')
         ON CONFLICT (business_id) DO NOTHING
-      `,[businessId]);tokenValue=token();await c.query("INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '30 days')",[tokenHash(tokenValue),ur.rows[0].id]);await c.query('COMMIT');return send(res,200,{ok:true,business:{businessId,name:businessName},user:{username,role:'owner',name:ownerName,employeeId,businessId}}, {'Set-Cookie':cookie('wz_session',tokenValue,60*60*24*30)});
+      `,[businessId]);tokenValue=token();await c.query("INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL '30 days')",[tokenHash(tokenValue),ur.rows[0].id]);await c.query('COMMIT');return send(res,200,{ok:true,business:{businessId,name:businessName},user:{id:ur.rows[0].id,username,role:'owner',name:ownerName,employeeId,businessId}}, {'Set-Cookie':cookie('wz_session',tokenValue,60*60*24*30)});
     }catch(e){await c.query('ROLLBACK');throw e}finally{c.release()}
     return true;
   }
@@ -41,12 +41,12 @@ module.exports = async function authRoutes(ctx, req, res, path){
     if(!u||!verifyPassword(password,u.password_hash))return send(res,401,{ok:false,error:'Username atau password salah.'});
     const t=token(); await p.query('DELETE FROM wz_sessions WHERE expires_at<=NOW()');
     await p.query('INSERT INTO wz_sessions(token_hash,user_id,expires_at) VALUES($1,$2,NOW()+INTERVAL \'30 days\')',[tokenHash(t),u.id]);
-    return send(res,200,{ok:true,user:{username:u.username,role:u.role,name:u.name,employeeId:u.employee_id||null,branchId:u.branch_id||null,businessId:u.business_id||null}}, {'Set-Cookie':cookie('wz_session',t,60*60*24*30)});
+    return send(res,200,{ok:true,user:{id:u.id,username:u.username,role:u.role,name:u.name,employeeId:u.employee_id||null,branchId:u.branch_id||null,businessId:u.business_id||null}}, {'Set-Cookie':cookie('wz_session',t,60*60*24*30)});
   }
 
   if(path==='auth/me' && req.method==='GET'){
     const u=await authUser(req); if(!u)return send(res,401,{ok:false,error:'Belum login.'});
-    return send(res,200,{ok:true,user:{username:u.username,role:u.role,name:u.name,employeeId:u.employee_id||null,branchId:u.branch_id||null,businessId:u.business_id||null}});
+    return send(res,200,{ok:true,user:{id:u.id,username:u.username,role:u.role,name:u.name,employeeId:u.employee_id||null,branchId:u.branch_id||null,businessId:u.business_id||null}});
   }
 
   if(path==='auth/logout' && req.method==='POST'){

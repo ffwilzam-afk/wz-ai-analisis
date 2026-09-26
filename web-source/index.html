@@ -416,6 +416,53 @@ button,input,select,textarea{max-width:100%}
 
 .owner-forum-message.is-admin .owner-forum-meta strong{color:#f4d98b}
 
+.owner-forum-message.is-admin .owner-forum-avatar{
+  border-color:rgba(212,175,55,.9);
+  background:#0d0d0d;
+}
+
+/* Chat normal: pesan milik user yang sedang login di kanan, pesan user lain di kiri. */
+.owner-forum-message.is-mine{
+  flex-direction:row-reverse;
+}
+
+.owner-forum-message.is-mine .owner-forum-body{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  max-width:calc(100% - 50px);
+}
+
+.owner-forum-message.is-mine .owner-forum-meta{
+  justify-content:flex-end;
+}
+
+.owner-forum-message.is-mine .owner-forum-text{
+  background:linear-gradient(180deg,#2c220a,#1c1607);
+  border-color:rgba(212,175,55,.6);
+  border-radius:14px 4px 14px 14px;
+}
+
+/* Verified badge (centang biru) untuk akun Admin Platform. */
+.owner-forum-verified{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:14px;
+  height:14px;
+  flex:0 0 auto;
+  border-radius:50%;
+  background:linear-gradient(180deg,#57a6ff,#1a73e8);
+  box-shadow:0 0 0 1px rgba(255,255,255,.22);
+  vertical-align:middle;
+}
+
+.owner-forum-verified svg{
+  width:9px;
+  height:9px;
+  display:block;
+}
+
 .owner-forum-avatar{
   width:38px;
   height:38px;
@@ -896,6 +943,9 @@ function notifyAndroid(message,notificationId){
  }).catch(()=>{});
 }
 function toast(message,silent=false,notificationId){
+ // Diagnosis/internal status FCM hanya untuk developer dan tidak boleh pernah
+ // tampil ke pengguna. Fungsi FCM sendiri tetap berjalan penuh.
+ if(/fcm/i.test(String(message??'')))return;
  const el=document.getElementById('toast');
  if(!el)return;
  el.textContent=message;
@@ -2329,9 +2379,15 @@ function analytics(){
  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">ANALYTICS</span><h1>Analisis Bisnis</h1><p>Statistik dan rekap historis dari data server.</p></div><button class="btn" onclick="exportOwnerAnalytics()">Download CSV</button></div><section class="card section"><div class="panel-title"><h3>Periode Analisis</h3><span class="subtle">${from} sampai ${to}</span></div><div class="form"><label>Dari<input id="analyticsFrom" type="date" value="${from}" onchange="analytics()"></label><label>Sampai<input id="analyticsTo" type="date" value="${to}" onchange="analytics()"></label></div></section><section class="card section"><h3>Rekap Statistik</h3><div class="dashboard-grid" style="align-items:center"><div>${analyticsDonut(metric)}</div>${analyticsMetricBoxes(metric)}</div></section><div class="grid">${boxCard('Pelanggan',metric.pelanggan)}${boxCard('Omzet',rupiah(metric.omzet))}${boxCard('Pengeluaran',rupiah(metric.pengeluaran))}${boxCard('Laba Bersih',rupiah(metric.laba))}</div><div class="dashboard-grid" style="margin-top:14px"><section class="card"><div class="panel-title"><h3>TREND PENDAPATAN</h3><span class="subtle">Klik titik untuk detail</span></div>${ownerLineChart('revenue',chartItems,'blue','Pendapatan')}</section><section class="card"><div class="panel-title"><h3>TREND LABA</h3><span class="subtle">Pendapatan dikurangi biaya</span></div>${ownerLineChart('profit',profitItems,'green','Laba Bersih')}</section></div><section class="card section"><h3>Performa Layanan</h3>${serviceStats.map(x=>`<div class="bar-row"><span>${escapeHtml(String(x.name))}</span><div class="bar"><i style="width:${serviceStats[0]?.rev?(x.rev/serviceStats[0].rev)*100:0}%"></i></div><span class="bar-num">${rupiah(x.rev)}</span></div>`).join('')||'<div class="empty">Belum ada data layanan.</div>'}</section><section class="card section"><h3>Top Karyawan</h3>${employees.slice(0,5).map((x,i)=>`<div class="schedule-item"><div><b>${i+1}. ${escapeHtml(String(x.name))}</b><div class="subtle">${x.tx} pelanggan/transaksi</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada data karyawan.</div>'}</section><section class="card section" id="historicalPanel"><div>${historicalView()}</div></section><div id="historicalPrint" class="historical-print-only"></div>`;
 }
 
-function notifications(){const n=(db.notifications||[]).slice().reverse();document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">NOTIFICATIONS</span><h1>Notifikasi</h1><p>${n.filter(x=>!x.read).length} belum dibaca.</p></div><button class="btn" onclick="markRead()">Tandai semua dibaca</button></div><section class="card">${n.map(x=>`<div class="feature" style="padding:13px 0;border-bottom:1px solid #20242b;${x.read?'opacity:.65':''}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${escapeHtml(String(x.title))}</b><div class="muted">${escapeHtml(String(x.message))}</div><small class="muted">${escapeHtml(String(x.date))}</small></div>${x.read?'':'<button class="btn small" onclick="markNotificationRead(\''+x.id+'\')">Tandai dibaca</button>'}</div></div>`).join('')||'<div class="empty">Belum ada notifikasi.</div>'}</section>`}
-function markNotificationRead(id){const item=(db.notifications||[]).find(x=>String(x.id)===String(id));if(!item)return;item.read=true;save();render()}
-function markRead(){(db.notifications||[]).forEach(x=>x.read=true);save();render()}
+// Halaman Notifikasi. Tandai-dibaca WAJIB lewat endpoint server
+// (notifications/read); kalau hanya diubah di memori, status read hilang
+// saat auto-refresh memuat ulang state dan badge muncul kembali.
+function notifications(){
+  const n=(db.notifications||[]).slice().reverse();
+  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">NOTIFICATIONS</span><h1>Notifikasi</h1><p>${n.filter(x=>!x.read).length} belum dibaca.</p></div><button class="btn" onclick="markRead()">Tandai semua dibaca</button></div><section class="card">${n.map(x=>`<div class="feature" style="padding:13px 0;border-bottom:1px solid #20242b;${x.read?'opacity:.65':''}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${escapeHtml(String(x.title))}</b><div class="muted">${escapeHtml(String(x.message))}</div><small class="muted">${x.createdAt?new Date(x.createdAt).toLocaleString('id-ID'):escapeHtml(String(x.date||'-'))}</small></div>${x.read?'':`<button class="btn small" onclick="markNotificationRead('${String(x.id).replace(/'/g,"\\'")}')">Tandai dibaca</button>`}</div></div>`).join('')||'<div class="empty">Belum ada notifikasi.</div>'}</section>`;
+}
+function markNotificationRead(id){return markServerNotificationRead(id);}
+function markRead(){return markAllServerNotificationsRead();}
 
 function branches(){
   if(!guard('branches'))return;
@@ -2715,10 +2771,24 @@ async function ownerForumLoad(options={}){
   finally{if(ownerForumLoadPromise===request)ownerForumLoadPromise=null}
 }
 
+const WZ_ADMIN_FORUM_NAME='Admin WZ Manage';
+const WZ_ADMIN_VERIFIED_BADGE='<span class="owner-forum-verified" role="img" aria-label="Terverifikasi" title="Akun Admin WZ Manage terverifikasi"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6.5 9.8 16.7 4.4 11.3" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+
 function ownerForumMessageHtml(m){
-  const avatar=m.senderAvatar
-    ? `<img src="${String(m.senderAvatar).replace(/"/g,'&quot;')}" alt="">`
-    : '<span>👤</span>';
+  const isAdmin=m.senderRole==='platform_admin'||m.senderRole==='admin';
+
+  // Posisi bubble ditentukan dari identitas sesi yang sedang login
+  // (wz_users.id dari auth), bukan dari nama display.
+  const myId=String(currentUser?.id??'');
+  const isMine=!isAdmin&&!!myId&&m.senderRole==='owner'&&String(m.senderId??'')===myId;
+
+  // Admin selalu memakai logo aplikasi WZ MANAGE PRO supaya avatar tidak
+  // pernah kosong, baik pada pesan lama/baru maupun setelah refresh.
+  const avatar=isAdmin
+    ? `<img src="${ANDROID_NOTIFICATION_ICON}" alt="WZ MANAGE PRO">`
+    : (m.senderAvatar
+      ? `<img src="${String(m.senderAvatar).replace(/"/g,'&quot;')}" alt="">`
+      : '<span>👤</span>');
 
   const time=m.createdAt
     ? new Date(m.createdAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})
@@ -2728,14 +2798,17 @@ function ownerForumMessageHtml(m){
     ? `<div class="owner-forum-sticker">${escapeHtml(m.stickerId||'😊')}</div>`
     : `<div class="owner-forum-text">${escapeHtml(m.message||'')}</div>`;
 
-  const isAdmin=m.senderRole==='platform_admin'||m.senderRole==='admin';
+  const name=isAdmin?WZ_ADMIN_FORUM_NAME:(m.senderName||'Owner');
+  // Verified badge hanya untuk akun Admin Platform.
+  const verified=isAdmin?WZ_ADMIN_VERIFIED_BADGE:'';
 
   return `
-    <div class="owner-forum-message${isAdmin?' is-admin':''}">
+    <div class="owner-forum-message${isMine?' is-mine':' is-theirs'}${isAdmin?' is-admin':''}">
       <div class="owner-forum-avatar">${avatar}</div>
       <div class="owner-forum-body">
         <div class="owner-forum-meta">
-          <strong>${escapeHtml(m.senderName||'Owner')}</strong>
+          <strong>${escapeHtml(name)}</strong>
+          ${verified}
           <span>${time}</span>
         </div>
         ${content}
@@ -2887,6 +2960,7 @@ function resetTenantState(){
   db.expenses=[];
   db.attendance=[];
   db.notifications=[];
+  wzReadNotificationIds.clear();
   db.payrollSettings=null;
   db.profile={
     name:currentUser?.name||'',
@@ -2898,6 +2972,29 @@ function resetTenantState(){
   };
 }
 
+// Status read notifikasi bersifat monotonik: sebuah notifikasi yang sudah
+// pernah ditandai dibaca tidak boleh kembali jadi unread karena hasil load
+// lama (yang masih berjalan saat user menekan "Tandai dibaca") menimpa state
+// lokal. Server tetap sumber kebenaran untuk notifikasi baru, jadi notifikasi
+// baru tetap muncul sebagai unread.
+const wzReadNotificationIds=new Set();
+function applyServerNotifications(list){
+  if(!Array.isArray(list))return;
+  const previous=new Map((db.notifications||[]).map(x=>[String(x.id??''),x]));
+  const next=list.map(item=>{
+    const id=String(item.id??'');
+    const prev=previous.get(id);
+    const read=Boolean(item.readAt||item.read)
+      ||wzReadNotificationIds.has(id)
+      ||Boolean(prev?.readAt||prev?.read);
+    if(read)wzReadNotificationIds.add(id);
+    return {...item,read};
+  });
+  const live=new Set(next.map(x=>String(x.id??'')));
+  for(const id of Array.from(wzReadNotificationIds))if(!live.has(id))wzReadNotificationIds.delete(id);
+  db.notifications=next;
+}
+
 async function hydrateAppState(){
   if(!currentUser || !['owner','manager','employee'].includes(currentUser.role))return false;
   try{
@@ -2905,7 +3002,9 @@ async function hydrateAppState(){
     const state=(r?.data&&typeof r.data==='object'&&!Array.isArray(r.data))?r.data:{};
     const hasState=Object.keys(state).length>0;
     if(hasState){
+      const serverNotifications=Array.isArray(state.notifications)?state.notifications:null;
       Object.assign(db,state);
+      if(serverNotifications)applyServerNotifications(serverNotifications);
       const serverSeen=Date.parse((db.profile||{}).ownerForumSeenAt||'')||0;
       if(wzForumSeenAt>serverSeen){
         db.profile={...(db.profile||{}),ownerForumSeenAt:new Date(wzForumSeenAt).toISOString()};
@@ -3002,7 +3101,7 @@ function applyBusinessData(data){
       products:Array.isArray(r.products)?r.products:[]
     }));
   }
-  if(Array.isArray(data.notifications))db.notifications=data.notifications.map(item=>({...item,read:Boolean(item.readAt||item.read)}));
+  if(Array.isArray(data.notifications))applyServerNotifications(data.notifications);
 }
 
 async function syncBusiness(){
@@ -3051,6 +3150,9 @@ window.WZOnlineSync={hydrate:hydrateAppState,business:syncBusiness,employees:syn
 window.printTransactionReceipt=printTransactionReceipt;
 window.markServerNotificationRead=markServerNotificationRead;
 window.markAllServerNotificationsRead=markAllServerNotificationsRead;
+// Dipakai tombol di halaman Notifikasi (atribut onclick harus window.*).
+window.markNotificationRead=markNotificationRead;
+window.markRead=markRead;
 window.savePayrollSettings=savePayrollSettings;
 window.syncNativeFcmToken=syncNativeFcmToken;
 
@@ -3638,21 +3740,45 @@ window.saveShiftReport=async function(){
 };
 
 async function markServerNotificationRead(id){
-  const item=(db.notifications||[]).find(x=>String(x.id)===String(id));
+  const key=String(id);
+  const item=(db.notifications||[]).find(x=>String(x.id)===key);
   if(!item)return;
-  try{await api('notifications/read',{method:'POST',body:JSON.stringify({id})});item.read=true;render();}
-  catch(e){toast('Notifikasi belum bisa ditandai dibaca: '+e.message,true);}
+  // Tandai sticky lebih dulu supaya load yang sedang berjalan tidak revive badge.
+  wzReadNotificationIds.add(key);
+  item.read=true;
+  try{
+    // Persist ke server dulu, baru state frontend dipakai sebagai sumber tampil.
+    const r=await api('notifications/read',{method:'POST',body:JSON.stringify({id:key})});
+    if(typeof r?.updatedAt==='string')appStateUpdatedAt=r.updatedAt;
+    if(Array.isArray(r?.notifications))applyServerNotifications(r.notifications);
+    else item.read=true;
+    render();
+  }catch(e){
+    wzReadNotificationIds.delete(key);
+    item.read=false;
+    render();
+    toast('Notifikasi belum bisa ditandai dibaca: '+e.message,true);
+  }
 }
 async function markAllServerNotificationsRead(){
-  try{await api('notifications/read',{method:'POST',body:JSON.stringify({all:true})});(db.notifications||[]).forEach(x=>x.read=true);render();}
-  catch(e){toast('Notifikasi belum bisa ditandai dibaca: '+e.message,true);}
+  const keys=(db.notifications||[]).map(x=>String(x.id??'')).filter(Boolean);
+  keys.forEach(key=>wzReadNotificationIds.add(key));
+  (db.notifications||[]).forEach(x=>{x.read=true});
+  try{
+    const r=await api('notifications/read',{method:'POST',body:JSON.stringify({all:true})});
+    if(typeof r?.updatedAt==='string')appStateUpdatedAt=r.updatedAt;
+    if(Array.isArray(r?.notifications))applyServerNotifications(r.notifications);
+    else (db.notifications||[]).forEach(x=>{x.read=true});
+    render();
+  }catch(e){
+    (db.notifications||[]).forEach(x=>{if(keys.includes(String(x.id??'')))x.read=false});
+    render();
+    toast('Notifikasi belum bisa ditandai dibaca: '+e.message,true);
+  }
 }
-const legacyNotifications=window.notifications;
-window.notifications=function(){
-  const n=(db.notifications||[]).slice().reverse();
-  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">NOTIFICATIONS</span><h1>Notifikasi</h1><p>${n.filter(x=>!x.read).length} belum dibaca.</p></div><button class="btn" onclick="markAllServerNotificationsRead()">Tandai semua dibaca</button></div><section class="card">${n.map(x=>`<div class="feature" style="padding:13px 0;border-bottom:1px solid #20242b;${x.read?'opacity:.65':''}"><div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start"><div><b>${escapeHtml(String(x.title))}</b><div class="muted">${escapeHtml(String(x.message))}</div><small class="muted">${x.createdAt?new Date(x.createdAt).toLocaleString('id-ID'):(x.date||'-')}</small></div>${x.read?'':'<button class="btn small" onclick="markServerNotificationRead(\''+x.id+'\')">Tandai dibaca</button>'}</div></div>`).join('')||'<div class="empty">Belum ada notifikasi.</div>'}</section>`;
-};
-void legacyNotifications;
+// Router memakai fungsi notifications() di atas; expose juga ke window
+// agar pemanggilan lama tetap menunjuk ke implementasi yang sama.
+window.notifications=notifications;
 
 })();
 
