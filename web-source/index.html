@@ -313,14 +313,21 @@ button,input,select,textarea{max-width:100%}
 @media print{body *{visibility:hidden!important}.historical-print-only,.historical-print-only *{visibility:visible!important}.historical-print-only{display:block!important;position:absolute;inset:0;background:#fff;color:#111;padding:18mm;font:10pt Arial,sans-serif}.historical-print-only h1{font-size:18pt;margin:0 0 4mm}.historical-print-only h2{font-size:13pt;margin:5mm 0 2mm}.historical-print-only table{width:100%;border-collapse:collapse}.historical-print-only th,.historical-print-only td{border:1px solid #999;padding:5px;text-align:left}.historical-print-only .historical-total{font-weight:700;background:#eee}.historical-print-only .print-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5mm}.historical-print-only .print-box{border:1px solid #999;padding:4mm}.historical-print-only .print-muted{color:#555}}
 </style>
 <style>
+/* Obrolan Owner = satu forum bersama untuk semua Owner + Admin Platform.
+   Layout: container flex column full tinggi viewport, hanya area pesan yang
+   scroll, header dan composer tetap terkunci (flex-shrink:0). */
 .owner-forum-page{
+  --wz-forum-chrome:114px;
   display:flex;
   flex-direction:column;
-  min-height:0;
-  height:calc(100vh - 170px);
-  height:calc(100dvh - 170px);
-  max-height:calc(100vh - 170px);
-  max-height:calc(100dvh - 170px);
+  width:100%;
+  min-height:320px;
+  min-height:min(320px,calc(100dvh - var(--wz-forum-chrome)));
+  height:calc(100vh - var(--wz-forum-chrome));
+  height:calc(100dvh - var(--wz-forum-chrome));
+  max-height:calc(100vh - var(--wz-forum-chrome));
+  max-height:calc(100dvh - var(--wz-forum-chrome));
+  overflow:hidden;
   background:#0b0b0b;
   border:1px solid rgba(212,175,55,.28);
   border-radius:16px;
@@ -329,21 +336,51 @@ button,input,select,textarea{max-width:100%}
 .owner-forum-head{
   flex:0 0 auto;
   display:flex;
+  flex-wrap:nowrap;
   align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  padding:16px;
+  justify-content:flex-start;
+  gap:10px;
+  min-width:0;
+  padding:12px 14px;
   border-bottom:1px solid rgba(212,175,55,.2);
   background:linear-gradient(135deg,#111,#080808);
 }
+
+.owner-forum-head-title{
+  flex:1 1 auto;
+  min-width:0;
+}
+
+.owner-forum-head-title h2{
+  margin:3px 0 0;
+  font-size:19px;
+  line-height:1.2;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.owner-forum-head-title p{
+  margin:3px 0 0;
+  font-size:11px;
+  line-height:1.25;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
 .owner-forum-help{
   display:inline-flex;
   align-items:center;
-  gap:7px;
+  gap:6px;
   flex:0 0 auto;
+  max-width:46%;
+  white-space:nowrap;
+  overflow:hidden;
   border:1px solid rgba(212,175,55,.45);
   border-radius:999px;
-  padding:9px 12px;
+  padding:8px 11px;
   background:#17130b;
   color:#e7c86c;
   font-size:12px;
@@ -369,7 +406,15 @@ button,input,select,textarea{max-width:100%}
   gap:10px;
   margin-bottom:16px;
   align-items:flex-start;
+  max-width:100%;
 }
+
+.owner-forum-message.is-admin .owner-forum-text{
+  background:#1a1508;
+  border-color:rgba(212,175,55,.5);
+}
+
+.owner-forum-message.is-admin .owner-forum-meta strong{color:#f4d98b}
 
 .owner-forum-avatar{
   width:38px;
@@ -392,6 +437,7 @@ button,input,select,textarea{max-width:100%}
 }
 
 .owner-forum-body{
+  flex:1 1 auto;
   min-width:0;
   max-width:calc(100% - 50px);
 }
@@ -422,6 +468,7 @@ button,input,select,textarea{max-width:100%}
   border:1px solid #292929;
   color:#eee;
   line-height:1.45;
+  white-space:pre-wrap;
   overflow-wrap:anywhere;
   word-break:break-word;
 }
@@ -437,13 +484,13 @@ button,input,select,textarea{max-width:100%}
   display:flex;
   align-items:center;
   gap:8px;
-  padding:10px;
+  padding:10px 12px;
   border-top:1px solid rgba(212,175,55,.2);
   background:#101010;
 }
 
 .owner-forum-compose .input{
-  flex:1;
+  flex:1 1 auto;
   min-width:0;
   background:#181818;
   border-color:#292929;
@@ -464,27 +511,51 @@ button,input,select,textarea{max-width:100%}
 }
 
 .owner-forum-send{
+  flex:0 0 auto;
   border-radius:20px;
   padding:9px 15px;
+  white-space:nowrap;
+}
+
+@media(max-width:800px){
+  .owner-forum-page{
+    --wz-forum-chrome:94px;
+  }
 }
 
 @media(max-width:600px){
-  .owner-forum-head{display:block}
-  .owner-forum-help{margin-top:12px}
+  /* topbar 66px + content top 14px + main bottom 82px (bottom nav 68px) + content bottom 14px */
   .owner-forum-page{
-    height:calc(100vh - 154px - 68px - env(safe-area-inset-bottom));
-    height:calc(100dvh - 154px - 68px - env(safe-area-inset-bottom));
-    max-height:calc(100vh - 154px - 68px - env(safe-area-inset-bottom));
-    max-height:calc(100dvh - 154px - 68px - env(safe-area-inset-bottom));
+    --wz-forum-chrome:176px;
   }
 
   .owner-forum-head{
-    padding:13px;
+    padding:10px 12px;
+    gap:8px;
   }
 
-  .owner-forum-send{
-    padding:9px 12px;
+  .owner-forum-head-title h2{font-size:16px}
+  .owner-forum-head-title p{font-size:10px}
+
+  .owner-forum-help{
+    padding:7px 9px;
+    font-size:11px;
+    gap:5px;
   }
+
+  .owner-forum-compose{padding:8px 10px}
+  .owner-forum-sticker-btn{width:38px;height:38px;font-size:18px}
+
+  .owner-forum-send{
+    padding:8px 12px;
+    font-size:12px;
+  }
+}
+
+@media(max-width:400px){
+  .owner-forum-head-title .gold-label{display:none}
+  .owner-forum-help{max-width:52%;padding:7px 8px;font-size:10px}
+  .owner-forum-head-title p{-webkit-line-clamp:3}
 }
 
 /* Mobile bottom navigation */
@@ -957,6 +1028,7 @@ function updateBottomNav(){
 let wzForumUnread=0;
 let wzForumCheckedAt=0;
 let wzForumSeenAt=0;
+let wzForumFetchedAt=0;
 
 // Cache satu load subscription per sesi tenant agar auto-refresh tidak mengganti
 // halaman yang sudah stabil atau mengirim request berulang.
@@ -987,7 +1059,7 @@ function topbarAvatar(){
   box.innerHTML=avatar?'<img src="'+avatar.replace(/"/g,'&quot;')+'" alt="">':(initial||'?');
 }
 
-let wzForumSeenSaved=false;
+let wzForumSeenSavedAt=0;
 
 function markOwnerForumSeen(){
   db.profile=db.profile||{};
@@ -996,9 +1068,10 @@ function markOwnerForumSeen(){
   db.profile.ownerForumSeenAt=new Date(wzForumSeenAt).toISOString();
   wzForumUnread=0;
   topbarBadge('wzChatBadge',0);
-  // Satu persist per sesi; hydrate mempertahankan seenAt lokal sampai server menyimpan.
-  if(wzForumSeenSaved)return;
-  wzForumSeenSaved=true;
+  // Persist throttle (bukan sekali per sesi): kalau tidak, seenAt yang lebih
+  // baru hanya hidup di memori dan unread lama bisa kembali setelah reload.
+  if(wzForumSeenAt-wzForumSeenSavedAt<15000)return;
+  wzForumSeenSavedAt=wzForumSeenAt;
   window.WZOnlineStateSave?.queue?.();
 }
 
@@ -1011,7 +1084,14 @@ async function refreshOwnerForumBadge(){
     const list=Array.isArray(r.messages)?r.messages:[];
     const profileSeen=Date.parse((db.profile||{}).ownerForumSeenAt||'')||0;
     const seen=Math.max(wzForumSeenAt||0,profileSeen)||(Date.now()-86400000);
-    wzForumUnread=list.filter(m=>Date.parse(m.createdAt||0)>seen).length;
+    const myId=String(currentUser?.id??'');
+    // Unread personal: pesan forum global, tapi dihitung per user. Pesan milik
+    // sendiri tidak dihitung sebagai unread.
+    wzForumUnread=list.filter(m=>{
+      if(Date.parse(m.createdAt||0)<=seen)return false;
+      if(m.senderRole!=='owner')return true;
+      return !myId||String(m.senderId??'')!==myId;
+    }).length;
     topbarBadge('wzChatBadge',wzForumUnread);
   }catch{
     wzForumUnread=0;
@@ -1636,6 +1716,17 @@ function processPendingAndroidNotification(){
 }
 
 window.WZHandleNotification=function(type,reportId){
+ type=String(type||'');
+ if(type==='owner_forum'){
+  // Notifikasi forum (Admin/Owner): unread naik, dan Obrolan Owner langsung
+  // dibuka hanya saat aplikasi sedang terlihat (tidak menandai read diam-diam).
+  if(!can('ownerForum'))return;
+  wzForumCheckedAt=0;
+  if(document.visibilityState!=='visible'){refreshOwnerForumBadge();return}
+  go('ownerForum');
+  ownerForumLoad({force:true}).catch(()=>{});
+  return;
+ }
  if(type!=='shift_report'||!reportId)return;
  pendingAndroidNotification={type:String(type),reportId:String(reportId)};
  processPendingAndroidNotification();
@@ -2523,6 +2614,7 @@ function auth(){if(!guard('auth'))return;document.getElementById('content').inne
 
 let ownerForumLoadPromise=null;
 let ownerForumLoaded=false;
+function wzForumHash(html){let h=5381;for(let i=0;i<html.length;i++)h=((h*33)^html.charCodeAt(i))>>>0;return String(html.length)+'-'+h}
 
 async function ownerForumPage(){
   if(!guard('ownerForum'))return;
@@ -2534,12 +2626,12 @@ async function ownerForumPage(){
     content.innerHTML=`
       <section class="card section owner-forum-page" style="padding:0;overflow:hidden">
         <div class="owner-forum-head">
-          <div>
+          <button type="button" class="owner-forum-help" onclick="ownerForumHelp()" title="Minta bantuan Admin">🎧 Bantuan Admin</button>
+          <div class="owner-forum-head-title">
             <span class="gold-label">OWNER COMMUNITY</span>
-            <h2 style="margin:4px 0 0">💬 Obrolan Owner</h2>
-            <p class="muted" style="margin:4px 0 0">Forum bersama Owner WZ Manage Pro</p>
+            <h2>💬 Obrolan Owner</h2>
+            <p class="muted">Forum bersama Owner WZ Manage Pro</p>
           </div>
-          <button type="button" class="owner-forum-help" onclick="ownerForumHelp()" title="Minta bantuan Admin">Bantuan Admin</button>
         </div>
 
         <div id="ownerForumMessages" class="owner-forum-messages">
@@ -2547,7 +2639,7 @@ async function ownerForumPage(){
         </div>
 
         <div class="owner-forum-compose">
-          <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickSticker()" title="Sticker">😊</button>
+          <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickSticker()" title="Sticker" aria-label="Sticker">🙂</button>
           <input
             id="ownerForumInput"
             class="input"
@@ -2555,6 +2647,7 @@ async function ownerForumPage(){
             maxlength="1000"
             placeholder="Tulis pesan..."
             autocomplete="off"
+            enterkeyhint="send"
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ownerForumSend()}"
           >
           <button type="button" class="btn primary owner-forum-send" onclick="ownerForumSend()">Kirim</button>
@@ -2564,8 +2657,11 @@ async function ownerForumPage(){
   }
 
   markOwnerForumSeen();
-  const loaded=await ownerForumLoad();
-  if(loaded===null&&document.getElementById('ownerForumMessages')&&!ownerForumLoaded)await ownerForumLoad();
+  // Auto-refresh tetap hidup: pesan baru diambil ulang secara berkala selama
+  // halaman forum sedang tampil, tanpa membangun ulang DOM bila tidak perlu.
+  const stale=!ownerForumLoaded||Date.now()-wzForumFetchedAt>20000;
+  const loaded=await ownerForumLoad(stale?{force:true}:{});
+  if(loaded===null&&document.getElementById('ownerForumMessages')&&!ownerForumLoaded)await ownerForumLoad({force:true});
 }
 
 function escapeHtml(value){
@@ -2594,9 +2690,17 @@ async function ownerForumLoad(options={}){
 
       const messages=Array.isArray(r.messages)?r.messages:[];
       if(document.getElementById('ownerForumMessages')!==box)return null;
-      box.innerHTML=messages.length?messages.map(ownerForumMessageHtml).join(''):'<div class="muted" style="padding:32px;text-align:center">Belum ada obrolan.</div>';
+      const html=messages.length?messages.map(ownerForumMessageHtml).join(''):'<div class="muted" style="padding:32px;text-align:center">Belum ada obrolan.</div>';
+      const hash=wzForumHash(html);
+      // Ganti DOM hanya kalau isinya memang berubah: auto-refresh tidak boleh
+      // membuat chat berkedip, pesan hilang, atau posisi scroll terloncat.
+      if(box.dataset.ownerForumHash!==hash){
+        box.dataset.ownerForumHash=hash;
+        box.innerHTML=html;
+        box.scrollTop=wasNearBottom?box.scrollHeight:previousScroll;
+      }
       ownerForumLoaded=true;
-      box.scrollTop=wasNearBottom?box.scrollHeight:previousScroll;
+      wzForumFetchedAt=Date.now();
       return messages;
     }catch(e){
       if(document.getElementById('ownerForumMessages')!==box)return null;
@@ -2624,8 +2728,10 @@ function ownerForumMessageHtml(m){
     ? `<div class="owner-forum-sticker">${escapeHtml(m.stickerId||'😊')}</div>`
     : `<div class="owner-forum-text">${escapeHtml(m.message||'')}</div>`;
 
+  const isAdmin=m.senderRole==='platform_admin'||m.senderRole==='admin';
+
   return `
-    <div class="owner-forum-message">
+    <div class="owner-forum-message${isAdmin?' is-admin':''}">
       <div class="owner-forum-avatar">${avatar}</div>
       <div class="owner-forum-body">
         <div class="owner-forum-meta">
@@ -2765,8 +2871,9 @@ function resetTenantState(){
   clearTimeout(saveTimer);
   appStateUpdatedAt=null;
   wzForumSeenAt=0;
-  wzForumSeenSaved=false;
+  wzForumSeenSavedAt=0;
   wzForumCheckedAt=0;
+  wzForumFetchedAt=0;
   wzForumUnread=0;
   subscriptionViewCache=null;
   subscriptionViewPromise=null;
@@ -3252,7 +3359,7 @@ window.login=async function(ev){
     const authenticatedRole=['owner','manager'].includes(r.user?.role)?r.user.role:'employee';
     currentUser={...r.user,role:authenticatedRole};
     window.WZOnlineSync?.reset?.();
-    wzForumSeenSaved=false;wzForumUnread=0;wzForumCheckedAt=0;
+    wzForumSeenSavedAt=0;wzForumUnread=0;wzForumCheckedAt=0;wzForumFetchedAt=0;
     const screen=document.getElementById('loginScreen');
     const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
     setActionLoading(75,'Memuat data akun dan bisnis...','MASUK KE SISTEM');

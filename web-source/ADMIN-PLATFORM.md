@@ -30,7 +30,8 @@ npm run admin:provision -- --update --verify-live --current-username admin --use
 - Obrolan Owner memakai `wz_owner_forum_messages` yang sama dan kini memiliki `business_id` serta `sender_admin_id` untuk konteks pengirim.
 - Endpoint Owner mengambil user dari session server; pesan Owner dan Admin dalam Obrolan Owner bersifat global sehingga dapat dibaca dan dibalas oleh semua Owner. Data tenant tetap terisolasi pada endpoint bisnis/data Owner lainnya.
 - Endpoint Admin hanya dapat dipakai oleh session `wz_admin_session`.
-- Notifikasi FCM untuk pesan Owner tetap mengikuti `business_id` pengirim dan hanya dikirim kepada Owner tenant tersebut; pesan Obrolan Owner global tetap tersedia melalui forum.
+- Notifikasi FCM pesan forum memakai `sendOwnerForumPush()`: Obrolan Owner adalah forum bersama, jadi pesan Admin dikirim ke SEMUA Owner aktif lintas tenant (tanpa filter `business_id`), dan pesan Owner dikirim ke Owner lain dengan pengirim dikecualikan. Ini pengecualian terhadap tenant isolation, yang tetap berlaku penuh untuk transaksi, laporan, karyawan, payroll, subscription, cabang, dan data internal tenant lainnya.
+- Status unread Obrolan Owner bersifat personal per Owner (`profile.ownerForumSeenAt`): Owner A yang membuka forum tidak mereset unread Owner B/C.
 
 ## Menu Admin
 

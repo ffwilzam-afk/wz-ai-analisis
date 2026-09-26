@@ -23,7 +23,8 @@ function routeContext(){
   return {
     getPool, send, body, cookie,
     token, tokenHash, hashPassword, verifyPassword,
-    authUser, normalizeBusinessId, pushConfigured, sendBusinessForumPush
+    authUser, normalizeBusinessId, pushConfigured, sendBusinessForumPush,
+    sendOwnerForumPush
   };
 }
 
@@ -140,6 +141,40 @@ async function sendBusinessForumPush({businessId,title,body,data={}}){
       const code=String(error?.code||'');
       if(code==='messaging/registration-token-not-registered'||code==='messaging/invalid-registration-token')
         await p.query('DELETE FROM wz_fcm_tokens WHERE id=$1 AND business_id=$2',[row.id,businessId]);
+    }
+  }));
+}
+
+// Obrolan Owner adalah satu forum bersama lintas tenant, jadi notifikasi pesan
+// forum dikirim ke SEMUA Owner aktif (tanpa filter business_id). Inilah yang
+// sebelumnya hilang: pesan Admin tersimpan tapi tidak pernah memanggil FCM.
+// excludeUserId dipakai untuk pesan Owner agar pengirim tidak diberi notifikasi
+// atas pesannya sendiri (aturan existing).
+async function sendOwnerForumPush({title,body,data={},excludeUserId=null}){
+  let messaging;
+  try{messaging=getFirebaseMessaging()}catch{return}
+  if(!messaging)return;
+  const p=getPool();
+  const recipients=await p.query(
+    `SELECT t.id,t.token
+     FROM wz_fcm_tokens t
+     JOIN wz_users u ON u.id=t.user_id
+     WHERE u.role='owner' AND u.active=true
+       AND ($1::bigint IS NULL OR t.user_id<>$1)`,
+    [excludeUserId==null?null:Number(excludeUserId)]
+  );
+  await Promise.all(recipients.rows.map(async row=>{
+    try{
+      await messaging.send({
+        token:row.token,
+        notification:{title,body},
+        data:Object.fromEntries(Object.entries(data).map(([k,v])=>[String(k),String(v)])),
+        android:{priority:'high',notification:{channelId:'wz_manage_pro',sound:'default'}}
+      });
+    }catch(error){
+      const code=String(error?.code||'');
+      if(code==='messaging/registration-token-not-registered'||code==='messaging/invalid-registration-token')
+        await p.query('DELETE FROM wz_fcm_tokens WHERE id=$1',[row.id]);
     }
   }));
 }

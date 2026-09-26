@@ -60,7 +60,7 @@ function statusFilter(value){
 }
 
 async function ownerForumRoutes(ctx,req,res,path){
-  const { getPool, send, body, authUser } = ctx;
+  const { getPool, send, body, authUser, sendOwnerForumPush } = ctx;
   const user=await authUser(req);
   if(!user)return send(res,401,{ok:false,error:'Belum login.'}),true;
   if(user.role!=='owner')return send(res,403,{ok:false,error:'Akses hanya untuk Owner.'}),true;
@@ -79,6 +79,16 @@ async function ownerForumRoutes(ctx,req,res,path){
       if(replyToId!==null&&!(await pool.query('SELECT id FROM wz_owner_forum_messages WHERE id=$1',[replyToId])).rowCount)return send(res,400,{ok:false,error:'Pesan yang dibalas tidak ditemukan.'}),true;
       const r=await pool.query(`INSERT INTO wz_owner_forum_messages(sender_user_id,sender_role,business_id,message,message_type,sticker_id,reply_to_id) VALUES($1,'owner',$2,$3,$4,$5,$6) RETURNING id,message,message_type AS "messageType",sticker_id AS "stickerId",reply_to_id AS "replyToId",created_at AS "createdAt",sender_user_id AS "senderId",sender_role AS "senderRole"`,[user.id,user.business_id||null,message,messageType,stickerId,replyToId]);
       await pool.query(`INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id) VALUES('owner_message','Pesan Owner baru',$1,$2,'business',$2)`,[`Owner ${user.name} mengirim pesan baru`,user.business_id||null]);
+      // Forum bersama: notifikasi ke semua Owner lain lintas tenant, pengirim dikecualikan.
+      if(sendOwnerForumPush){
+        const preview=messageType==='sticker'?`${user.name} mengirim stiker ${stickerId}`:`${user.name}: ${message}`;
+        await sendOwnerForumPush({
+          title:'WZ MANAGE PRO',
+          body:preview.slice(0,180),
+          data:{type:'owner_forum',messageType,messageId:String(r.rows[0].id)},
+          excludeUserId:user.id
+        }).catch(()=>{});
+      }
       return send(res,201,{ok:true,scope:'global',message:{...r.rows[0],senderName:user.name,senderBusinessName:'',senderAvatar:'',senderRole:'owner'}}),true;
     }
     return send(res,405,{ok:false,error:'Method tidak didukung.'}),true;
@@ -261,6 +271,16 @@ module.exports=async function adminRoutes(ctx,req,res,path){
     const r=await p.query(`INSERT INTO wz_owner_forum_messages(sender_admin_id,sender_role,business_id,message,message_type,sticker_id,reply_to_id) VALUES($1,'platform_admin',NULL,$2,$3,$4,$5) RETURNING id,message,message_type AS "messageType",sticker_id AS "stickerId",reply_to_id AS "replyToId",created_at AS "createdAt",sender_admin_id AS "senderId",sender_role AS "senderRole"`,[admin.id,message,messageType,stickerId||null,replyToId]);
     const created=r.rows[0];
     await p.query(`INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id) VALUES('admin_message','Pesan Admin dikirim',$1,NULL,'forum',NULL)`,['Admin Platform mengirim pesan ke semua Owner']);
+    // Obrolan Owner = forum bersama. Pesan Admin tidak dibatasi business_id,
+    // jadi notifikasi FCM dikirim ke semua Owner aktif lintas tenant.
+    if(ctx.sendOwnerForumPush){
+      const preview=messageType==='sticker'?`${admin.display_name||'Admin WZ Manage'} mengirim stiker ${stickerId}`:`${admin.display_name||'Admin WZ Manage'}: ${message}`;
+      await ctx.sendOwnerForumPush({
+        title:'WZ MANAGE PRO',
+        body:preview.slice(0,180),
+        data:{type:'owner_forum',messageType,messageId:String(created.id)}
+      }).catch(()=>{});
+    }
     await audit(ctx,admin,'admin.forum.send',{targetType:'forum',targetId:'global',metadata:{messageId:String(created.id)}});
     return ctx.send(res,201,{ok:true,scope:'global',message:{...created,senderName:admin.display_name,senderRole:'platform_admin'}}),true;
   }
