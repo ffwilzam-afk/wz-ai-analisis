@@ -80,6 +80,49 @@ async function forumReactionsOf(pool,ids,userId){
   return map;
 }
 
+// Polling dimuat terpisah dari pesan, satu query untuk seluruh poll di halaman
+// yang sama. `mine` hanya menandai vote milik user yang sedang login, jadi
+// frontend bisa menandai pilihannya tanpa pernah membawa identitas voter lain.
+async function forumPollsOf(pool,messageIds,userId){
+  const map=new Map();
+  if(!messageIds.length)return map;
+  const r=await pool.query(
+    `SELECT p.id,
+            p.message_id AS "messageId",
+            p.question,
+            p.allow_multiple AS "allowMultiple",
+            o.id AS "optionId",
+            o.label,
+            COALESCE(v.votes,0)::int AS votes,
+            (x.user_id IS NOT NULL) AS mine
+     FROM wz_owner_forum_polls p
+     JOIN wz_owner_forum_poll_options o ON o.poll_id=p.id
+     LEFT JOIN (
+       SELECT option_id,COUNT(*) AS votes
+       FROM wz_owner_forum_poll_votes
+       GROUP BY option_id
+     ) v ON v.option_id=o.id
+     LEFT JOIN wz_owner_forum_poll_votes x ON x.option_id=o.id AND x.user_id=$2
+     WHERE p.message_id=ANY($1::bigint[])
+     ORDER BY p.id,o.position`,
+    [messageIds,userId]
+  );
+  for(const row of r.rows){
+    const key=String(row.messageId);
+    let poll=map.get(key);
+    if(!poll){
+      poll={id:String(row.id),question:String(row.question),allowMultiple:Boolean(row.allowMultiple),options:[],myOptionIds:[],totalVotes:0,voted:false};
+      map.set(key,poll);
+    }
+    const votes=Number(row.votes)||0;
+    poll.options.push({id:String(row.optionId),label:String(row.label),votes,mine:Boolean(row.mine)});
+    if(row.mine)poll.myOptionIds.push(String(row.optionId));
+    poll.totalVotes+=votes;
+  }
+  for(const poll of map.values())poll.voted=poll.myOptionIds.length>0;
+  return map;
+}
+
 async function ownerForumRoutes(ctx,req,res,path){
   const { getPool, send, body, authUser, sendOwnerForumPush } = ctx;
   const user=await authUser(req);
@@ -106,11 +149,12 @@ async function ownerForumRoutes(ctx,req,res,path){
       const hasMore=r.rows.length>limit;
       const rows=(hasMore?r.rows.slice(0,limit):r.rows).reverse();
       const reactions=await forumReactionsOf(pool,rows.map(x=>x.id),user.id);
+      const polls=await forumPollsOf(pool,rows.map(x=>x.id),user.id);
       return send(res,200,{
         ok:true,
         scope:'global',
         hasMore,
-        messages:rows.map(m=>({...m,reactions:reactions.get(String(m.id))||[]}))
+        messages:rows.map(m=>({...m,reactions:reactions.get(String(m.id))||[],poll:polls.get(String(m.id))||null}))
       }),true;
     }
     if(req.method==='POST'){
@@ -162,10 +206,142 @@ async function ownerForumRoutes(ctx,req,res,path){
       );
       if(!r.rowCount)return send(res,404,{ok:false,error:'Pesan tidak ditemukan atau bukan milik Anda.'}),true;
       await pool.query('DELETE FROM wz_owner_forum_reactions WHERE message_id=$1',[id]).catch(()=>{});
+      // Polling ikut terhapus saat pesannya dihapus (label & suara tidak boleh
+      // tetap hidup tanpa pertanyaannya).
+      await pool.query('DELETE FROM wz_owner_forum_polls WHERE message_id=$1',[id]).catch(()=>{});
       return send(res,200,{ok:true}),true;
     }
     return send(res,405,{ok:false,error:'Method tidak didukung.'}),true;
   }
+
+  // ---- Polling ----------------------------------------------------------
+  // Polling adalah pesan forum biasa: pengirim, tenant, notifikasi, push, dan
+  // unread semuanya mengikuti jalur yang sama dengan pesan teks. Yang khas
+  // hanya question/opsi/vote-nya.
+  if(path==='owner-forum/polls'&&req.method==='POST'){
+    const b=await body(req);
+    const question=String(b.question??'').trim().slice(0,300);
+    const allowMultiple=b.allowMultiple===true;
+    const rawOptions=Array.isArray(b.options)?b.options:[];
+
+    if(!question)return send(res,400,{ok:false,error:'Pertanyaan polling wajib diisi.'}),true;
+    if(rawOptions.length<2)return send(res,400,{ok:false,error:'Polling minimal memiliki 2 pilihan.'}),true;
+    if(rawOptions.length>20)return send(res,400,{ok:false,error:'Polling maksimal memiliki 20 pilihan.'}),true;
+
+    const options=[];
+    const seen=new Set();
+    for(const item of rawOptions){
+      const label=String(item??'').trim().slice(0,100);
+      if(!label)return send(res,400,{ok:false,error:'Pilihan polling tidak boleh kosong.'}),true;
+      const key=label.toLowerCase();
+      if(seen.has(key))return send(res,400,{ok:false,error:'Pilihan polling harus berbeda satu sama lain.'}),true;
+      seen.add(key);
+      options.push(label);
+    }
+
+    const replyToId=b.replyToId==null?null:Number(b.replyToId);
+    if(replyToId!==null&&(!Number.isInteger(replyToId)||replyToId<1))return send(res,400,{ok:false,error:'Reply tidak valid.'}),true;
+    if(replyToId!==null&&!(await pool.query('SELECT id FROM wz_owner_forum_messages WHERE id=$1 AND deleted_at IS NULL',[replyToId])).rowCount)return send(res,400,{ok:false,error:'Pesan yang dibalas tidak ditemukan.'}),true;
+
+    // Pesan + polling + opsi dibuat dalam satu transaksi supaya tidak pernah
+    // ada polling tanpa pesannya, atau opsi setengah jadi.
+    const c=await pool.connect();
+    let messageId=0,pollId=0;
+    try{
+      await c.query('BEGIN');
+      const m=await c.query(
+        `INSERT INTO wz_owner_forum_messages(sender_user_id,sender_role,business_id,message,message_type,reply_to_id)
+         VALUES($1,'owner',$2,$3,'poll',$4) RETURNING id`,
+        [user.id,user.business_id||null,question,replyToId]
+      );
+      messageId=m.rows[0].id;
+      const p=await c.query(
+        `INSERT INTO wz_owner_forum_polls(message_id,business_id,creator_user_id,question,allow_multiple)
+         VALUES($1,$2,$3,$4,$5) RETURNING id`,
+        [messageId,user.business_id||null,user.id,question,allowMultiple]
+      );
+      pollId=p.rows[0].id;
+      for(let i=0;i<options.length;i++){
+        await c.query(
+          'INSERT INTO wz_owner_forum_poll_options(poll_id,position,label) VALUES($1,$2,$3)',
+          [pollId,i+1,options[i]]
+        );
+      }
+      await c.query('COMMIT');
+    }catch(e){
+      await c.query('ROLLBACK').catch(()=>{});
+      throw e;
+    }finally{c.release()}
+
+    await pool.query(
+      `INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id)
+       VALUES('owner_message','Polling baru dari Owner',$1,$2,'business',$2)`,
+      [`Owner ${user.name} membuat polling: ${question}`,user.business_id||null]
+    ).catch(()=>{});
+    if(sendOwnerForumPush){
+      await sendOwnerForumPush({
+        title:'WZ MANAGE PRO',
+        body:`${user.name} membuat polling: ${question}`.slice(0,180),
+        data:{type:'owner_forum',messageType:'poll',messageId:String(messageId)},
+        excludeUserId:user.id
+      }).catch(()=>{});
+    }
+    return send(res,201,{ok:true,scope:'global',messageId:String(messageId),pollId:String(pollId)}),true;
+  }
+
+  if(path==='owner-forum/polls/vote'&&req.method==='POST'){
+    const b=await body(req);
+    const pollId=Number(b.pollId);
+    if(!Number.isInteger(pollId)||pollId<1)return send(res,400,{ok:false,error:'Polling tidak valid.'}),true;
+
+    const rawOptionIds=Array.isArray(b.optionIds)?b.optionIds:[];
+    // Duplikat dari client dibuang di sini juga, bukan hanya di UI.
+    const wanted=[...new Set(rawOptionIds.map(Number).filter(n=>Number.isInteger(n)&&n>0))];
+    if(!wanted.length)return send(res,400,{ok:false,error:'Pilih minimal satu opsi.'}),true;
+
+    const pollCheck=await pool.query(
+      `SELECT p.id,p.message_id AS "messageId",p.allow_multiple AS "allowMultiple"
+       FROM wz_owner_forum_polls p
+       JOIN wz_owner_forum_messages m ON m.id=p.message_id
+       WHERE p.id=$1 AND m.deleted_at IS NULL`,
+      [pollId]
+    );
+    if(!pollCheck.rowCount)return send(res,404,{ok:false,error:'Polling tidak ditemukan.'}),true;
+
+    // Aturan single choice ditegakkan server: lebih dari satu pilihan tetap
+    // hanya direkam sebagai satu suara, bukan disimpan apa adanya.
+    const optionIds=pollCheck.rows[0].allowMultiple?wanted:wanted.slice(0,1);
+    const valid=await pool.query(
+      'SELECT id FROM wz_owner_forum_poll_options WHERE poll_id=$1 AND id=ANY($2::bigint[])',
+      [pollId,optionIds]
+    );
+    if(valid.rowCount!==optionIds.length)return send(res,400,{ok:false,error:'Pilihan tidak valid untuk polling ini.'}),true;
+
+    // Vote lama milik user ini dihapus dulu, lalu vote baru ditulis. Efeknya:
+    // tidak pernah ada vote ganda, dan user boleh mengganti pilihannya.
+    const c=await pool.connect();
+    try{
+      await c.query('BEGIN');
+      await c.query('DELETE FROM wz_owner_forum_poll_votes WHERE poll_id=$1 AND user_id=$2',[pollId,user.id]);
+      for(const optionId of optionIds){
+        await c.query(
+          `INSERT INTO wz_owner_forum_poll_votes(poll_id,option_id,user_id)
+           VALUES($1,$2,$3) ON CONFLICT(poll_id,user_id,option_id) DO NOTHING`,
+          [pollId,optionId,user.id]
+        );
+      }
+      await c.query('COMMIT');
+    }catch(e){
+      await c.query('ROLLBACK').catch(()=>{});
+      throw e;
+    }finally{c.release()}
+
+    // Hasil selalu dikembalikan dari server supaya bubble langsung sinkron.
+    const polls=await forumPollsOf(pool,[pollCheck.rows[0].messageId],user.id);
+    return send(res,200,{ok:true,poll:polls.get(String(pollCheck.rows[0].messageId))||null}),true;
+  }
+
+  if(path.startsWith('owner-forum/polls')&&req.method!=='POST')return send(res,405,{ok:false,error:'Method tidak didukung.'}),true;
 
   if(path==='owner-forum/reactions'&&req.method==='POST'){
     const b=await body(req),messageId=Number(b.messageId),reaction=String(b.reaction||'').trim();

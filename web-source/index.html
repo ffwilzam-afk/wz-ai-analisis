@@ -725,16 +725,36 @@ button,input,select,textarea{max-width:100%}
   color:#777;
 }
 
+/* Baris ini HANYA muncul sambil membalas sebuah pesan. `display:flex` di
+   bawah menimpa aturan [hidden] dari browser, jadi [hidden] harus ditegaskan
+   lagi di sini; kalau tidak, baris kosong dengan tombol X selalu terlihat di
+   bawah area chat. */
 .owner-forum-compose-reply{
   flex:0 0 auto;
   display:flex;
   align-items:center;
   gap:8px;
-  padding:7px 12px;
+  padding:6px 12px;
   border-top:1px solid rgba(212,175,55,.18);
   background:#0d0d0d;
   font-size:12px;
   color:#bbb;
+}
+
+.owner-forum-compose-reply[hidden]{
+  display:none;
+}
+
+.owner-forum-compose-reply button{
+  flex:0 0 auto;
+  padding:2px 9px;
+  font-size:11px;
+  line-height:1.7;
+  border-radius:999px;
+  background:transparent;
+  border:1px solid rgba(212,175,55,.45);
+  color:#f4d98b;
+  cursor:pointer;
 }
 
 .owner-forum-compose-reply span{
@@ -805,6 +825,162 @@ button,input,select,textarea{max-width:100%}
   border:1px solid rgba(212,175,55,.6);
   color:#f4d98b;
   cursor:pointer;
+}
+
+/* ---- Polling (jenis pesan baru di Obrolan Owner) ----------------------
+   Bubble polling memakai latar sendiri yang pekat, jadi wallpaper Anti
+   Gravity tidak pernah menutupi pertanyaan, pilihan, atau hasil suara.
+   Tidak ada animasi: hanya progress bar statis per pilihan. */
+.owner-forum-poll{
+  max-width:100%;
+  padding:11px 13px;
+  border-radius:4px 14px 14px 14px;
+  background:#151515;
+  border:1px solid #292929;
+  color:#eee;
+}
+
+.owner-forum-message.is-mine .owner-forum-poll{
+  background:linear-gradient(180deg,#2c220a,#1c1607);
+  border-color:rgba(212,175,55,.6);
+  border-radius:14px 4px 14px 14px;
+}
+
+.owner-forum-message.is-admin .owner-forum-poll{
+  background:#1a1508;
+  border-color:rgba(212,175,55,.5);
+}
+
+.owner-forum-poll-question{
+  font-weight:600;
+  line-height:1.4;
+  margin-bottom:9px;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+.owner-forum-poll-options{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+}
+
+.owner-forum-poll-option{
+  display:block;
+  width:100%;
+  max-width:100%;
+  text-align:left;
+  padding:7px 10px;
+  border-radius:9px;
+  border:1px solid #2e2e2e;
+  background:#1c1c1c;
+  color:#ddd;
+  font-size:13px;
+  line-height:1.4;
+  cursor:pointer;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+}
+
+.owner-forum-poll-option.mine{
+  border-color:rgba(212,175,55,.7);
+  background:#2a220e;
+  color:#f6e6b8;
+}
+
+.owner-forum-poll-mark{
+  color:#f4d98b;
+  font-weight:700;
+  margin-right:6px;
+}
+
+.owner-forum-poll-value{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:8px;
+  font-size:13px;
+}
+
+.owner-forum-poll-value b{
+  flex:0 0 auto;
+  color:#f4d98b;
+  font-weight:700;
+}
+
+.owner-forum-poll-track{
+  margin-top:5px;
+  height:6px;
+  border-radius:999px;
+  background:rgba(255,255,255,.08);
+  overflow:hidden;
+}
+
+.owner-forum-poll-track i{
+  display:block;
+  height:100%;
+  border-radius:999px;
+  background:linear-gradient(90deg,#a9822a,#e9c766);
+}
+
+.owner-forum-poll-foot{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:9px;
+  font-size:11px;
+  color:#8d8d8d;
+}
+
+.owner-forum-poll-link{
+  padding:3px 10px;
+  border-radius:999px;
+  border:1px solid rgba(212,175,55,.45);
+  background:transparent;
+  color:#f4d98b;
+  font-size:11px;
+  cursor:pointer;
+}
+
+.owner-forum-poll-submit{
+  margin-top:9px;
+  width:100%;
+  padding:8px;
+  border-radius:999px;
+  border:none;
+  background:linear-gradient(180deg,#e0c063,#c39c31);
+  color:#1b1405;
+  font-weight:700;
+  font-size:13px;
+  cursor:pointer;
+}
+
+/* Form polling di dalam modal: pilihan diberi tinggi sentuh yang nyaman. */
+.owner-forum-poll-form{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+}
+
+.owner-forum-poll-check{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin-top:11px;
+  font-size:13px;
+  color:#ddd;
+}
+
+.owner-forum-poll-error{
+  margin:10px 0 0;
+  padding:8px 10px;
+  border-radius:9px;
+  background:rgba(180,40,40,.18);
+  border:1px solid rgba(220,90,90,.45);
+  color:#ffb4b4;
+  font-size:12px;
 }
 
 @media(max-width:400px){
@@ -961,10 +1137,14 @@ button,input,select,textarea{max-width:100%}
   .owner-forum-head-title p{-webkit-line-clamp:3}
   /* Empat elemen composer (2 tombol + input + kirim) harus tetap muat
      tanpa horizontal overflow di HP kecil. */
-  .owner-forum-compose{padding:7px 8px;gap:6px}
+  /* Lima elemen composer (3 tombol bulat + input + kirim) harus tetap muat
+     tanpa horizontal overflow di HP kecil. */
+  .owner-forum-compose{padding:7px 8px;gap:5px}
   .owner-forum-emoji-btn{width:30px;height:30px;font-size:14px}
   .owner-forum-send{padding:8px 10px;font-size:12px}
   .owner-forum-messages{padding:14px 10px}
+  .owner-forum-poll{padding:10px}
+  .owner-forum-poll-option{font-size:12px;padding:8px 9px}
 }
 
 /* Mobile bottom navigation */
@@ -3050,6 +3230,8 @@ async function ownerForumPage(){
     wzForumHasMore=false;
     wzForumSearchTerm='';
     wzForumNewCount=0;
+    wzPollDraft={};
+    wzPollEditing={};
     content.innerHTML=`
       <section class="card section owner-forum-page" style="padding:0;overflow:hidden">
         <div class="owner-forum-head">
@@ -3067,7 +3249,7 @@ async function ownerForumPage(){
 
         <div class="owner-forum-compose-reply" id="ownerForumReplyBar" hidden>
           <span id="ownerForumReplyText"></span>
-          <button type="button" class="btn small" onclick="ownerForumCancelReply()" aria-label="Batalkan balasan">✕</button>
+          <button type="button" onclick="ownerForumCancelReply()">Batal</button>
         </div>
 
         <div class="owner-forum-compose">
@@ -3083,6 +3265,7 @@ async function ownerForumPage(){
             enterkeyhint="send"
             onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();ownerForumSend()}"
           >
+          <button type="button" class="owner-forum-emoji-btn" onclick="ownerForumOpenMenu()" title="Menu obrolan" aria-label="Menu obrolan">＋</button>
           <button type="button" class="btn primary owner-forum-send" onclick="ownerForumSend()">Kirim</button>
         </div>
       </section>
@@ -3258,6 +3441,15 @@ let wzForumNewCount=0;
 // sengaja ditahan semua agar history tidak hilang dari layar.
 const WZ_FORUM_MAX_HELD=80;
 let wzForumOlderPinned=false;
+// Pilihan lokal sebelum dikirim (khusus polling multi-pilih) dan mode "ubah
+// pilihan" untuk polling yang sudah pernah divote. Keduanya sengaja disimpan
+// di memori saja: setelah suara tersimpan, server yang jadi sumber kebenaran.
+const WZ_POLL_MIN_OPTIONS=2;
+const WZ_POLL_MAX_OPTIONS=20;
+const WZ_POLL_MAX_QUESTION=300;
+const WZ_POLL_MAX_LABEL=100;
+let wzPollDraft={};
+let wzPollEditing={};
 
 function ownerForumInitials(name){
   const text=String(name||'').trim();
@@ -3284,6 +3476,288 @@ function ownerForumPreviewText(m){
   return String(m.message||'').replace(/\s+/g,' ').trim();
 }
 
+/* ---- Polling -----------------------------------------------------------
+   Polling adalah pesan forum biasa; yang membedakan hanya isi poll-nya.
+   Semua data suara berasal dari server: bubble hanya menampilkan hasil yang
+   sudah dikirim balik, sehingga tidak ada hitungan suara di frontend.
+
+   Aturan main:
+   - belum vote + single choice  -> mengetuk opsi langsung mengirim suara
+   - belum vote + multi choice   -> centang dulu, lalu tekan "Kirim suara"
+   - sudah vote + single choice  -> hasil tetap bisa diketuk untuk mengganti
+   - sudah vote + multi choice   -> "Ubah pilihan" dulu, baru bisa dikirim  */
+function ownerForumPollDraft(messageId){
+  const key=String(Number(messageId));
+  if(!wzPollDraft[key])wzPollDraft[key]=[];
+  return wzPollDraft[key];
+}
+
+function ownerForumRefreshPollNode(messageId){
+  const id=Number(messageId);
+  const box=document.getElementById('ownerForumMessages');
+  const node=box?box.querySelector('[data-wz-message="'+id+'"]'):null;
+  const m=wzForumMessages.find(x=>Number(x.id)===id);
+  // Hanya satu bubble yang diganti, jadi posisi scroll dan state composer
+  // tidak terganggu.
+  if(node&&m)node.outerHTML=ownerForumMessageHtml(m);
+}
+
+function ownerForumPollHtml(m){
+  const poll=m.poll;
+  if(!poll)return `<div class="owner-forum-text">${escapeHtml(m.message||'')}</div>`;
+
+  const id=Number(m.id);
+  const key=String(id);
+  const options=Array.isArray(poll.options)?poll.options:[];
+  const total=Number(poll.totalVotes)||0;
+  const multi=!!poll.allowMultiple;
+  const draft=wzPollDraft[key]||[];
+  // Mode ubah hanya dipakai polling multi-pilih; single choice cukup
+  // mengetuk baris hasil untuk mengganti suara.
+  const editing=multi&&!!wzPollEditing[key];
+  const pickMode=!poll.voted||editing;
+
+  let rows='';
+  if(pickMode&&multi){
+    rows=options.map(o=>{
+      const on=!!o.mine||draft.includes(String(o.id));
+      return `<button type="button" class="owner-forum-poll-option${on?' mine':''}" aria-pressed="${on?'true':'false'}" onclick="ownerForumTogglePollOption(${id},'${o.id}')"><span class="owner-forum-poll-mark">${on?'\u2611':'\u2610'}</span>${escapeHtml(o.label)}</button>`;
+    }).join('');
+  }else if(pickMode){
+    rows=options.map(o=>`<button type="button" class="owner-forum-poll-option" onclick="ownerForumVotePoll(${id},'${o.id}')" aria-label="Pilih ${escapeHtml(o.label)}">${escapeHtml(o.label)}</button>`).join('');
+  }else{
+    rows=options.map(o=>{
+      const count=Number(o.votes)||0;
+      const percent=total?Math.round(count/total*100):0;
+      // Baris dengan 0 suara tetap diberi tinggi minimal, bukan hilang.
+      const width=count?Math.max(percent,6):0;
+      // Single choice: baris hasil tetap bisa diketuk untuk mengganti suara,
+      // jadi dipakai elemen <button> agar bisa difokuskan. Multi choice tidak
+      // bisa diketuk di mode hasil, jadi cukup <div>.
+      const tag=multi?'div':'button';
+      const tap=multi?'':` type="button" onclick="ownerForumVotePoll(${id},'${o.id}')" aria-label="Ubah pilihan ke ${escapeHtml(o.label)}"`;
+      return `<${tag} class="owner-forum-poll-option${o.mine?' mine':''}"${tap}><div class="owner-forum-poll-value"><span>${o.mine?'<span class="owner-forum-poll-mark">\u25cf</span>':''}${escapeHtml(o.label)}</span><b>${count}</b></div><div class="owner-forum-poll-track"><i style="width:${width}%"></i></div></${tag}>`;
+    }).join('');
+  }
+
+  // Tombol kaki hanya muncul kalau memang ada aksi. Single choice tidak
+  // perlu "Batal" (belum ada suara untuk dibatalkan) dan tidak perlu
+  // "Ubah pilihan" karena baris hasilnya sendiri yang bisa diketuk.
+  let foot=`<span>${total} suara</span>`;
+  if(pickMode&&multi){
+    foot+=editing?'<button type="button" class="owner-forum-poll-link" onclick="ownerForumTogglePollEditing('+id+',0)">Batal</button>':'';
+  }else if(!pickMode&&multi){
+    foot+='<button type="button" class="owner-forum-poll-link" onclick="ownerForumTogglePollEditing('+id+',1)">Ubah pilihan</button>';
+  }
+
+  const submit=(pickMode&&multi&&draft.length)
+    ? `<button type="button" class="owner-forum-poll-submit" onclick="ownerForumSubmitPoll(${id})">${poll.voted?'Perbarui pilihan':'Kirim suara'}</button>`
+    : '';
+
+  return `<div class="owner-forum-poll">
+    <div class="owner-forum-poll-question">${escapeHtml(poll.question||m.message||'')}</div>
+    <div class="owner-forum-poll-options">${rows}</div>
+    <div class="owner-forum-poll-foot">${foot}</div>
+    ${submit}
+  </div>`;
+}
+
+async function ownerForumSendVote(m,optionIds){
+  if(!m||!m.poll||!optionIds||!optionIds.length)return;
+  const key=String(Number(m.id));
+  try{
+    const r=await window.api('owner-forum/polls/vote',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pollId:String(m.poll.id),optionIds:optionIds.map(String)})
+    });
+    if(!r.ok)throw new Error(r.error||'Suara gagal disimpan.');
+    // Hasil dari server langsung dipasang ke pesan, lalu bubble-nya saja yang
+    // digambar ulang. Auto-refresh yang berjalan tetap bisa mengoreksinya.
+    if(r.poll)m.poll=r.poll;
+    delete wzPollDraft[key];
+    delete wzPollEditing[key];
+    ownerForumRefreshPollNode(m.id);
+  }catch(e){
+    toast(e.message||'Suara gagal disimpan.',true);
+  }
+}
+
+function ownerForumVotePoll(messageId,optionId){
+  const m=wzForumMessages.find(x=>Number(x.id)===Number(messageId));
+  if(!m||!m.poll)return Promise.resolve();
+  return ownerForumSendVote(m,[String(optionId)]);
+}
+
+function ownerForumTogglePollOption(messageId,optionId){
+  const draft=ownerForumPollDraft(messageId);
+  const id=String(optionId);
+  const at=draft.indexOf(id);
+  if(at>=0)draft.splice(at,1);else draft.push(id);
+  ownerForumRefreshPollNode(messageId);
+}
+
+function ownerForumSubmitPoll(messageId){
+  const m=wzForumMessages.find(x=>Number(x.id)===Number(messageId));
+  if(!m||!m.poll)return Promise.resolve();
+  return ownerForumSendVote(m,(wzPollDraft[String(Number(messageId))]||[]).slice());
+}
+
+function ownerForumTogglePollEditing(messageId,on){
+  const key=String(Number(messageId));
+  const m=wzForumMessages.find(x=>Number(x.id)===Number(messageId));
+  if(!m||!m.poll)return;
+  if(Number(on)){
+    wzPollEditing[key]=true;
+    // Mulai dari suara yang sudah tersimpan, jadi "ubah" tidak menghapus
+    // pilihan lama sebelum user menekan tombol kirim.
+    wzPollDraft[key]=(m.poll.myOptionIds||[]).slice();
+  }else{
+    delete wzPollEditing[key];
+    delete wzPollDraft[key];
+  }
+  ownerForumRefreshPollNode(messageId);
+}
+
+/* ---- Menu composer & form buat polling ---------------------------------
+   Akses Polling lewat satu tombol bulat kecil di composer, lalu pilihan dari
+   sheet. Tidak ada toolbar besar, dan tidak ada satu pun baris tambahan di
+   atas area chat. */
+async function ownerForumOpenMenu(){
+  const choice=await wzSheet({
+    title:'Obrolan Owner',
+    subtitle:'Buat konten baru untuk forum Owner.',
+    actions:[{icon:'📊',label:'Polling',value:'poll'}]
+  });
+  if(choice==='poll')ownerForumCreatePoll();
+}
+
+function ownerForumPollReadForm(root){
+  const question=String((root.querySelector('#wzPollQuestion')||{}).value||'').trim();
+  const options=[...root.querySelectorAll('[data-wz-poll-option]')].map(x=>String(x.value||'').trim());
+  const allowMultiple=!!(root.querySelector('#wzPollMultiple')||{}).checked;
+  // Validasi di frontend hanya demi umpan balik cepat; server mengulang
+  // seluruh aturan ini dan tidak mempercayai apa pun yang dikirim browser.
+  if(!question)return {error:'Pertanyaan polling wajib diisi.'};
+  if(options.length>WZ_POLL_MAX_OPTIONS)return {error:'Polling maksimal memiliki '+WZ_POLL_MAX_OPTIONS+' pilihan.'};
+  if(options.some(x=>!x))return {error:'Pilihan polling tidak boleh kosong.'};
+  if(options.length<WZ_POLL_MIN_OPTIONS)return {error:'Polling minimal memiliki '+WZ_POLL_MIN_OPTIONS+' pilihan.'};
+  const seen=new Set();
+  for(const label of options){
+    const key=label.toLowerCase();
+    if(seen.has(key))return {error:'Pilihan polling harus berbeda satu sama lain.'};
+    seen.add(key);
+  }
+  return {question,options,allowMultiple};
+}
+
+function ownerForumPollError(root,message){
+  const box=root.querySelector('#wzPollError');
+  if(!box)return;
+  box.textContent=message;
+  box.hidden=false;
+}
+
+function ownerForumPollSyncAddButton(root){
+  const add=root.querySelector('#wzPollAddOption');
+  if(!add)return;
+  const full=root.querySelectorAll('[data-wz-poll-option]').length>=WZ_POLL_MAX_OPTIONS;
+  add.hidden=full;
+  add.disabled=full;
+}
+
+async function ownerForumSendPoll(question,options,allowMultiple){
+  try{
+    const r=await window.api('owner-forum/polls',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        question,
+        options,
+        allowMultiple,
+        replyToId:wzForumReplyTo?wzForumReplyTo.id:null
+      })
+    });
+    if(!r.ok)throw new Error(r.error||'Polling gagal dibuat.');
+    ownerForumCancelReply();
+    wzForumNewCount=0;
+    const box=document.getElementById('ownerForumMessages');
+    await ownerForumLoad({force:true});
+    if(box)box.scrollTop=box.scrollHeight;
+    toast('Polling dibuat.');
+    return true;
+  }catch(e){
+    toast(e.message||'Polling gagal dibuat.',true);
+    return false;
+  }
+}
+
+async function ownerForumCreatePoll(){
+  const field=(index)=>`<input class="input" data-wz-poll-option="1" type="text" maxlength="${WZ_POLL_MAX_LABEL}" placeholder="Pilihan ${index}" autocomplete="off" enterkeyhint="next" style="width:100%">`;
+  const body=`
+    <div id="wzPollForm">
+      <label style="display:block;margin-bottom:11px">
+        <span class="muted" style="display:block;margin-bottom:6px">Pertanyaan</span>
+        <input id="wzPollQuestion" class="input" type="text" maxlength="${WZ_POLL_MAX_QUESTION}" placeholder="Tulis pertanyaan..." autocomplete="off" style="width:100%">
+      </label>
+      <span class="muted" style="display:block;margin-bottom:6px">Pilihan</span>
+      <div id="wzPollOptions" class="owner-forum-poll-form">${field(1)}${field(2)}</div>
+      <button type="button" id="wzPollAddOption" class="owner-forum-poll-link" style="margin-top:9px">+ Tambah pilihan</button>
+      <label class="owner-forum-poll-check">
+        <input id="wzPollMultiple" type="checkbox">
+        <span>Izinkan pilih lebih dari satu</span>
+      </label>
+      <p id="wzPollError" class="owner-forum-poll-error" hidden></p>
+    </div>`;
+
+  const created=await wzModal({
+    title:'Buat Polling',
+    body,
+    actions:[
+      {label:'Batal',value:null},
+      {label:'Buat',primary:true}
+    ],
+    onReady(root){
+      const list=root.querySelector('#wzPollOptions');
+      const add=root.querySelector('#wzPollAddOption');
+      const question=root.querySelector('#wzPollQuestion');
+      if(question)question.focus();
+      ownerForumPollSyncAddButton(root);
+      if(add)add.addEventListener('click',()=>{
+        const count=list.querySelectorAll('[data-wz-poll-option]').length;
+        if(count>=WZ_POLL_MAX_OPTIONS)return;
+        const wrap=document.createElement('div');
+        wrap.innerHTML=field(count+1);
+        const input=wrap.firstElementChild;
+        list.appendChild(input);
+        ownerForumPollSyncAddButton(root);
+        try{input.focus();}catch(e){}
+      });
+      // Tombol "Buat" ditangani sendiri supaya form yang belum valid TIDAK
+      // menutup modal. stopPropagation menahan penutup bawaan wzModal.
+      const submit=root.querySelector('[data-wz-action="1"]');
+      if(!submit)return;
+      submit.addEventListener('click',e=>{
+        e.preventDefault();
+        e.stopPropagation();
+        const data=ownerForumPollReadForm(root);
+        if(data.error){ownerForumPollError(root,data.error);return}
+        const box=root.querySelector('#wzPollError');
+        if(box)box.hidden=true;
+        submit.disabled=true;
+        ownerForumSendPoll(data.question,data.options,data.allowMultiple).then(ok=>{
+          if(ok)wzModalDismiss(true);
+          else{
+            submit.disabled=false;
+            ownerForumPollError(root,'Polling gagal dibuat. Coba lagi.');
+          }
+        });
+      });
+    }
+  });
+  if(!created)return;
+}
+
 function ownerForumMessageHtml(m){
   const isAdmin=m.senderRole==='platform_admin'||m.senderRole==='admin';
 
@@ -3299,7 +3773,9 @@ function ownerForumMessageHtml(m){
 
   const content=m.messageType==='sticker'
     ? `<div class="owner-forum-sticker">${escapeHtml(m.stickerId||'😊')}</div>`
-    : `<div class="owner-forum-text">${escapeHtml(m.message||'')}</div>`;
+    : m.messageType==='poll'
+      ? ownerForumPollHtml(m)
+      : `<div class="owner-forum-text">${escapeHtml(m.message||'')}</div>`;
 
   const reply=m.replyToId?`<div class="owner-forum-reply-quote"><b>${escapeHtml(m.replySenderName||'Pesan')}</b><span>${escapeHtml(m.replyMessageType==='sticker'?('Sticker '+String(m.replyStickerId||'')):(m.replyMessage||'Pesan dihapus'))}</span></div>`:'';
 
@@ -3520,17 +3996,19 @@ async function ownerForumActions(id){
   const myId=String(currentUser?.id??'');
   const isMine=m.senderRole==='owner'&&!!myId&&String(m.senderId??'')===myId;
   const isSticker=m.messageType==='sticker';
+  const isPoll=m.messageType==='poll';
 
   const actions=[{icon:'↩',label:'Balas',value:'reply'}];
   if(!isSticker)actions.push({icon:'⧉',label:'Salin teks',value:'copy'});
   if(isMine){
-    if(!isSticker)actions.push({icon:'✎',label:'Edit pesan',value:'edit'});
+    // Pertanyaan polling beserta opsinya tidak bisa diedit; hanya dihapus.
+    if(!isSticker&&!isPoll)actions.push({icon:'✎',label:'Edit pesan',value:'edit'});
     actions.push({icon:'🗑',label:'Hapus pesan',value:'delete',danger:true});
   }
 
   const choice=await wzSheet({
     title:m.senderRole==='platform_admin'||m.senderRole==='admin'?WZ_ADMIN_FORUM_NAME:(m.senderName||'Owner'),
-    subtitle:isSticker?('Sticker '+String(m.stickerId||'')):String(m.message||'').slice(0,120),
+    subtitle:isSticker?('Sticker '+String(m.stickerId||'')):String((isPoll&&m.poll&&m.poll.question)||m.message||'').slice(0,120),
     actions
   });
   if(!choice)return;
@@ -3963,6 +4441,12 @@ window.ownerForumJumpNew=ownerForumJumpNew;
 window.ownerForumLoadOlder=ownerForumLoadOlder;
 window.ownerForumSearchInput=ownerForumSearchInput;
 window.ownerForumCancelReply=ownerForumCancelReply;
+window.ownerForumOpenMenu=ownerForumOpenMenu;
+window.ownerForumCreatePoll=ownerForumCreatePoll;
+window.ownerForumVotePoll=ownerForumVotePoll;
+window.ownerForumTogglePollOption=ownerForumTogglePollOption;
+window.ownerForumSubmitPoll=ownerForumSubmitPoll;
+window.ownerForumTogglePollEditing=ownerForumTogglePollEditing;
 window.markServerNotificationRead=markServerNotificationRead;
 window.markAllServerNotificationsRead=markAllServerNotificationsRead;
 // Dipakai tombol di halaman Notifikasi (atribut onclick harus window.*).

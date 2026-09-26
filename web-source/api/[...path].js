@@ -458,6 +458,60 @@ async function schema(){
 
     CREATE INDEX IF NOT EXISTS wz_owner_forum_reactions_message_idx
       ON wz_owner_forum_reactions(message_id);
+
+    -- ---- Polling (jenis pesan baru di Obrolan Owner) --------------------
+    -- Polling butuh message_type baru ('poll') + tiga tabel. DDL di sini
+    -- idempotent dan mengikuti pola ensureSchema() yang sudah dipakai fitur
+    -- lain (sender_admin_id/edited_at/deleted_at), jadi aman dijalankan ulang.
+    --
+    -- Batasan message_type yang ada dibuang lebih dulu (nama constraint bisa
+    -- berbeda antar database), lalu diganti dengan yang memuat 'poll'.
+    DO $$
+    DECLARE cname TEXT;
+    BEGIN
+      SELECT conname INTO cname
+      FROM pg_constraint
+      WHERE conrelid='wz_owner_forum_messages'::regclass
+        AND contype='c'
+        AND pg_get_constraintdef(oid) ILIKE '%message_type%';
+      IF cname IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE wz_owner_forum_messages DROP CONSTRAINT %I', cname);
+      END IF;
+    END $$;
+    ALTER TABLE wz_owner_forum_messages
+      ADD CONSTRAINT wz_owner_forum_messages_message_type_check
+      CHECK (message_type IN ('text','sticker','poll'));
+
+    CREATE TABLE IF NOT EXISTS wz_owner_forum_polls(
+      id BIGSERIAL PRIMARY KEY,
+      message_id BIGINT NOT NULL UNIQUE REFERENCES wz_owner_forum_messages(id) ON DELETE CASCADE,
+      business_id TEXT REFERENCES wz_businesses(id),
+      creator_user_id BIGINT REFERENCES wz_users(id) ON DELETE SET NULL,
+      question TEXT NOT NULL,
+      allow_multiple BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS wz_owner_forum_poll_options(
+      id BIGSERIAL PRIMARY KEY,
+      poll_id BIGINT NOT NULL REFERENCES wz_owner_forum_polls(id) ON DELETE CASCADE,
+      position INT NOT NULL,
+      label TEXT NOT NULL,
+      UNIQUE(poll_id,position)
+    );
+    CREATE TABLE IF NOT EXISTS wz_owner_forum_poll_votes(
+      id BIGSERIAL PRIMARY KEY,
+      poll_id BIGINT NOT NULL REFERENCES wz_owner_forum_polls(id) ON DELETE CASCADE,
+      option_id BIGINT NOT NULL REFERENCES wz_owner_forum_poll_options(id) ON DELETE CASCADE,
+      user_id BIGINT NOT NULL REFERENCES wz_users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE(poll_id,user_id,option_id)
+    );
+    CREATE INDEX IF NOT EXISTS wz_owner_forum_polls_message_idx
+      ON wz_owner_forum_polls(message_id);
+    CREATE INDEX IF NOT EXISTS wz_owner_forum_poll_options_poll_idx
+      ON wz_owner_forum_poll_options(poll_id);
+    CREATE INDEX IF NOT EXISTS wz_owner_forum_poll_votes_poll_idx
+      ON wz_owner_forum_poll_votes(poll_id);
   `);
   await p.query(`
     ALTER TABLE wz_branches ADD COLUMN IF NOT EXISTS address TEXT NOT NULL DEFAULT '';\n    ALTER TABLE wz_branches ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
