@@ -80,9 +80,35 @@ async function forumReactionsOf(pool,ids,userId){
   return map;
 }
 
+// Bentuk payload polling untuk satu poll, dari baris opsi yang sudah diurutkan.
+// `mine` hanya mungkin true kalau userId diberikan: Admin memang tidak memilih,
+// jadi tidak perlu tahu siapa yang memilih apa.
+function forumPollResultOf(rows,userId){
+  if(!rows.length)return null;
+  const poll={
+    id:String(rows[0].id),
+    question:String(rows[0].question),
+    allowMultiple:Boolean(rows[0].allowMultiple),
+    options:[],
+    myOptionIds:[],
+    totalVotes:0,
+    voters:0,
+    voted:false
+  };
+  for(const row of rows){
+    const count=Number(row.votes)||0;
+    poll.options.push({id:String(row.optionId),label:String(row.label),votes:count,mine:Boolean(row.mine)});
+    if(row.mine)poll.myOptionIds.push(String(row.optionId));
+    poll.totalVotes+=count;
+  }
+  poll.voted=poll.myOptionIds.length>0;
+  // Untuk polling multi-pilih, "voters" menghitung orang, bukan suara.
+  poll.voters=Number(rows[0].voters)||0;
+  return poll;
+}
+
 // Polling dimuat terpisah dari pesan, satu query untuk seluruh poll di halaman
-// yang sama. `mine` hanya menandai vote milik user yang sedang login, jadi
-// frontend bisa menandai pilihannya tanpa pernah membawa identitas voter lain.
+// yang sama. Angka suara selalu dihitung database, tidak pernah di frontend.
 async function forumPollsOf(pool,messageIds,userId){
   const map=new Map();
   if(!messageIds.length)return map;
@@ -94,7 +120,8 @@ async function forumPollsOf(pool,messageIds,userId){
             o.id AS "optionId",
             o.label,
             COALESCE(v.votes,0)::int AS votes,
-            (x.user_id IS NOT NULL) AS mine
+            (x.user_id IS NOT NULL) AS mine,
+            (SELECT COUNT(DISTINCT u2.user_id) FROM wz_owner_forum_poll_votes u2 WHERE u2.poll_id=p.id)::int AS voters
      FROM wz_owner_forum_polls p
      JOIN wz_owner_forum_poll_options o ON o.poll_id=p.id
      LEFT JOIN (
@@ -105,21 +132,15 @@ async function forumPollsOf(pool,messageIds,userId){
      LEFT JOIN wz_owner_forum_poll_votes x ON x.option_id=o.id AND x.user_id=$2
      WHERE p.message_id=ANY($1::bigint[])
      ORDER BY p.id,o.position`,
-    [messageIds,userId]
+    [messageIds,userId==null?null:Number(userId)]
   );
+  const grouped=new Map();
   for(const row of r.rows){
     const key=String(row.messageId);
-    let poll=map.get(key);
-    if(!poll){
-      poll={id:String(row.id),question:String(row.question),allowMultiple:Boolean(row.allowMultiple),options:[],myOptionIds:[],totalVotes:0,voted:false};
-      map.set(key,poll);
-    }
-    const votes=Number(row.votes)||0;
-    poll.options.push({id:String(row.optionId),label:String(row.label),votes,mine:Boolean(row.mine)});
-    if(row.mine)poll.myOptionIds.push(String(row.optionId));
-    poll.totalVotes+=votes;
+    if(!grouped.has(key))grouped.set(key,[]);
+    grouped.get(key).push(row);
   }
-  for(const poll of map.values())poll.voted=poll.myOptionIds.length>0;
+  for(const [key,rows] of grouped)map.set(key,forumPollResultOf(rows,userId));
   return map;
 }
 
@@ -510,7 +531,10 @@ module.exports=async function adminRoutes(ctx,req,res,path){
   if(path==='admin/forum/messages' && req.method==='GET'){
     const limit=intParam(q.get('limit'),200,1,200);
     const r=await p.query(`SELECT m.id,m.message,m.message_type AS "messageType",m.sticker_id AS "stickerId",m.reply_to_id AS "replyToId",m.created_at AS "createdAt",m.edited_at AS "editedAt",COALESCE(u.id,m.sender_admin_id) AS "senderId",COALESCE(u.name,a.display_name,'Admin Platform') AS "senderName",COALESCE(b.name,'') AS "businessName",COALESCE(pr.avatar,'') AS "senderAvatar",m.sender_role AS "senderRole" FROM wz_owner_forum_messages m LEFT JOIN wz_users u ON u.id=m.sender_user_id LEFT JOIN wz_platform_admins a ON a.id=m.sender_admin_id LEFT JOIN wz_businesses b ON b.id=m.business_id LEFT JOIN wz_user_profiles pr ON pr.user_id=u.id WHERE (m.sender_user_id IS NOT NULL OR m.sender_admin_id IS NOT NULL) AND m.deleted_at IS NULL ORDER BY m.created_at ASC LIMIT $1`,[limit]);
-    return ctx.send(res,200,{ok:true,scope:'global',messages:r.rows},true);
+    // Polling ikut dikirim supaya Admin bisa membaca hasil yang terkumpul dari
+    // semua Owner. userId null: Admin tidak memilih, jadi `mine` selalu false.
+    const polls=await forumPollsOf(p,r.rows.map(m=>m.id),null);
+    return ctx.send(res,200,{ok:true,scope:'global',messages:r.rows.map(m=>({...m,poll:polls.get(String(m.id))||null}))},true);
   }
   if(path==='admin/forum/messages' && req.method==='POST'){
     const b=await ctx.body(req),message=text(b.message,4000),messageType=text(b.messageType||'text',20),stickerId=text(b.stickerId,30),replyToId=b.replyToId==null?null:Number(b.replyToId);
@@ -534,6 +558,82 @@ module.exports=async function adminRoutes(ctx,req,res,path){
     }
     await audit(ctx,admin,'admin.forum.send',{targetType:'forum',targetId:'global',metadata:{messageId:String(created.id)}});
     return ctx.send(res,201,{ok:true,scope:'global',message:{...created,senderName:admin.display_name,senderRole:'platform_admin'}}),true;
+  }
+
+  // Polling dari Admin: tujuannya mengumpulkan jawaban/umpan balik secara
+  // terstruktur dari semua Owner. Polling tetap pesan forum biasa, jadi
+  // notifikasi, push, unread, dan hak akses Owner tidak perlu jalur baru.
+  if(path==='admin/forum/polls' && req.method==='POST'){
+    const b=await ctx.body(req);
+    const question=text(b.question,300);
+    const allowMultiple=b.allowMultiple===true;
+    const rawOptions=Array.isArray(b.options)?b.options:[];
+
+    if(!question)return ctx.send(res,400,{ok:false,error:'Pertanyaan polling wajib diisi.'}),true;
+    if(rawOptions.length<2)return ctx.send(res,400,{ok:false,error:'Polling minimal memiliki 2 pilihan.'}),true;
+    if(rawOptions.length>20)return ctx.send(res,400,{ok:false,error:'Polling maksimal memiliki 20 pilihan.'}),true;
+
+    const options=[];
+    const seen=new Set();
+    for(const item of rawOptions){
+      const label=text(item,100);
+      if(!label)return ctx.send(res,400,{ok:false,error:'Pilihan polling tidak boleh kosong.'}),true;
+      const key=label.toLowerCase();
+      if(seen.has(key))return ctx.send(res,400,{ok:false,error:'Pilihan polling harus berbeda satu sama lain.'}),true;
+      seen.add(key);
+      options.push(label);
+    }
+
+    const replyToId=b.replyToId==null?null:Number(b.replyToId);
+    if(replyToId!==null&&(!Number.isInteger(replyToId)||replyToId<1))return ctx.send(res,400,{ok:false,error:'Reply tidak valid.'}),true;
+    if(replyToId!==null&&!(await p.query('SELECT id FROM wz_owner_forum_messages WHERE id=$1 AND deleted_at IS NULL',[replyToId])).rowCount)return ctx.send(res,400,{ok:false,error:'Pesan yang dibalas tidak ditemukan.'}),true;
+
+    // Pesan + polling + opsi dalam satu transaksi. business_id NULL karena
+    // Obrolan Owner adalah forum global, sama seperti pesan Admin lainnya.
+    const c=await p.connect();
+    let messageId=0,pollId=0;
+    try{
+      await c.query('BEGIN');
+      const m=await c.query(
+        `INSERT INTO wz_owner_forum_messages(sender_admin_id,sender_role,business_id,message,message_type,reply_to_id)
+         VALUES($1,'platform_admin',NULL,$2,'poll',$3) RETURNING id`,
+        [admin.id,question,replyToId]
+      );
+      messageId=m.rows[0].id;
+      const created=await c.query(
+        `INSERT INTO wz_owner_forum_polls(message_id,business_id,creator_user_id,question,allow_multiple)
+         VALUES($1,NULL,NULL,$2,$3) RETURNING id`,
+        [messageId,question,allowMultiple]
+      );
+      pollId=created.rows[0].id;
+      for(let i=0;i<options.length;i++){
+        await c.query('INSERT INTO wz_owner_forum_poll_options(poll_id,position,label) VALUES($1,$2,$3)',[pollId,i+1,options[i]]);
+      }
+      await c.query('COMMIT');
+    }catch(e){
+      await c.query('ROLLBACK').catch(()=>{});
+      throw e;
+    }finally{c.release()}
+
+    await p.query(
+      `INSERT INTO wz_admin_notifications(type,title,message,business_id,target_type,target_id)
+       VALUES('admin_poll','Polling Admin dikirim',$1,NULL,'forum',NULL)`,
+      [`${admin.display_name||'Admin WZ Manage'} membuat polling: ${question}`]
+    ).catch(()=>{});
+    // Notifikasi FCM ke semua Owner aktif lintas tenant, seperti pesan Admin.
+    if(ctx.sendOwnerForumPush){
+      await ctx.sendOwnerForumPush({
+        title:'WZ MANAGE PRO',
+        body:`${admin.display_name||'Admin WZ Manage'} membuat polling: ${question}`.slice(0,180),
+        data:{type:'owner_forum',messageType:'poll',messageId:String(messageId)}
+      }).catch(()=>{});
+    }
+    await audit(ctx,admin,'admin.forum.poll',{
+      targetType:'forum',
+      targetId:'global',
+      metadata:{messageId:String(messageId),pollId:String(pollId),allowMultiple,options:options.length}
+    });
+    return ctx.send(res,201,{ok:true,scope:'global',messageId:String(messageId),pollId:String(pollId)}),true;
   }
 
   if(path==='admin/forum/conversations' && req.method==='GET'){
