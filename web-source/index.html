@@ -4172,8 +4172,52 @@ async function ownerRefreshBusiness(){
  if(typeof window.WZOnlineBusiness?.sync!=='function')return toast('Sinkronisasi online belum siap.',true);
  const ok=await window.WZOnlineBusiness.sync();if(ok){toast('Data bisnis berhasil diperbarui dari server.');render()}
 }
+/* --- Auto-refresh tidak boleh menghapus isian form ----------------------
+   Setiap halaman dibangun ulang penuh oleh render(). Formulir yang berisi
+   input pengguna (Laporan Tutup Shift, Profil, Pengaturan, ...) ikut hilang
+   kalau render() berjalan di tengah user mengisi. Karena ada auto-refresh
+   diam-diam setiap 30 detik, isian bisa hilang tanpa ada yang menekan
+   apa pun.
+
+   Solusinya bukan menyimpan isian lalu memaksanya kembali (berisiko restoring
+   ke field yang sudah berubah), tapi MENYANDAI render di latar: kalau ada
+   field yang isinya berbeda dari hasil render terakhir, atau user sedang
+   fokus mengetik, render dilewati. Data server tetap ter-sinkron di memori dan
+   tampil begitu user menyimpan atau pindah halaman.
+
+   Render yang memang disengaja (klik tombol Simpan, pindah halaman) tidak
+   ikut aturan ini dan tetap berjalan seperti biasa. */
+let wzFormBaseline='';
+function wzFormSignature(){
+  const root=document.getElementById('content');
+  if(!root)return '';
+  const parts=[];
+  root.querySelectorAll('input,textarea,select').forEach((el,i)=>{
+    const key=el.id||el.dataset.service||('f'+i);
+    const value=(el.type==='checkbox'||el.type==='radio')?String(el.checked):String(el.value);
+    parts.push(key+'='+value);
+  });
+  return parts.join('|');
+}
+function wzFormBusy(){
+  const root=document.getElementById('content');
+  if(!root)return false;
+  // Sedang mengetik: jangan menggambar ulang, supaya kursor tidak hilang dan
+  // keyboard di Android tidak ikut menutup.
+  const active=document.activeElement;
+  if(active&&root.contains(active)&&/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName))return true;
+  // Ada isian yang diubah user: jangan menggambar ulang.
+  return wzFormSignature()!==wzFormBaseline;
+}
+function wzBackgroundRender(){
+  if(typeof render!=='function')return false;
+  if(wzFormBusy())return false;
+  render();
+  return true;
+}
+
 const baseRender=render;
-render=function(){baseRender();ownerSettingsPanel()};
+render=function(){baseRender();ownerSettingsPanel();wzFormBaseline=wzFormSignature()};
 currentUser=null
 render();
 </script>
@@ -4416,7 +4460,7 @@ async function syncBusiness(){
       notifications:first?.notifications
     });
     if(conflicts.length&&typeof toast==='function')toast(`${conflicts.length} konflik data terdeteksi; versi server digunakan.`);
-    if(typeof render==='function')render();
+    wzBackgroundRender();
     return true;
   }catch(e){
     console.warn('Online business sync failed:',e.message||e);
@@ -4636,7 +4680,7 @@ async function syncEmployeesFromServer(){
       salary:Number(se.salary)||0,commission:Number(se.commission)||0,target:Number(se.target)||0,
       attendance:Number(se.attendance)||0,eval:Number(se.eval)||0,active:se.active!==false
     }));
-    if(typeof render==='function')render();
+    wzBackgroundRender();
     queueAppStateSave();
     return true;
   }catch(e){console.warn('Online employee sync failed:',e.message||e);return false;}
@@ -5118,7 +5162,7 @@ async function refreshAppData(){
     if(!bridge)return false;
     await bridge.hydrate();
     await bridge.business();
-    if(typeof render==='function')render();
+    wzBackgroundRender();
     return true;
   }catch(e){
     // Sengaja tanpa log: auto-refresh berjalan otomatis di latar belakang,
