@@ -573,6 +573,34 @@ async function employeeFor(id,businessId){
   const r=await getPool().query('SELECT id,name,branch_id AS "branchId",active FROM wz_employees WHERE id=$1 AND business_id=$2',[String(id),String(businessId)]);
   return r.rows[0]||null;
 }
+// Status read notifikasi bersifat MONOTONIK di sisi server. Begitu sebuah
+// notifikasi tercatat read, tidak ada penulisan berikutnya yang boleh
+// mengembalikannya menjadi unread - termasuk autosave `app-state` yang mungkin
+// membawa daftar notifikasi lokal milik klien. Tanpa aturan ini, satu payload
+// yang terlambat tiba bisa memunculkan kembali badge notifikasi lama yang
+// sebenarnya sudah dibaca user.
+function mergeNotificationsMonotonic(current,incoming){
+  const prior=Array.isArray(current)?current:[];
+  if(!Array.isArray(incoming))return Array.isArray(current)?current:undefined;
+  const priorById=new Map(prior.map(x=>[String((x&&x.id)??''),x]));
+  const merged=incoming.map(item=>{
+    const prev=priorById.get(String((item&&item.id)??''));
+    if(!prev)return {...item};
+    const wasRead=Boolean(prev.readAt||prev.read);
+    if(!wasRead)return {...item};
+    return {...item,read:true,readAt:item.readAt||prev.readAt||null};
+  });
+  // Notifikasi yang hanya ada di server tidak boleh hilang, dan yang sudah
+  // read tetap dipertahankan sebagai read.
+  const incomingIds=new Set(merged.map(x=>String((x&&x.id)??'')));
+  for(const prev of prior){
+    const id=String((prev&&prev.id)??'');
+    if(incomingIds.has(id))continue;
+    merged.push(prev.readAt||prev.read?{...prev,read:true}:prev);
+  }
+  return merged;
+}
+
 async function getSubscriptionAccess(businessId){
   const p=getPool();
 
@@ -1431,11 +1459,14 @@ async function handler(req,res){
         return send(res,200,{ok:true,updatedAt:saved.rows[0]?.updatedAt||null});
       }
       if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat menyimpan data online.'});
+      // Notifikasi tidak pernah diturunkan statusnya oleh penulisan state biasa.
+      const mergedNotifications=mergeNotificationsMonotonic(
+        currentData.notifications,
+        Object.prototype.hasOwnProperty.call(data,'notifications')?data.notifications:undefined
+      );
       const mergedData={
         ...data,
-        ...(!Object.prototype.hasOwnProperty.call(data,'notifications')&&Array.isArray(currentData.notifications)
-          ? {notifications:currentData.notifications}
-          : {})
+        ...(mergedNotifications!==undefined?{notifications:mergedNotifications}:{})
       };
       const payload=JSON.stringify(mergedData);
       if(payload.length>8*1024*1024)return send(res,413,{ok:false,error:'Data aplikasi terlalu besar.'});

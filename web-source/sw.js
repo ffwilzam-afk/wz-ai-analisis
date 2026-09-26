@@ -1,5 +1,5 @@
-const CACHE = 'wz-manage-pro-pwa-v4';
-const APP_SHELL = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png'];
+const CACHE = 'wz-manage-pro-pwa-v5';
+const APP_SHELL = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/app-logo.png'];
 const shownNotificationIds = new Set();
 
 self.addEventListener('install', event => {

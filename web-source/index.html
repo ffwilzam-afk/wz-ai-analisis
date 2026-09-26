@@ -443,23 +443,24 @@ button,input,select,textarea{max-width:100%}
   border-radius:14px 4px 14px 14px;
 }
 
-/* Verified badge (centang biru) untuk akun Admin Platform. */
+/* Verified badge Admin: lingkaran biru solid + centang putih, gaya sederhana
+   seperti verified badge platform sosial modern. Tanpa gradient/gloss, tanpa
+   warna gold, dan hanya untuk akun Admin Platform. */
 .owner-forum-verified{
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width:14px;
-  height:14px;
+  width:16px;
+  height:16px;
   flex:0 0 auto;
   border-radius:50%;
-  background:linear-gradient(180deg,#57a6ff,#1a73e8);
-  box-shadow:0 0 0 1px rgba(255,255,255,.22);
-  vertical-align:middle;
+  background:#1877f2;
+  vertical-align:-3px;
 }
 
 .owner-forum-verified svg{
-  width:9px;
-  height:9px;
+  width:11px;
+  height:11px;
   display:block;
 }
 
@@ -789,6 +790,11 @@ const initial={
 
 const ANDROID_NOTIFICATION_TITLE='WZ MANAGE PRO';
 const ANDROID_NOTIFICATION_ICON='/icons/icon-192.png';
+// Logo identitas aplikasi: asset launcher Android yang sama persis
+// (android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png). Dipakai sebagai
+// avatar di Obrolan Owner supaya chat memakai identitas aplikasi, bukan
+// logo PWA WebView. Bentuknya sudah bulat, jadi tidak perlu di-crop.
+const WZ_APP_LOGO='/icons/app-logo.png';
 const androidNotificationKeys=new Map();
 const AUTH_DEFAULTS=[];
 
@@ -2772,7 +2778,7 @@ async function ownerForumLoad(options={}){
 }
 
 const WZ_ADMIN_FORUM_NAME='Admin WZ Manage';
-const WZ_ADMIN_VERIFIED_BADGE='<span class="owner-forum-verified" role="img" aria-label="Terverifikasi" title="Akun Admin WZ Manage terverifikasi"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6.5 9.8 16.7 4.4 11.3" fill="none" stroke="#fff" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+const WZ_ADMIN_VERIFIED_BADGE='<span class="owner-forum-verified" role="img" aria-label="Terverifikasi" title="Akun Admin WZ Manage terverifikasi"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6.5 9.6 17 4.2 11.6" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
 
 function ownerForumMessageHtml(m){
   const isAdmin=m.senderRole==='platform_admin'||m.senderRole==='admin';
@@ -2781,14 +2787,6 @@ function ownerForumMessageHtml(m){
   // (wz_users.id dari auth), bukan dari nama display.
   const myId=String(currentUser?.id??'');
   const isMine=!isAdmin&&!!myId&&m.senderRole==='owner'&&String(m.senderId??'')===myId;
-
-  // Admin selalu memakai logo aplikasi WZ MANAGE PRO supaya avatar tidak
-  // pernah kosong, baik pada pesan lama/baru maupun setelah refresh.
-  const avatar=isAdmin
-    ? `<img src="${ANDROID_NOTIFICATION_ICON}" alt="WZ MANAGE PRO">`
-    : (m.senderAvatar
-      ? `<img src="${String(m.senderAvatar).replace(/"/g,'&quot;')}" alt="">`
-      : '<span>👤</span>');
 
   const time=m.createdAt
     ? new Date(m.createdAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})
@@ -2801,6 +2799,13 @@ function ownerForumMessageHtml(m){
   const name=isAdmin?WZ_ADMIN_FORUM_NAME:(m.senderName||'Owner');
   // Verified badge hanya untuk akun Admin Platform.
   const verified=isAdmin?WZ_ADMIN_VERIFIED_BADGE:'';
+
+  // Semua avatar di Obrolan Owner memakai logo identitas aplikasi Android/APK
+  // (logonya sudah bulat, jadi tidak perlu di-crop dan tidak rusak). Dipilih
+  // berdasarkan senderRole yang tersimpan di database, bukan asset per-pesan,
+  // sehingga Admin maupun Owner konsisten pada pesan lama maupun baru, setelah
+  // refresh, auto-refresh, dan login ulang.
+  const avatar=`<img src="${WZ_APP_LOGO}" alt="${escapeHtml(name)}">`;
 
   return `
     <div class="owner-forum-message${isMine?' is-mine':' is-theirs'}${isAdmin?' is-admin':''}">
