@@ -434,6 +434,9 @@ async function schema(){
     ALTER TABLE wz_owner_forum_messages ADD COLUMN IF NOT EXISTS sender_admin_id BIGINT REFERENCES wz_platform_admins(id) ON DELETE SET NULL;
     ALTER TABLE wz_owner_forum_messages ADD COLUMN IF NOT EXISTS sender_role TEXT NOT NULL DEFAULT 'owner';
     ALTER TABLE wz_owner_forum_messages ADD COLUMN IF NOT EXISTS business_id TEXT REFERENCES wz_businesses(id);
+    -- Edit & soft delete pesan forum. Nullable, jadi aman untuk pesan lama.
+    ALTER TABLE wz_owner_forum_messages ADD COLUMN IF NOT EXISTS edited_at TIMESTAMPTZ;
+    ALTER TABLE wz_owner_forum_messages ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
     ALTER TABLE wz_owner_forum_messages ALTER COLUMN sender_user_id DROP NOT NULL;
     UPDATE wz_owner_forum_messages m SET business_id=u.business_id FROM wz_users u WHERE m.business_id IS NULL AND m.sender_user_id=u.id;
 

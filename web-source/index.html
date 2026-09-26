@@ -478,6 +478,284 @@ button,input,select,textarea{max-width:100%}
   color:#d4af37;
 }
 
+/* ---- Modal WZ MANAGE PRO (pengganti alert/confirm/prompt browser) ---- */
+.wz-modal-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:1200;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+  background:rgba(0,0,0,.74);
+}
+
+.wz-modal{
+  width:100%;
+  max-width:420px;
+  max-height:min(86dvh,640px);
+  display:flex;
+  flex-direction:column;
+  background:#101010;
+  border:1px solid rgba(212,175,55,.38);
+  border-radius:16px;
+  box-shadow:0 18px 48px rgba(0,0,0,.6);
+  overflow:hidden;
+}
+
+.wz-modal-head{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:14px 16px;
+  border-bottom:1px solid rgba(212,175,55,.2);
+}
+
+.wz-modal-brand-name{
+  font-size:10px;
+  letter-spacing:1.4px;
+  text-transform:uppercase;
+  color:#8a7a45;
+}
+
+.wz-modal-head h3{
+  margin:2px 0 0;
+  font-size:14px;
+  letter-spacing:.4px;
+  color:#f4d98b;
+}
+
+.wz-modal-brand{
+  flex:1 1 auto;
+  min-width:0;
+}
+
+.wz-modal-body{
+  flex:1 1 auto;
+  min-height:0;
+  overflow-y:auto;
+  padding:16px;
+  color:#eee;
+  font-size:14px;
+  line-height:1.55;
+}
+
+.wz-modal-actions{
+  flex:0 0 auto;
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+  gap:10px;
+  padding:12px 16px;
+  border-top:1px solid rgba(212,175,55,.2);
+  background:#0c0c0c;
+}
+
+.wz-picker-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(54px,1fr));
+  gap:8px;
+}
+
+.wz-picker-item{
+  aspect-ratio:1/1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:28px;
+  line-height:1;
+  background:#171717;
+  border:1px solid #2a2a2a;
+  border-radius:12px;
+  cursor:pointer;
+}
+
+.wz-picker-item:hover,
+.wz-picker-item:focus-visible{
+  border-color:rgba(212,175,55,.7);
+  background:#1f1a0c;
+  outline:none;
+}
+
+.wz-sheet-list{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.wz-sheet-item{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  width:100%;
+  padding:12px 14px;
+  background:#171717;
+  border:1px solid #2a2a2a;
+  border-radius:12px;
+  color:#eee;
+  font-size:14px;
+  text-align:left;
+  cursor:pointer;
+}
+
+.wz-sheet-item:hover,
+.wz-sheet-item:focus-visible{
+  border-color:rgba(212,175,55,.6);
+  background:#1f1a0c;
+  outline:none;
+}
+
+.wz-sheet-item.danger{
+  color:#ff9a9a;
+  border-color:rgba(255,90,90,.35);
+}
+
+.wz-sheet-item .wz-sheet-icon{
+  font-size:18px;
+  width:22px;
+  text-align:center;
+  flex:0 0 auto;
+}
+
+/* ---- Obrolan Owner: reply, reaction, search, load history ---- */
+.owner-forum-reply-quote{
+  margin-bottom:6px;
+  padding:6px 9px;
+  border-left:3px solid rgba(212,175,55,.7);
+  border-radius:8px;
+  background:#141414;
+  font-size:12px;
+  color:#bbb;
+  max-width:100%;
+  overflow:hidden;
+}
+
+.owner-forum-reply-quote b{
+  color:#f4d98b;
+  font-size:12px;
+}
+
+.owner-forum-reply-quote span{
+  display:block;
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  max-height:44px;
+  overflow:hidden;
+}
+
+.owner-forum-reactions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:6px;
+}
+
+.owner-forum-reaction{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:2px 8px;
+  border-radius:999px;
+  background:#171717;
+  border:1px solid #2a2a2a;
+  color:#ddd;
+  font-size:12px;
+  cursor:pointer;
+}
+
+.owner-forum-reaction.mine{
+  border-color:rgba(212,175,55,.75);
+  background:#1d1806;
+  color:#f4d98b;
+}
+
+.owner-forum-edited{
+  margin-left:5px;
+  font-size:10px;
+  color:#777;
+}
+
+.owner-forum-compose-reply{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:7px 12px;
+  border-top:1px solid rgba(212,175,55,.18);
+  background:#0d0d0d;
+  font-size:12px;
+  color:#bbb;
+}
+
+.owner-forum-compose-reply span{
+  flex:1 1 auto;
+  min-width:0;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+
+.owner-forum-compose-reply b{
+  color:#f4d98b;
+}
+
+.owner-forum-aux{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:8px 12px;
+  border-top:1px solid rgba(212,175,55,.14);
+  background:#0b0b0b;
+}
+
+.owner-forum-aux .input{
+  flex:1 1 auto;
+  min-width:0;
+  border-radius:22px;
+  padding-left:15px;
+}
+
+.owner-forum-loadmore{
+  display:block;
+  width:fit-content;
+  margin:0 auto 12px;
+  padding:7px 14px;
+  font-size:12px;
+  border-radius:999px;
+  background:#171717;
+  border:1px solid rgba(212,175,55,.4);
+  color:#f4d98b;
+  cursor:pointer;
+}
+
+.owner-forum-newpill{
+  position:sticky;
+  bottom:10px;
+  z-index:2;
+  display:flex;
+  justify-content:center;
+  margin:0 auto;
+  pointer-events:none;
+}
+
+.owner-forum-newpill button{
+  pointer-events:auto;
+  padding:6px 14px;
+  border-radius:999px;
+  font-size:12px;
+  background:#1d1806;
+  border:1px solid rgba(212,175,55,.6);
+  color:#f4d98b;
+  cursor:pointer;
+}
+
+@media(max-width:400px){
+  .wz-modal{max-width:none}
+  .wz-picker-grid{grid-template-columns:repeat(auto-fill,minmax(46px,1fr))}
+}
+
 .owner-forum-avatar img{
   width:100%;
   height:100%;
@@ -500,6 +778,38 @@ button,input,select,textarea{max-width:100%}
 .owner-forum-meta strong{
   color:#d4af37;
   font-size:13px;
+}
+
+.owner-forum-more{
+  flex:0 0 auto;
+  margin-left:auto;
+  padding:0 4px;
+  border:0;
+  background:transparent;
+  color:#6a6a6a;
+  font-size:15px;
+  line-height:1;
+  cursor:pointer;
+  border-radius:6px;
+}
+
+.owner-forum-more:hover,
+.owner-forum-more:focus-visible{
+  color:#f4d98b;
+  background:#1c1607;
+  outline:none;
+}
+
+.owner-forum-message.is-mine .owner-forum-more{
+  margin-left:0;
+  margin-right:auto;
+}
+
+.owner-forum-initials{
+  font-size:12px;
+  font-weight:700;
+  letter-spacing:.3px;
+  color:#d4af37;
 }
 
 .owner-forum-meta span{
@@ -2676,6 +2986,7 @@ function auth(){if(!guard('auth'))return;document.getElementById('content').inne
 
 let ownerForumLoadPromise=null;
 let ownerForumLoaded=false;
+let ownerForumLoadingOlder=false;
 function wzForumHash(html){let h=5381;for(let i=0;i<html.length;i++)h=((h*33)^html.charCodeAt(i))>>>0;return String(html.length)+'-'+h}
 
 async function ownerForumPage(){
@@ -2685,10 +2996,13 @@ async function ownerForumPage(){
 
   if(!document.getElementById('ownerForumMessages')){
     ownerForumLoaded=false;
+    wzForumHasMore=false;
+    wzForumSearchTerm='';
+    wzForumNewCount=0;
     content.innerHTML=`
       <section class="card section owner-forum-page" style="padding:0;overflow:hidden">
         <div class="owner-forum-head">
-          <button type="button" class="owner-forum-help" onclick="ownerForumHelp()" title="Minta bantuan Admin">🎧 Bantuan Admin</button>
+          <button type="button" class="owner-forum-help" onclick="openCS()" title="Bantuan CS via WhatsApp">💬 Bantuan Admin</button>
           <div class="owner-forum-head-title">
             <span class="gold-label">OWNER COMMUNITY</span>
             <h2>💬 Obrolan Owner</h2>
@@ -2696,17 +3010,27 @@ async function ownerForumPage(){
           </div>
         </div>
 
+        <div class="owner-forum-aux">
+          <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickEmoji()" title="Emoji" aria-label="Pilih emoji">😀</button>
+          <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickSticker()" title="Sticker" aria-label="Pilih sticker">🙂</button>
+          <input id="ownerForumSearch" class="input" type="search" placeholder="Cari pesan..." autocomplete="off" enterkeyhint="search" oninput="ownerForumSearchInput(this.value)">
+        </div>
+
         <div id="ownerForumMessages" class="owner-forum-messages">
           <div class="muted" style="padding:24px;text-align:center">Memuat obrolan...</div>
         </div>
 
+        <div class="owner-forum-compose-reply" id="ownerForumReplyBar" hidden>
+          <span id="ownerForumReplyText"></span>
+          <button type="button" class="btn small" onclick="ownerForumCancelReply()" aria-label="Batalkan balasan">✕</button>
+        </div>
+
         <div class="owner-forum-compose">
-          <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickSticker()" title="Sticker" aria-label="Sticker">🙂</button>
           <input
             id="ownerForumInput"
             class="input"
             type="text"
-            maxlength="1000"
+            maxlength="2000"
             placeholder="Tulis pesan..."
             autocomplete="off"
             enterkeyhint="send"
@@ -2716,6 +3040,8 @@ async function ownerForumPage(){
         </div>
       </section>
     `;
+    const box=document.getElementById('ownerForumMessages');
+    if(box)box.addEventListener('scroll',ownerForumOnScroll,{passive:true});
   }
 
   markOwnerForumSeen();
@@ -2736,49 +3062,180 @@ function escapeHtml(value){
   }[ch]));
 }
 
-async function ownerForumLoad(options={}){
-  const box=document.getElementById('ownerForumMessages');
-  if(!box)return;
-  const force=options?.force===true;
-  if(ownerForumLoadPromise)return ownerForumLoadPromise;
-  if(ownerForumLoaded&&!force)return;
+/* ---- Modal WZ MANAGE PRO ------------------------------------------------
+   Menggantikan alert/confirm/prompt bawaan browser, yang menampilkan dialog
+   berformat "Halaman pada <url> menyatakan:". Semua dialog Obrolan Owner dan
+   navigasi pesan memakai modal dark/gold milik aplikasi. */
+let wzModalSettle=null;
+function wzModalHost(){
+  let root=document.getElementById('wzModalRoot');
+  if(!root){
+    root=document.createElement('div');
+    root.id='wzModalRoot';
+    (document.body||document.documentElement).appendChild(root);
+  }
+  return root;
+}
+function wzModalDismiss(value){
+  const root=document.getElementById('wzModalRoot');
+  if(root)root.innerHTML='';
+  document.removeEventListener('keydown',wzModalOnKey,true);
+  if(wzModalSettle){const done=wzModalSettle;wzModalSettle=null;done(value);}
+}
+function wzModalOnKey(e){if(e.key==='Escape'){e.stopPropagation();wzModalDismiss(null);}}
 
-  const wasNearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<80;
-  const previousScroll=box.scrollTop;
-  const request=(async()=>{
-    try{
-      const r=await window.api('owner-forum/messages');
-      if(!r.ok)throw new Error(r.error||'Gagal memuat obrolan.');
-
-      const messages=Array.isArray(r.messages)?r.messages:[];
-      if(document.getElementById('ownerForumMessages')!==box)return null;
-      const html=messages.length?messages.map(ownerForumMessageHtml).join(''):'<div class="muted" style="padding:32px;text-align:center">Belum ada obrolan.</div>';
-      const hash=wzForumHash(html);
-      // Ganti DOM hanya kalau isinya memang berubah: auto-refresh tidak boleh
-      // membuat chat berkedip, pesan hilang, atau posisi scroll terloncat.
-      if(box.dataset.ownerForumHash!==hash){
-        box.dataset.ownerForumHash=hash;
-        box.innerHTML=html;
-        box.scrollTop=wasNearBottom?box.scrollHeight:previousScroll;
-      }
-      ownerForumLoaded=true;
-      wzForumFetchedAt=Date.now();
-      return messages;
-    }catch(e){
-      if(document.getElementById('ownerForumMessages')!==box)return null;
-      box.innerHTML='<div class="muted" style="padding:24px;text-align:center">Gagal memuat obrolan.</div>';
-      ownerForumLoaded=false;
-      toast(e.message||'Gagal memuat obrolan.',true);
-      return [];
-    }
-  })();
-  ownerForumLoadPromise=request;
-  try{return await request}
-  finally{if(ownerForumLoadPromise===request)ownerForumLoadPromise=null}
+function wzModal(options={}){
+  const {title='',body='',actions=[],onReady=null}=options;
+  wzModalDismiss(null);
+  const root=wzModalHost();
+  const buttons=(actions||[]).map((a,i)=>
+    `<button type="button" class="btn${a.primary?' primary':''}${a.danger?' danger':''}" data-wz-action="${i}">${escapeHtml(a.label)}</button>`).join('');
+  root.innerHTML=`
+    <div class="wz-modal-backdrop" data-wz-backdrop="1">
+      <div class="wz-modal" role="dialog" aria-modal="true" aria-label="${escapeHtml(title||'WZ MANAGE PRO')}">
+        <div class="wz-modal-head">
+          <img src="${WZ_APP_LOGO}" alt="" width="26" height="26" style="border-radius:50%;flex:0 0 auto">
+          <div class="wz-modal-brand">
+            <div class="wz-modal-brand-name">WZ MANAGE PRO</div>
+            <h3>${escapeHtml(title||'WZ MANAGE PRO')}</h3>
+          </div>
+          <button type="button" class="btn small" data-wz-cancel="1" aria-label="Tutup">✕</button>
+        </div>
+        <div class="wz-modal-body">${body}</div>
+        ${buttons?`<div class="wz-modal-actions">${buttons}</div>`:''}
+      </div>
+    </div>`;
+  document.addEventListener('keydown',wzModalOnKey,true);
+  root.addEventListener('click',e=>{
+    // Hanya klik langsung pada backdrop yang menutup. `closest()` akan cocok
+    // juga untuk semua elemen di dalam modal dan menutupnya terlalu cepat.
+    if(e.target.dataset&&e.target.dataset.wzBackdrop){wzModalDismiss(null);return;}
+    if(e.target.closest('[data-wz-cancel]')){wzModalDismiss(null);return;}
+    const btn=e.target.closest('[data-wz-action]');
+    if(!btn)return;
+    const action=(actions||[])[Number(btn.dataset.wzAction)];
+    if(!action)return;
+    // Nilai boleh fungsi supaya isian (mis. textarea edit) dibaca selagi
+    // masih ada di DOM.
+    const value=typeof action.value==='function'?action.value(root):action.value;
+    wzModalDismiss(value===undefined?action.label:value);
+  });
+  if(onReady)onReady(root);
+  return new Promise(resolve=>{wzModalSettle=resolve;});
 }
 
+function wzConfirm(options={}){
+  const {title='Konfirmasi',message='',confirmLabel='OK',cancelLabel='Batal',danger=false}=options;
+  return wzModal({
+    title,
+    body:`<p style="margin:0">${escapeHtml(message)}</p>`,
+    actions:[
+      {label:cancelLabel,value:false},
+      {label:confirmLabel,value:true,primary:!danger,danger}
+    ]
+  }).then(v=>v===true);
+}
+
+function wzPrompt(options={}){
+  const {title='Input',label='',value='',maxLength=2000,confirmLabel='Simpan',multiline=true}=options;
+  const field=multiline
+    ? `<textarea id="wzPromptInput" class="input" rows="4" maxlength="${maxLength}" style="width:100%;resize:vertical">${escapeHtml(value)}</textarea>`
+    : `<input id="wzPromptInput" class="input" maxlength="${maxLength}" value="${escapeHtml(value)}" style="width:100%">`;
+  return wzModal({
+    title,
+    body:`<label style="display:block">${label?`<span class="muted" style="display:block;margin-bottom:6px">${escapeHtml(label)}</span>`:''}${field}</label>`,
+    actions:[
+      {label:'Batal',value:null},
+      {label:confirmLabel,value:root=>{const el=root.querySelector('#wzPromptInput');return el?el.value.trim():null;},primary:true}
+    ],
+    onReady(root){
+      const el=root.querySelector('#wzPromptInput');
+      if(!el)return;
+      el.focus();
+      if(el.setSelectionRange){const n=el.value.length;el.setSelectionRange(n,n);}
+    }
+  }).then(v=>typeof v==='string'&&v?v:null);
+}
+
+function wzPicker(title,items,emptyLabel='Tidak ada pilihan.'){
+  const list=Array.isArray(items)?items.filter(Boolean):[];
+  const body=list.length
+    ? `<div class="wz-picker-grid">${list.map(x=>`<button type="button" class="wz-picker-item" data-wz-item="${escapeHtml(x)}" aria-label="${escapeHtml(x)}">${escapeHtml(x)}</button>`).join('')}</div>`
+    : `<p class="muted" style="margin:0">${escapeHtml(emptyLabel)}</p>`;
+  return wzModal({
+    title,
+    body,
+    actions:[{label:'Batal',value:null}],
+    onReady(root){
+      root.addEventListener('click',e=>{
+        const b=e.target.closest('[data-wz-item]');
+        if(b)wzModalDismiss(b.dataset.wzItem);
+      });
+    }
+  });
+}
+
+function wzSheet(options={}){
+  const {title='',subtitle='',actions=[]}=options;
+  const list=(actions||[]).map((a,i)=>
+    `<button type="button" class="wz-sheet-item${a.danger?' danger':''}" data-wz-act="${i}"><span class="wz-sheet-icon">${escapeHtml(a.icon||'')}</span><span>${escapeHtml(a.label)}</span></button>`).join('');
+  return wzModal({
+    title,
+    body:`${subtitle?`<p class="muted" style="margin:0 0 12px">${escapeHtml(subtitle)}</p>`:''}<div class="wz-sheet-list">${list}</div>`,
+    actions:[{label:'Tutup',value:null}],
+    onReady(root){
+      root.addEventListener('click',e=>{
+        const b=e.target.closest('[data-wz-act]');
+        if(!b)return;
+        const action=(actions||[])[Number(b.dataset.wzAct)];
+        if(action)wzModalDismiss(action.value);
+      });
+    }
+  });
+}
+
+/* ---- State Obrolan Owner ------------------------------------------------ */
 const WZ_ADMIN_FORUM_NAME='Admin WZ Manage';
 const WZ_ADMIN_VERIFIED_BADGE='<span class="owner-forum-verified" role="img" aria-label="Terverifikasi" title="Akun Admin WZ Manage terverifikasi"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 6.5 9.6 17 4.2 11.6" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+const WZ_FORUM_STICKERS=['😊','😂','❤️','👍','🙏','🔥','🎉','💈'];
+// Reaksi dibatasi ke daftar yang sama dengan validasi server.
+const WZ_FORUM_REACTIONS=['\u{1F44D}','❤️','\u{1F602}','\u{1F62E}','\u{1F622}','\u{1F64F}'];
+const WZ_FORUM_EMOJIS=['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😋','😜','🤪','🤗','🤔','🤨','😐','😑','🙄','😏','😴','😪','😷','🤒','🤕','🥳','😎','🤓','🧐','😕','😟','🙁','😮','😯','😲','😳','🥺','😦','😧','😨','😰','😥','😢','😭','😱','😖','😣','😞','😓','😩','😫','😤','😡','👍','👎','👏','🙌','🙏','💪','🔥','✨','🎉','❤️','💔','✅','❌','⚡','💯','1️⃣','2️⃣','3️⃣'];
+let wzForumMessages=[];
+let wzForumReplyTo=null;
+let wzForumHasMore=false;
+let wzForumSearchTerm='';
+let wzForumNewCount=0;
+// Batas pesan yang ditahan di memori saat user BELUM memuat history lama.
+// Setelah user menekan "Muat pesan lama", pesan yang sudah dia buka
+// sengaja ditahan semua agar history tidak hilang dari layar.
+const WZ_FORUM_MAX_HELD=80;
+let wzForumOlderPinned=false;
+
+function ownerForumInitials(name){
+  const text=String(name||'').trim();
+  if(!text)return '?';
+  const parts=text.split(/\s+/).filter(Boolean);
+  if(parts.length>=2)return (parts[0][0]+parts[1][0]).toUpperCase();
+  return text.slice(0,2).toUpperCase();
+}
+
+// Avatar: Admin memakai logo aplikasi Android/APK, setiap Owner memakai
+// avatar profil miliknya sendiri (dari wz_user_profiles via senderAvatar),
+// dengan fallback inisial. Tidak pernah memakai avatar Owner lain.
+function ownerForumAvatarHtml(m,isAdmin){
+  if(isAdmin)return `<img src="${WZ_APP_LOGO}" alt="WZ MANAGE PRO">`;
+  const avatar=String(m.senderAvatar||'').trim();
+  if(avatar&&/^(https?:)?\/\/|data:image\//i.test(avatar))
+    return `<img src="${avatar.replace(/"/g,'&quot;')}" alt="">`;
+  return `<span class="owner-forum-initials">${escapeHtml(ownerForumInitials(m.senderName))}</span>`;
+}
+
+function ownerForumPreviewText(m){
+  if(!m)return '';
+  if(m.messageType==='sticker')return 'Sticker '+String(m.stickerId||'');
+  return String(m.message||'').replace(/\s+/g,' ').trim();
+}
 
 function ownerForumMessageHtml(m){
   const isAdmin=m.senderRole==='platform_admin'||m.senderRole==='admin';
@@ -2791,43 +3248,312 @@ function ownerForumMessageHtml(m){
   const time=m.createdAt
     ? new Date(m.createdAt).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'})
     : '';
+  const edited=m.editedAt?'<span class="owner-forum-edited">diedit</span>':'';
 
   const content=m.messageType==='sticker'
     ? `<div class="owner-forum-sticker">${escapeHtml(m.stickerId||'😊')}</div>`
     : `<div class="owner-forum-text">${escapeHtml(m.message||'')}</div>`;
 
+  const reply=m.replyToId?`<div class="owner-forum-reply-quote"><b>${escapeHtml(m.replySenderName||'Pesan')}</b><span>${escapeHtml(m.replyMessageType==='sticker'?('Sticker '+String(m.replyStickerId||'')):(m.replyMessage||'Pesan dihapus'))}</span></div>`:'';
+
+  const reactions=Array.isArray(m.reactions)&&m.reactions.length
+    ? `<div class="owner-forum-reactions">${m.reactions.map(r=>`<button type="button" class="owner-forum-reaction${r.mine?' mine':''}" onclick="ownerForumReact(${Number(m.id)},'${r.reaction}')" aria-label="Reaksi ${r.reaction}">${escapeHtml(r.reaction)} ${r.count}</button>`).join('')}</div>`
+    : '';
+
   const name=isAdmin?WZ_ADMIN_FORUM_NAME:(m.senderName||'Owner');
   // Verified badge hanya untuk akun Admin Platform.
   const verified=isAdmin?WZ_ADMIN_VERIFIED_BADGE:'';
-
-  // Semua avatar di Obrolan Owner memakai logo identitas aplikasi Android/APK
-  // (logonya sudah bulat, jadi tidak perlu di-crop dan tidak rusak). Dipilih
-  // berdasarkan senderRole yang tersimpan di database, bukan asset per-pesan,
-  // sehingga Admin maupun Owner konsisten pada pesan lama maupun baru, setelah
-  // refresh, auto-refresh, dan login ulang.
-  const avatar=`<img src="${WZ_APP_LOGO}" alt="${escapeHtml(name)}">`;
+  const avatar=ownerForumAvatarHtml(m,isAdmin);
 
   return `
-    <div class="owner-forum-message${isMine?' is-mine':' is-theirs'}${isAdmin?' is-admin':''}">
+    <div class="owner-forum-message${isMine?' is-mine':' is-theirs'}${isAdmin?' is-admin':''}" data-wz-message="${Number(m.id)}">
       <div class="owner-forum-avatar">${avatar}</div>
       <div class="owner-forum-body">
         <div class="owner-forum-meta">
           <strong>${escapeHtml(name)}</strong>
           ${verified}
-          <span>${time}</span>
+          <span>${time}${edited}</span>
+          <button type="button" class="owner-forum-more" onclick="ownerForumActions(${Number(m.id)})" aria-label="Opsi pesan" title="Opsi pesan">⋯</button>
         </div>
+        ${reply}
         ${content}
+        ${reactions}
       </div>
     </div>
   `;
 }
 
+function ownerForumRenderList(box,messages,mode){
+  const empty=wzForumSearchTerm
+    ? '<div class="muted" style="padding:32px;text-align:center">Tidak ada pesan yang cocok.</div>'
+    : '<div class="muted" style="padding:32px;text-align:center">Belum ada obrolan.</div>';
+  const html=messages.length?messages.map(ownerForumMessageHtml).join(''):empty;
+  const hash=wzForumHash(html);
+  const changed=box.dataset.ownerForumHash!==hash;
+  if(changed)box.dataset.ownerForumHash=hash;
+  const prevTop=box.scrollTop;
+  const prevHeight=box.scrollHeight;
+  const pill=mode==='append'&&wzForumNewCount>0
+    ? '<div class="owner-forum-newpill"><button type="button" onclick="ownerForumJumpNew()">↓ Pesan baru ('+wzForumNewCount+')</button></div>'
+    : '';
+  const more=mode!=='older'&&wzForumHasMore
+    ? '<button type="button" class="owner-forum-loadmore" onclick="ownerForumLoadOlder()">Muat pesan lama</button>'
+    : '';
+  box.innerHTML=more+html+pill;
+  if(mode==='older')box.scrollTop=prevTop+(box.scrollHeight-prevHeight);
+  return changed;
+}
+
+async function ownerForumLoad(options={}){
+  const box=document.getElementById('ownerForumMessages');
+  if(!box)return;
+  const force=options?.force===true;
+  const older=Number(options?.before)||0;
+  if(ownerForumLoadPromise&&!older)return ownerForumLoadPromise;
+  if(older&&ownerForumLoadingOlder)return;
+  if(ownerForumLoaded&&!force&&!older&&!wzForumSearchTerm)return;
+
+  const wasNearBottom=box.scrollHeight-box.scrollTop-box.clientHeight<90;
+  const previousScroll=box.scrollTop;
+  const request=(async()=>{
+    try{
+      const query=new URLSearchParams();
+      query.set('limit','40');
+      if(older)query.set('before',String(older));
+      if(wzForumSearchTerm)query.set('q',wzForumSearchTerm);
+      const r=await window.api('owner-forum/messages?'+query.toString());
+      if(!r.ok)throw new Error(r.error||'Gagal memuat obrolan.');
+      if(document.getElementById('ownerForumMessages')!==box)return null;
+
+      const messages=Array.isArray(r.messages)?r.messages:[];
+      wzForumHasMore=Boolean(r.hasMore);
+
+      if(older){
+        // Sisipkan pesan lama di atas tanpa kehilangan posisi scroll user.
+        const known=new Set(wzForumMessages.map(x=>String(x.id)));
+        const olderOnes=messages.filter(x=>!known.has(String(x.id)));
+        wzForumOlderPinned=true;
+        wzForumMessages=olderOnes.concat(wzForumMessages);
+        ownerForumRenderList(box,wzForumMessages,'older');
+      }else{
+        // Auto-refresh menyatu, bukan mengganti: pesan lama yang sudah
+        // dimuat lewat "Muat pesan lama" tidak boleh hilang dari layar.
+        const byId=new Map(wzForumMessages.map(x=>[Number(x.id),x]));
+        let added=0;
+        for(const m of messages){
+          const id=Number(m.id);
+          if(byId.has(id))Object.assign(byId.get(id),m);
+          else{byId.set(id,m);added++;}
+        }
+        const merged=[...byId.values()].sort((a,b)=>Number(a.id)-Number(b.id));
+        // Kalau hasil server sama sekali tidak menyambung dengan yang kita
+        // punya (mis. setelah ganti tenant), mulai ulang dari hasil server.
+        const continuous=!wzForumMessages.length||messages.length===0||byId.has(Number(messages[0].id));
+        const list=continuous
+          ? (wzForumOlderPinned?merged:merged.slice(-WZ_FORUM_MAX_HELD))
+          : messages;
+        if(continuous&&wzForumMessages.length&&added&&!wasNearBottom)wzForumNewCount+=added;
+        else if(!wzForumSearchTerm)wzForumNewCount=0;
+        wzForumMessages=list;
+        ownerForumRenderList(box,list,'append');
+        if(wasNearBottom||wzForumSearchTerm||!wzForumMessages.length)box.scrollTop=box.scrollHeight;
+        else box.scrollTop=previousScroll;
+      }
+      ownerForumLoaded=true;
+      wzForumFetchedAt=Date.now();
+      return messages;
+    }catch(e){
+      if(document.getElementById('ownerForumMessages')!==box)return null;
+      if(!ownerForumLoaded)box.innerHTML='<div class="muted" style="padding:24px;text-align:center">Gagal memuat obrolan.</div>';
+      ownerForumLoaded=false;
+      toast(e.message||'Gagal memuat obrolan.',true);
+      return [];
+    }
+  })();
+  if(older){
+    ownerForumLoadingOlder=true;
+    try{return await request}
+    finally{ownerForumLoadingOlder=false}
+  }
+  ownerForumLoadPromise=request;
+  try{return await request}
+  finally{if(ownerForumLoadPromise===request)ownerForumLoadPromise=null}
+}
+
+function ownerForumOnScroll(){
+  const box=document.getElementById('ownerForumMessages');
+  if(!box)return;
+  if(box.scrollTop<120)ownerForumLoadOlder();
+  if(box.scrollHeight-box.scrollTop-box.clientHeight<90&&wzForumNewCount>0){
+    wzForumNewCount=0;
+    const pill=box.querySelector('.owner-forum-newpill');
+    if(pill)pill.remove();
+  }
+}
+
+async function ownerForumLoadOlder(){
+  const box=document.getElementById('ownerForumMessages');
+  if(!box||!wzForumHasMore||ownerForumLoadingOlder)return;
+  if(!wzForumMessages.length)return;
+  await ownerForumLoad({before:wzForumMessages[0].id});
+}
+
+function ownerForumJumpNew(){
+  const box=document.getElementById('ownerForumMessages');
+  if(!box)return;
+  wzForumNewCount=0;
+  box.scrollTop=box.scrollHeight;
+  const pill=box.querySelector('.owner-forum-newpill');
+  if(pill)pill.remove();
+}
+
+let ownerForumSearchTimer=null;
+function ownerForumSearchInput(value){
+  clearTimeout(ownerForumSearchTimer);
+  ownerForumSearchTimer=setTimeout(()=>{
+    wzForumSearchTerm=String(value||'').trim().slice(0,80);
+    wzForumMessages=[];
+    ownerForumLoaded=false;
+    ownerForumLoad({force:true}).catch(()=>{});
+  },350);
+}
+
+/* ---- Aksi pesan: balas, reaksi, salin, edit, hapus ---------------------- */
+function ownerForumSetReply(m){
+  if(!m)return;
+  wzForumReplyTo={
+    id:Number(m.id),
+    name:m.senderRole==='platform_admin'||m.senderRole==='admin'?WZ_ADMIN_FORUM_NAME:(m.senderName||'Owner')
+  };
+  ownerForumRenderReplyBar();
+  const input=document.getElementById('ownerForumInput');
+  if(input)input.focus();
+}
+
+function ownerForumRenderReplyBar(){
+  const bar=document.getElementById('ownerForumReplyBar');
+  const text=document.getElementById('ownerForumReplyText');
+  if(!bar||!text)return;
+  if(!wzForumReplyTo){bar.hidden=true;text.textContent='';return;}
+  const source=wzForumMessages.find(x=>Number(x.id)===wzForumReplyTo.id);
+  text.innerHTML=`<b>Membalas ${escapeHtml(wzForumReplyTo.name)}</b>: ${escapeHtml(ownerForumPreviewText(source).slice(0,80))}`;
+  bar.hidden=false;
+}
+
+function ownerForumCancelReply(){
+  wzForumReplyTo=null;
+  ownerForumRenderReplyBar();
+}
+
+async function ownerForumCopyText(text){
+  const value=String(text||'');
+  if(!value)return;
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(value);toast('Teks pesan disalin.');return;}
+  }catch(e){}
+  // Fallback untuk WebView lama yang tidak mendukung Clipboard API.
+  try{
+    const ta=document.createElement('textarea');
+    ta.value=value;
+    ta.setAttribute('readonly','');
+    ta.style.position='fixed';
+    ta.style.opacity='0';
+    (document.body||document.documentElement).appendChild(ta);
+    ta.select();
+    const ok=document.execCommand&&document.execCommand('copy');
+    ta.remove();
+    toast(ok?'Teks pesan disalin.':'Gagal menyalin teks.',!ok);
+  }catch(e){toast('Gagal menyalin teks.',true);}
+}
+
+async function ownerForumActions(id){
+  const target=Number(id);
+  const m=wzForumMessages.find(x=>Number(x.id)===target);
+  if(!m)return;
+  const myId=String(currentUser?.id??'');
+  const isMine=m.senderRole==='owner'&&!!myId&&String(m.senderId??'')===myId;
+  const isSticker=m.messageType==='sticker';
+
+  const actions=[{icon:'↩',label:'Balas',value:'reply'}];
+  if(!isSticker)actions.push({icon:'⧉',label:'Salin teks',value:'copy'});
+  if(isMine){
+    if(!isSticker)actions.push({icon:'✎',label:'Edit pesan',value:'edit'});
+    actions.push({icon:'🗑',label:'Hapus pesan',value:'delete',danger:true});
+  }
+
+  const choice=await wzSheet({
+    title:m.senderRole==='platform_admin'||m.senderRole==='admin'?WZ_ADMIN_FORUM_NAME:(m.senderName||'Owner'),
+    subtitle:isSticker?('Sticker '+String(m.stickerId||'')):String(m.message||'').slice(0,120),
+    actions
+  });
+  if(!choice)return;
+
+  if(choice==='reply'){ownerForumSetReply(m);return;}
+  if(choice==='copy'){await ownerForumCopyText(m.message);return;}
+  if(choice==='edit'){
+    const next=await wzPrompt({
+      title:'Edit pesan',
+      label:'Isi pesan',
+      value:String(m.message||''),
+      maxLength:2000,
+      confirmLabel:'Simpan'
+    });
+    if(!next||next===String(m.message||''))return;
+    try{
+      const r=await window.api('owner-forum/messages',{
+        method:'PUT',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:target,message:next})
+      });
+      if(!r.ok)throw new Error(r.error||'Pesan gagal diperbarui.');
+      wzForumMessages=[];
+      await ownerForumLoad({force:true});
+      toast('Pesan diperbarui.');
+    }catch(e){toast(e.message||'Pesan gagal diperbarui.',true);}
+    return;
+  }
+  if(choice==='delete'){
+    const yes=await wzConfirm({
+      title:'Hapus pesan',
+      message:'Pesan ini akan dihapus untuk semua Owner dan Admin. Tindakan ini tidak bisa dibatalkan.',
+      confirmLabel:'Hapus',
+      danger:true
+    });
+    if(!yes)return;
+    try{
+      const r=await window.api('owner-forum/messages',{
+        method:'DELETE',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({id:target})
+      });
+      if(!r.ok)throw new Error(r.error||'Pesan gagal dihapus.');
+      wzForumMessages=[];
+      await ownerForumLoad({force:true});
+      toast('Pesan dihapus.');
+    }catch(e){toast(e.message||'Pesan gagal dihapus.',true);}
+  }
+}
+
+async function ownerForumReact(id,reaction){
+  try{
+    const r=await window.api('owner-forum/reactions',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({messageId:Number(id),reaction:String(reaction)})
+    });
+    if(!r.ok)throw new Error(r.error||'Reaksi gagal disimpan.');
+    // Muat ulang daftar pesan agar jumlah reaksi selalu berasal dari server.
+    await ownerForumLoad({force:true});
+  }catch(e){toast(e.message||'Reaksi gagal disimpan.',true);}
+}
+
+/* ---- Composer ----------------------------------------------------------- */
 async function ownerForumSend(){
   const input=document.getElementById('ownerForumInput');
   if(!input)return;
 
   const message=input.value.trim();
-  if(!message)return;
+  if(!message){input.focus();return;}
 
   input.disabled=true;
 
@@ -2835,13 +3561,21 @@ async function ownerForumSend(){
     const r=await window.api('owner-forum/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message,messageType:'text'})
+      body:JSON.stringify({
+        message,
+        messageType:'text',
+        replyToId:wzForumReplyTo?wzForumReplyTo.id:null
+      })
     });
 
     if(!r.ok)throw new Error(r.error||'Pesan gagal dikirim.');
 
     input.value='';
+    ownerForumCancelReply();
+    wzForumNewCount=0;
+    const box=document.getElementById('ownerForumMessages');
     await ownerForumLoad({force:true});
+    if(box)box.scrollTop=box.scrollHeight;
   }catch(e){
     toast(e.message||'Pesan gagal dikirim.',true);
   }finally{
@@ -2850,18 +3584,25 @@ async function ownerForumSend(){
   }
 }
 
-function ownerForumHelp(){
+function ownerForumInsertEmoji(emoji){
   const input=document.getElementById('ownerForumInput');
-  if(!input)return;
-  if(!input.value.trim())input.value='Bantuan Admin: ';
+  if(!input||!emoji)return;
+  const start=input.selectionStart==null?input.value.length:input.selectionStart;
+  const end=input.selectionEnd==null?input.value.length:input.selectionEnd;
+  input.value=input.value.slice(0,start)+emoji+input.value.slice(end);
+  const caret=start+emoji.length;
   input.focus();
-  input.setSelectionRange(input.value.length,input.value.length);
+  try{input.setSelectionRange(caret,caret);}catch(e){}
 }
-function ownerForumPickSticker(){
-  const stickers=['😊','😂','❤️','👍','🙏','🔥','🎉','💈'];
-  const value=prompt('Pilih sticker: '+stickers.join(' '));
-  if(!value||!stickers.includes(value))return;
-  ownerForumSendSticker(value);
+
+async function ownerForumPickEmoji(){
+  const emoji=await wzPicker('Pilih emoji',WZ_FORUM_EMOJIS);
+  if(emoji)ownerForumInsertEmoji(emoji);
+}
+
+async function ownerForumPickSticker(){
+  const value=await wzPicker('Pilih sticker',WZ_FORUM_STICKERS);
+  if(value)ownerForumSendSticker(value);
 }
 
 async function ownerForumSendSticker(stickerId){
@@ -2869,12 +3610,16 @@ async function ownerForumSendSticker(stickerId){
     const r=await window.api('owner-forum/messages',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:'',messageType:'sticker',stickerId})
+      body:JSON.stringify({message:'',messageType:'sticker',stickerId,replyToId:wzForumReplyTo?wzForumReplyTo.id:null})
     });
 
     if(!r.ok)throw new Error(r.error||'Sticker gagal dikirim.');
 
+    ownerForumCancelReply();
+    wzForumNewCount=0;
+    const box=document.getElementById('ownerForumMessages');
     await ownerForumLoad({force:true});
+    if(box)box.scrollTop=box.scrollHeight;
   }catch(e){
     toast(e.message||'Sticker gagal dikirim.',true);
   }
@@ -2966,6 +3711,12 @@ function resetTenantState(){
   db.attendance=[];
   db.notifications=[];
   wzReadNotificationIds.clear();
+  wzForumMessages=[];
+  wzForumReplyTo=null;
+  wzForumHasMore=false;
+  wzForumSearchTerm='';
+  wzForumNewCount=0;
+  wzForumOlderPinned=false;
   db.payrollSettings=null;
   db.profile={
     name:currentUser?.name||'',
@@ -3153,6 +3904,18 @@ window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[],reset:async function
 window.WZOnlineSync={hydrate:hydrateAppState,business:syncBusiness,employees:syncEmployeesFromServer,reset:resetTenantState};
 // Fungsi berikut dipanggil dari atribut onclick di HTML, jadi harus global.
 window.printTransactionReceipt=printTransactionReceipt;
+// openCS dipakai tombol "Bantuan & CS" di nav dan tombol "Bantuan Admin"
+// di header Obrolan Owner: keduanya harus membuka WhatsApp CS yang sama.
+window.openCS=openCS;
+window.ownerForumPickEmoji=ownerForumPickEmoji;
+window.ownerForumPickSticker=ownerForumPickSticker;
+window.ownerForumSendSticker=ownerForumSendSticker;
+window.ownerForumActions=ownerForumActions;
+window.ownerForumReact=ownerForumReact;
+window.ownerForumJumpNew=ownerForumJumpNew;
+window.ownerForumLoadOlder=ownerForumLoadOlder;
+window.ownerForumSearchInput=ownerForumSearchInput;
+window.ownerForumCancelReply=ownerForumCancelReply;
 window.markServerNotificationRead=markServerNotificationRead;
 window.markAllServerNotificationsRead=markAllServerNotificationsRead;
 // Dipakai tombol di halaman Notifikasi (atribut onclick harus window.*).
