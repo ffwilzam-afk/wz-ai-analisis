@@ -73,6 +73,18 @@ npm test        # check + unit test helper + smoke test handler API
 
 Workflow `.github/workflows/ci.yml` di root repo menjalankan rangkaian yang sama pada setiap push ke `main` dan setiap pull request.
 
+## Jaring pengaman lokal (git hook)
+
+Repo ini punya pre-commit hook di `.githooks/pre-commit` yang menjalankan `npm test` dan membatalkan commit kalau test gagal. Karena hook tidak ikut ter-*clone* secara default, aktifkan sekali per clone:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+Bypass yang disengaja (hanya kalau memang yakin): `git commit --no-verify`.
+
+Hook ini penting karena `npm test` adalah satu-satunya verifikasi otomatis yang benar-benar berjalan pada klon lokal. GitHub Actions menjalankan rangkaian yang sama di setiap push ke `main`, tapi hanya kalau kuota Actions akun tersedia.
+
 ## Catatan maintenance
 - PWA cache hanya untuk shell/static assets. `/api/*` tidak pernah dicache oleh service worker.
 - File backup/duplikat (`index-before-*.html`, `index.html.bak-*`, `app/`, `api-backups/`, `tools/`) sudah dihapus karena tidak pernah disajikan dan membuat perubahan mudah salah tempat. Isinya masih ada di riwayat git bila sewaktu-waktu diperlukan.
