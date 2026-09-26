@@ -388,7 +388,24 @@ button,input,select,textarea{max-width:100%}
 }
 .owner-forum-help:hover{background:#241c0d;border-color:#d4af37}
 
+/* ---- Wallpaper "ANTI GRAVITY" (khusus area percakapan) ------------------
+   Dibuat murni dari CSS gradient berlapis: tidak ada file gambar, tidak ada
+   canvas, tidak ada elemen DOM tambahan, dan tidak ada animasi. Jadi tidak
+   menambah permintaan jaringan, tidak menambah node yang harus dirender, dan
+   tidak menguras baterai (tanpa loop animasi).
+
+   - Background tidak pernah menangkap klik/pointer, dan tidak ikut bergeser
+     saat pesan di-scroll: pada elemen yang bisa di-scroll, background tidak
+     ikut bergerak bersama isi.
+   - Layer paling atas adalah "selubung gelap" di tengah supaya teks, nama,
+     timestamp, reaction, dan verified badge tetap jelas terbaca.
+   - Elemen dekorasi (kristal melayang, orbit emas, nebula, partikel)
+     dikumpulkan di tepi dan sudut, tidak pernah tepat di belakang teks.
+
+   Urutan layer CSS: yang ditulis paling PERTAMA berada paling DEPAN. */
 .owner-forum-messages{
+  position:relative;
+  isolation:isolate;
   flex:1 1 auto;
   min-height:0;
   max-height:none;
@@ -396,9 +413,41 @@ button,input,select,textarea{max-width:100%}
   overflow-x:hidden;
   overscroll-behavior:contain;
   padding:16px 12px;
-  background:
-    radial-gradient(circle at top right,rgba(212,175,55,.06),transparent 35%),
-    #080808;
+  background-color:#07070a;
+  background-repeat:no-repeat;
+  background-image:
+    /* 1. selubung gelap di tengah -> menjaga keterbacaan teks */
+    radial-gradient(ellipse 84% 66% at 50% 50%,
+      rgba(6,6,9,.80) 0%, rgba(6,6,9,.62) 42%, rgba(6,6,9,.28) 72%, rgba(6,6,9,0) 100%),
+    /* 2. kristal/asteroid kecil melayang di tepi */
+    radial-gradient(circle at 12% 18%,
+      rgba(244,217,139,.85) 0 1.6px, rgba(212,175,55,.28) 3px, rgba(6,6,9,0) 7px),
+    radial-gradient(circle at 88% 30%,
+      rgba(244,217,139,.70) 0 1.4px, rgba(212,175,55,.22) 2.8px, rgba(6,6,9,0) 6.5px),
+    radial-gradient(circle at 22% 78%,
+      rgba(244,217,139,.65) 0 1.4px, rgba(212,175,55,.20) 3px, rgba(6,6,9,0) 7px),
+    radial-gradient(circle at 78% 86%,
+      rgba(244,217,139,.55) 0 1.2px, rgba(212,175,55,.18) 2.6px, rgba(6,6,9,0) 6px),
+    /* 3. orbit/ring cahaya emas tipis */
+    radial-gradient(ellipse 90% 42% at 6% 12%,
+      rgba(0,0,0,0) 0 68%, rgba(212,175,55,.16) 69%, rgba(212,175,55,.05) 70.5%, rgba(0,0,0,0) 72%),
+    radial-gradient(ellipse 78% 34% at 96% 72%,
+      rgba(0,0,0,0) 0 70%, rgba(212,175,55,.14) 71%, rgba(0,0,0,0) 73%),
+    radial-gradient(ellipse 60% 24% at 50% 100%,
+      rgba(0,0,0,0) 0 72%, rgba(212,175,55,.12) 73%, rgba(0,0,0,0) 75%),
+    /* 4. nebula asap tipis di sudut */
+    radial-gradient(ellipse 60% 38% at 4% 96%,
+      rgba(96,110,190,.13) 0%, rgba(0,0,0,0) 62%),
+    radial-gradient(ellipse 66% 40% at 98% 4%,
+      rgba(212,175,55,.09) 0%, rgba(0,0,0,0) 60%),
+    /* 5. partikel halus melayang */
+    radial-gradient(circle at 30% 8%, rgba(255,255,255,.42) 0 1px, rgba(0,0,0,0) 1.6px),
+    radial-gradient(circle at 68% 14%, rgba(244,217,139,.45) 0 1px, rgba(0,0,0,0) 1.6px),
+    radial-gradient(circle at 8% 46%, rgba(255,255,255,.32) 0 1px, rgba(0,0,0,0) 1.5px),
+    radial-gradient(circle at 94% 52%, rgba(244,217,139,.38) 0 1px, rgba(0,0,0,0) 1.5px),
+    radial-gradient(circle at 40% 92%, rgba(255,255,255,.30) 0 1px, rgba(0,0,0,0) 1.5px),
+    /* 6. dasar: charcoal ke hitam, kesan ruang gelap */
+    linear-gradient(180deg,#0c0c11 0%,#08080c 48%,#050507 100%);
 }
 
 .owner-forum-message{
@@ -700,21 +749,28 @@ button,input,select,textarea{max-width:100%}
   color:#f4d98b;
 }
 
-.owner-forum-aux{
+/* Emoji & sticker kini tinggal di composer; baris search dihapus dari atas
+   chat supaya area pesan langsung mulai di bawah header. */
+.owner-forum-emoji-btn{
   flex:0 0 auto;
+  width:32px;
+  height:32px;
+  border-radius:50%;
   display:flex;
   align-items:center;
-  gap:8px;
-  padding:8px 12px;
-  border-top:1px solid rgba(212,175,55,.14);
-  background:#0b0b0b;
+  justify-content:center;
+  font-size:15px;
+  line-height:1;
+  background:#181818;
+  border:1px solid rgba(212,175,55,.3);
+  cursor:pointer;
 }
 
-.owner-forum-aux .input{
-  flex:1 1 auto;
-  min-width:0;
-  border-radius:22px;
-  padding-left:15px;
+.owner-forum-emoji-btn:hover,
+.owner-forum-emoji-btn:focus-visible{
+  background:#241c0d;
+  border-color:rgba(212,175,55,.75);
+  outline:none;
 }
 
 .owner-forum-loadmore{
@@ -857,17 +913,6 @@ button,input,select,textarea{max-width:100%}
   padding-left:15px;
 }
 
-.owner-forum-sticker-btn{
-  width:40px;
-  height:40px;
-  border-radius:50%;
-  border:1px solid rgba(212,175,55,.35);
-  background:#151515;
-  color:#d4af37;
-  font-size:20px;
-  cursor:pointer;
-}
-
 .owner-forum-send{
   flex:0 0 auto;
   border-radius:20px;
@@ -902,7 +947,7 @@ button,input,select,textarea{max-width:100%}
   }
 
   .owner-forum-compose{padding:8px 10px}
-  .owner-forum-sticker-btn{width:38px;height:38px;font-size:18px}
+  .owner-forum-emoji-btn{width:34px;height:34px;font-size:16px}
 
   .owner-forum-send{
     padding:8px 12px;
@@ -914,6 +959,12 @@ button,input,select,textarea{max-width:100%}
   .owner-forum-head-title .gold-label{display:none}
   .owner-forum-help{max-width:52%;padding:7px 8px;font-size:10px}
   .owner-forum-head-title p{-webkit-line-clamp:3}
+  /* Empat elemen composer (2 tombol + input + kirim) harus tetap muat
+     tanpa horizontal overflow di HP kecil. */
+  .owner-forum-compose{padding:7px 8px;gap:6px}
+  .owner-forum-emoji-btn{width:30px;height:30px;font-size:14px}
+  .owner-forum-send{padding:8px 10px;font-size:12px}
+  .owner-forum-messages{padding:14px 10px}
 }
 
 /* Mobile bottom navigation */
@@ -3010,12 +3061,6 @@ async function ownerForumPage(){
           </div>
         </div>
 
-        <div class="owner-forum-aux">
-          <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickEmoji()" title="Emoji" aria-label="Pilih emoji">😀</button>
-          <button type="button" class="owner-forum-sticker-btn" onclick="ownerForumPickSticker()" title="Sticker" aria-label="Pilih sticker">🙂</button>
-          <input id="ownerForumSearch" class="input" type="search" placeholder="Cari pesan..." autocomplete="off" enterkeyhint="search" oninput="ownerForumSearchInput(this.value)">
-        </div>
-
         <div id="ownerForumMessages" class="owner-forum-messages">
           <div class="muted" style="padding:24px;text-align:center">Memuat obrolan...</div>
         </div>
@@ -3026,6 +3071,8 @@ async function ownerForumPage(){
         </div>
 
         <div class="owner-forum-compose">
+          <button type="button" class="owner-forum-emoji-btn" onclick="ownerForumPickEmoji()" title="Emoji" aria-label="Pilih emoji">😀</button>
+          <button type="button" class="owner-forum-emoji-btn" onclick="ownerForumPickSticker()" title="Sticker" aria-label="Pilih sticker">🙂</button>
           <input
             id="ownerForumInput"
             class="input"
