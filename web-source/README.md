@@ -128,6 +128,14 @@ Yang tersedia sebagai gantinya:
 
 Audit juga memverifikasi hal-hal yang harus benar, bukan hanya "tidak error": setiap handler `on*` harus punya fungsi global, setiap halaman harus merender isi (dengan data kosong maupun data nyata), dan angka yang diketik Owner harus benar-benar muncul di payload POST.
 
+## Menyimpan state & balapan dengan auto-refresh
+
+`tests/state-save.test.js` menjalankan aplikasi di jsdom dengan server sungguhan (app-state benar-benar tersimpan), lalu mengukur **apa yang benar-benar tersimpan ke server**.
+
+- **Snapshot diambil saat antrean dibuat, bukan saat timer berbunyi.** `queueAppStateSave()` menunda penulisan 250ms. Selama jeda itu ada tiga pemicu auto-refresh yang bisa memanggil `hydrate()`: timer 30 detik, `visibilitychange` setiap kali aplikasi dibuka lagi dari latar belakang, dan FCM. Kalau salah satu datang di tengah jeda, perubahan Owner tertimpa state lama dari server, dan penulisan yang tertunda mengirim **nilai lama kembali** -- jadi perubahan hilang permanen, bukan sekadar tidak tampil. `hydrateAppState()` juga dilewati selama ada simpan yang masih tertunda.
+- **`save()` mengembalikan `Promise<boolean>`** yang true hanya kalau benar-benar tersimpan. `setServicePayrollCategory()` menunggunya, jadi Owner diberi tahu kalau gagal, bukan melihat toast "disimpan" padahal tidak ada yang sampai ke server.
+- **Halaman Pengaturan Gaji tidak berkedip lagi.** Placeholder "Memuat pengaturan gaji tenant..." hanya muncul saat halaman benar-benar dibuka, bukan setiap render ulang -- Owner sempat berpikir aplikasinya menyimpan dua kali.
+
 ## Ketahanan: data rusak & service worker
 
 `tests/resilience.test.js` mengirim state bermasalah lewat jalur nyata (`app-state` server) dan memastikan aplikasi tidak pernah layar kosong.

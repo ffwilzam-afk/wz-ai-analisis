@@ -1556,7 +1556,9 @@ function playNotificationSound(){
 }
 
 function save(){
-  if(window.WZOnlineStateSave?.queue) window.WZOnlineStateSave.queue();
+  // Nilai balik: Promise<boolean> yang true kalau benar-benar tersimpan ke
+  // server. Pemanggil boleh mengabaikannya, tapi boleh juga mengecek hasilnya.
+  if(window.WZOnlineStateSave?.queue) return window.WZOnlineStateSave.queue();
   const el=document.getElementById('saveState');
   if(el)el.textContent=currentUser&&['owner','manager'].includes(currentUser.role)?'● Tersimpan online':'● Siap disinkronkan';
   return true;
@@ -3042,9 +3044,13 @@ async function setServicePayrollCategory(serviceId,category){
   const next=String(category||'');
   if(!next&&payrollServiceKey(svc))next=svc.payrollCategory||'';
   svc.payrollCategory=PAYROLL_CATEGORY_KEYS.includes(next)?next:'';
-  save();
-  toast('Kategori gaji "'+svc.name+'" disimpan.');
   render();
+  // Tunggu jawaban server sebelum menyatakan berhasil. Sebelumnya toast
+  // "disimpan" muncul apa yang terjadi padahal, sehingga Owner mengira
+  // kategorinya sudah aman padahal tidak pernah sampai ke server.
+  const ok=await save();
+  if(ok)toast('Kategori gaji "'+svc.name+'" disimpan.');
+  else toast('Kategori "'+svc.name+'" belum tersimpan. Periksa koneksi, lalu pilih lagi.',true);
 }
 
 function payrollEmployeeListHtml(){
@@ -3544,7 +3550,13 @@ async function payrollSettingsPage(){
   if(!guard('payrollSettings'))return;
 
   const app=document.getElementById('content');
-  app.innerHTML='<div class="card"><h2>💵 Pengaturan Gaji</h2><p class="muted">Memuat pengaturan gaji tenant...</p></div>';
+  // Placeholder hanya saat halaman benar-benar dibuka. Kalau halaman ini sudah
+  // tampil (mis. setelah memilih kategori gaji), isinya dibiarkan di tempat:
+  // Owner sempat melihat "Memuat pengaturan gaji tenant..." lalu halaman
+  //kedip hilang dan muncul lagi, dan itu terbaca sebagai aplikasi yang
+  //menyimpan dua kali.
+  if(!app.querySelector('[data-payroll-page]'))
+    app.innerHTML='<div class="card"><h2>💵 Pengaturan Gaji</h2><p class="muted">Memuat pengaturan gaji tenant...</p></div>';
 
   // Fungsi ini hidup di dalam IIFE bridge, jadi harus lewat window. Dipanggil
   // langsung dari sini selalu ReferenceError yang tertelan try/catch, dan
@@ -3568,6 +3580,7 @@ async function payrollSettingsPage(){
   }).join('');
 
   app.innerHTML=`
+ <div data-payroll-page>
  <div class="section-head">
    <div>
      <span class="gold-label">PAYROLL</span>
@@ -3631,7 +3644,8 @@ async function payrollSettingsPage(){
      <span>Karyawan</span><span>Gaji Pokok</span><span>Kategori terpakai</span><span style="text-align:right">Aksi</span>
    </div>
    ${payrollEmployeeListHtml()}
- </section>`;
+ </section>
+ </div>`;
 }
 
 function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${escapeHtml(String(db.profile.name||''))}"></label><label>Jabatan<input id="pRole" value="${escapeHtml(String(db.profile.role||''))}"></label><label class="full">Brand<input id="pBrand" value="${escapeHtml(String(db.profile.brand||''))}"></label><label class="full">Fokus<input id="pFocus" value="${escapeHtml(String(db.profile.focus||''))}"></label><label class="full">Ukuran Kertas Struk (thermal)<select id="pReceiptPaper"><option value="80"${receiptPaperSpec().code==='80'?' selected':''}>80mm (struk standar)</option><option value="58"${receiptPaperSpec().code==='58'?' selected':''}>58mm (struk kecil)</option></select></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
@@ -4780,6 +4794,11 @@ function applyServerNotifications(list){
 
 async function hydrateAppState(){
   if(!currentUser || !['owner','manager','employee'].includes(currentUser.role))return false;
+  // Jangan menimpa state lokal selagi ada simpan yang masih tertunda.
+  // Auto-refresh (timer 30 detik, `visibilitychange`, FCM) bisa datang di
+  // tengah jeda 250ms. Kalau diteruskan, `db` kembali ke versi server yang
+  // belum memuat perubahan Owner, dan perubahan berikutnya menimpanya lagi.
+  if(pendingSaveResolve)return false;
   try{
     const r=await api('app-state');
     const state=(r?.data&&typeof r.data==='object'&&!Array.isArray(r.data))?r.data:{};
@@ -4806,13 +4825,20 @@ async function hydrateAppState(){
 
 let saveTimer=null;
 let appStateUpdatedAt=null;
-async function persistAppState(){
-  if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+// Potret state saat ini, TANPA kunci yang bukan milik bisnis.
+function appStateSnapshot(){
   const snapshot={};
   for(const [key,value] of Object.entries(db||{})){
     if(NON_BUSINESS_KEYS.has(key))continue;
     snapshot[key]=value;
   }
+  return snapshot;
+}
+async function persistAppState(presetSnapshot){
+  if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+  // Kalau ada snapshot yang sudah diambil sebelumnya, pakai itu. Ambil ulang
+  // di sini justru berbahaya: lihat catatan di queueAppStateSave().
+  const snapshot=presetSnapshot||appStateSnapshot();
   try{
     const saved=await api('app-state',{method:'PUT',body:JSON.stringify({data:snapshot,expectedUpdatedAt:appStateUpdatedAt})});
     appStateUpdatedAt=saved?.updatedAt||appStateUpdatedAt;
@@ -4830,10 +4856,29 @@ async function persistAppState(){
     return false;
   }
 }
+let pendingSaveResolve=null;
 function queueAppStateSave(){
-  if(!currentUser || !['owner','manager'].includes(currentUser.role))return;
+  if(!currentUser || !['owner','manager'].includes(currentUser.role))return Promise.resolve(false);
+  // Snapshot diambil DI SINI, saat Owner menekan dropdownnya, bukan saat timer
+  // 250ms nanti berbunyi.
+  //
+  // Kenapa ini penting: ada tiga pemicu auto-refresh -- timer 30 detik,
+  // `visibilitychange` setiap kali aplikasi dibuka lagi dari latar belakang,
+  // dan FCM. Semuanya memanggil hydrate() yang menimpa `db` dengan state
+  // server. Kalau salah satu datang di antara perubahan dan timer berbunyi,
+  // perubahan itu hilang, dan lebih buruknya save yang tertunda menuliskan
+  // nilai LAMA kembali ke server -- jadi perubahan benar-benar hilang
+  // permanen, bukan hanya tidak tampil.
+  const snapshot=appStateSnapshot();
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(()=>persistAppState(),250);
+  if(pendingSaveResolve)pendingSaveResolve(false);
+  return new Promise(resolve=>{
+    pendingSaveResolve=resolve;
+    saveTimer=setTimeout(()=>{
+      pendingSaveResolve=null;
+      resolve(persistAppState(snapshot));
+    },250);
+  });
 }
 async function persistEmployeeState(partial){
   if(!currentUser||currentUser.role!=='employee'||!partial||typeof partial!=='object'||Array.isArray(partial))return false;
