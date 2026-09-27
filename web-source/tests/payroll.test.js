@@ -271,3 +271,86 @@ test('payroll: kasus dasar sesuai aturan bawaan 24-24', async () => {
   assert.strictEqual(pay.totalBonus, 46000);
   assert.strictEqual(pay.totalPay, 2046000);
 });
+
+test('payroll: nama layanan tidak berpengaruh, yang dipakai kategorinya', async () => {
+  const w = await boot();
+  // Nama lokal yang tidak ada padanannya di sistem gaji. Sistem gaji tidak
+  // pernah menyimpan nama layanan, jadi nama ini boleh se bebas apa pun.
+  const services = [
+    { id: 'S1', name: 'Gundul', payrollCategory: 'haircut', price: 45000, duration: 25, active: true },
+    { id: 'S2', name: 'Paket Rambut', payrollCategory: 'hairwash', price: 15000, duration: 10, active: true }
+  ];
+  const build = names => `
+    db.branches=[{id:'B1',name:'Pusat',active:true}];
+    db.employees=[{id:'E1',name:'Budi',role:'Barber',branchId:'B1',salary:2000000,target:0,eval:0,attendance:0,active:true}];
+    db.services=${JSON.stringify(names)};
+    db.transactions=[]; db.attendance=[];
+    db.shiftReports=[{id:'SR1',date:'2026-09-25',employeeId:'E1',shiftType:'Pagi',customers:15,totalOmzet:600000,services:[
+      {serviceId:'S1',serviceName:${JSON.stringify(names[0].name)},payrollCategory:'haircut',qty:12,price:45000,total:540000},
+      {serviceId:'S2',serviceName:${JSON.stringify(names[1].name)},payrollCategory:'hairwash',qty:3,price:15000,total:45000}
+    ]}];
+    db.payrollSettings=${JSON.stringify({
+      payrollType:'BASE_PLUS_SERVICE_BONUS',baseSalary:2000000,targetAmount:0,periodStartDay:24,
+      serviceRules:{Haircut:{threshold:10,bonus:10000},Hairwash:{threshold:1,bonus:2000},Hairstyling:{threshold:1,bonus:2000},Shaving:{threshold:1,bonus:2000},Haircoloring:{threshold:1,bonus:20000}},
+      employees:{}
+    })};
+    true;`;
+
+  w.eval(build(services));
+  const a = payroll(w, 'E1', '2026-09-25');
+  assert.strictEqual(a.counts.haircut.customers, 12);
+  assert.strictEqual(a.counts.haircut.bonus, 30000);   // 12 - (10-1) = 3 x 10.000
+  assert.strictEqual(a.counts.hairwash.bonus, 6000);
+  assert.strictEqual(a.totalPay, 2036000);
+
+  // Nama diganti jadi sesuatu yang sama sekali tidak ada hubungannya.
+  w.eval(build([
+    { ...services[0], name: 'Zebra' },
+    { ...services[1], name: 'QQQQ' }
+  ]));
+  const b = payroll(w, 'E1', '2026-09-25');
+  assert.deepEqual(b.counts, a.counts, 'nama layanan tidak boleh memengaruhi upah');
+  assert.strictEqual(b.totalPay, a.totalPay);
+});
+
+test('payroll: snapshot kategori menyelamatkan laporan yang layanannya sudah dihapus', async () => {
+  const w = await boot();
+  w.eval(`
+    db.branches=[{id:'B1',name:'Pusat',active:true}];
+    db.employees=[{id:'E1',name:'Budi',role:'Barber',branchId:'B1',salary:2000000,target:0,eval:0,attendance:0,active:true}];
+    db.services=[]; db.transactions=[]; db.attendance=[];
+    db.shiftReports=[{id:'SR1',date:'2026-09-25',employeeId:'E1',shiftType:'Pagi',customers:12,totalOmzet:540000,services:[
+      {serviceId:'S1',serviceName:'Paket-exclusive',payrollCategory:'haircut',qty:12,price:45000,total:540000}
+    ]}];
+    db.payrollSettings=${JSON.stringify({
+      payrollType:'BASE_PLUS_SERVICE_BONUS',baseSalary:2000000,targetAmount:0,periodStartDay:24,
+      serviceRules:{Haircut:{threshold:10,bonus:10000},Hairwash:{threshold:1,bonus:2000},Hairstyling:{threshold:1,bonus:2000},Shaving:{threshold:1,bonus:2000},Haircoloring:{threshold:1,bonus:20000}},
+      employees:{}
+    })};
+    true;`);
+  const pay = payroll(w, 'E1', '2026-09-25');
+  assert.strictEqual(pay.counts.haircut.customers, 12, 'snapshot harus dipakai saat master sudah kosong');
+  assert.strictEqual(pay.counts.haircut.bonus, 30000);
+});
+
+test('payroll: master menang atas snapshot, jadi perbaikan kategori berlaku ke riwayat', async () => {
+  const w = await boot();
+  w.eval(`
+    db.branches=[{id:'B1',name:'Pusat',active:true}];
+    db.employees=[{id:'E1',name:'Budi',role:'Barber',branchId:'B1',salary:2000000,target:0,eval:0,attendance:0,active:true}];
+    db.services=[{id:'S1',name:'Paket-exclusive',payrollCategory:'hairstyling',price:45000,duration:25,active:true}];
+    db.transactions=[]; db.attendance=[];
+    db.shiftReports=[{id:'SR1',date:'2026-09-25',employeeId:'E1',shiftType:'Pagi',customers:12,totalOmzet:540000,services:[
+      {serviceId:'S1',serviceName:'Paket-exclusive',payrollCategory:'haircut',qty:12,price:45000,total:540000}
+    ]}];
+    db.payrollSettings=${JSON.stringify({
+      payrollType:'BASE_PLUS_SERVICE_BONUS',baseSalary:2000000,targetAmount:0,periodStartDay:24,
+      serviceRules:{Haircut:{threshold:10,bonus:10000},Hairwash:{threshold:1,bonus:2000},Hairstyling:{threshold:1,bonus:2000},Shaving:{threshold:1,bonus:2000},Haircoloring:{threshold:1,bonus:20000}},
+      employees:{}
+    })};
+    true;`);
+  const pay = payroll(w, 'E1', '2026-09-25');
+  assert.strictEqual(pay.counts.haircut.customers, 0, 'kategori lama tidak boleh masih dipakai');
+  assert.strictEqual(pay.counts.hairstyling.customers, 12);
+  assert.strictEqual(pay.counts.hairstyling.bonus, 24000);
+});

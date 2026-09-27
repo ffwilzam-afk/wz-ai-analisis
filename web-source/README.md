@@ -79,6 +79,7 @@ Tiga lapis, dari paling umum ke paling khusus. Yang tidak diisi di lapis khusus 
 - Periode gaji bersifat setengah terbuka: `[tanggal mulai, tanggal mulai berikutnya)`. Tanggal mulai periode **sudah milik periode berikutnya**, jadi tidak ada transaksi yang terhitung di dua periode.
 - Transaksi POS pada tanggal yang sama dengan laporan tutup shift karyawan diabaikan untuk komisi, karena laporan shift adalah catatan karyawan sendiri. Tanpa ini satu pekerjaan bisa dibayar dua kali.
 - **Kategori gaji ada di master layanan** (`payrollCategory`), bukan ditebak dari nama. Data lama tanpa kategori masih dicocokkan dari nama sebagai cadangan.
+- Halaman **Pengaturan Gaji → Layanan Master Owner** mencerminkan data layanan tenant itu sendiri: layanan dikelompokkan per kategori, dan layanan yang belum berkategori ditandai **tidak mendapat bonus** beserta dropdown untuk mengaturnya langsung di sana. Dialog **Atur Gaji** per karyawan juga menyebut layanan apa saja yang masuk tiap kategori.
 - Tes: `tests/payroll.test.js` memuat `index.html` di jsdom dan memanggil engine aslinya, jadi regresi di sini tertangkap `npm test`.
 
 ## ID karyawan lintas tenant

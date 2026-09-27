@@ -1173,6 +1173,7 @@ button,input,select,textarea{max-width:100%}
 }
 
 .wz-top-icon{position:relative}
+.payroll-cat-block{padding:12px 0;border-bottom:1px solid #20242b}.payroll-cat-block:last-child{border-bottom:0}
 .wz-gold-glyph{width:22px;height:22px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 0 5px rgba(214,168,79,.45))}
 .hamb .wz-gold-glyph{width:24px;height:24px;filter:drop-shadow(0 0 6px rgba(214,168,79,.5))}
 .wz-bottom-nav button .nav-icon{height:22px;display:inline-flex;align-items:center;justify-content:center}
@@ -2583,6 +2584,9 @@ function saveShiftReport(){
   return {
    serviceId:inp.dataset.service,
    serviceName:svc?.name||inp.closest('.feature')?.querySelector('b')?.textContent?.trim()||'Layanan',
+   // Snapshot kategori saat pekerjaan itu dicatat. Kalau nanti Owner menghapus
+   // layanan ini dari master, bonus karyawan tidak ikut hilang.
+   payrollCategory:svc?.payrollCategory||'',
    qty:Number(inp.value||0),
    price:Number(inp.dataset.price||0)
   };
@@ -2756,8 +2760,15 @@ function payrollCounts(employeeId,start,endExclusive){
   });
   reports.forEach(r=>{
     (r.services||[]).forEach(x=>{
-      const svc=getService(x.serviceId)||{name:x.serviceName,payrollCategory:x.payrollCategory};
-      const key=payrollServiceKey(svc);
+      // Urutan penting: master yang dipakai lebih dulu, supaya kalau Owner
+      // memperbaiki kategori suatu layanan, semua laporannya ikut benar.
+      // Snapshot dipakai hanya kalau layanannya sudah tidak ada di master.
+      // Terakhir baru pencocokan nama, untuk laporan lama yang belum punya
+      // snapshot sama sekali.
+      const live=getService(x.serviceId);
+      const key=(live&&payrollServiceKey(live))
+        ||payrollServiceKey({name:x.serviceName,payrollCategory:x.payrollCategory})
+        ||null;
       if(key)counts[key]+=Number(x.qty||0);
     });
   });
@@ -2831,13 +2842,25 @@ function openEmployeePayrollForm(employeeId){
   const enabled=Boolean(own);
   const ownSalary=own&&Number(own.baseSalary)>0?String(Number(own.baseSalary)):'';
   const ownDay=own&&own.periodStartDay?String(Number(own.periodStartDay)):'';
-  const ruleField=(key,field,placeholder)=>{
-    const c=PAYROLL_CATEGORIES.find(x=>x.key===key);
-    const generalRule=general.rules[key];
-    const id='ep_'+key+'_'+field;
-    return `<label>${c.label} — ${field==='threshold'?'Ambang':'Bonus'}<input id="${id}" type="number" min="0" data-k="${key}" data-f="${field}" placeholder="${placeholder}" value="${enabled?payrollEmployeeFormValue(own,key,field,generalRule[field]):''}"></label>`;
-  };
-  const allFields=PAYROLL_CATEGORIES.flatMap(c=>[ruleField(c.key,'threshold',String(general.rules[c.key].threshold)),ruleField(c.key,'bonus',String(general.rules[c.key].bonus))]).join('');
+  const allFields=PAYROLL_CATEGORIES.map(c=>{
+    const g=general.rules[c.key];
+    const field=(field,label,placeholder)=>{
+      const id='ep_'+c.key+'_'+field;
+      return `<label>${label}<input id="${id}" type="number" min="0" data-k="${c.key}" data-f="${field}" placeholder="${placeholder}" value="${enabled?payrollEmployeeFormValue(own,c.key,field,g[field]):''}"></label>`;
+    };
+    const jumlah=(payrollServiceGroups().groups[c.key]||[]).length;
+    return `<div class="payroll-cat-block">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap">
+        <b>${c.label}</b>
+        <span class="subtle">${jumlah?jumlah+' layanan':'belum ada layanan berkategori ini'}</span>
+      </div>
+      <div class="subtle" style="margin:2px 0 6px">Layanan: ${payrollServiceNames(c.key)}</div>
+      <div class="form" style="margin:0">
+        ${field('threshold','Ambang',String(g.threshold))}
+        ${field('bonus','Bonus (Rp)',String(g.bonus))}
+      </div>
+    </div>`;
+  }).join('');
   show(`<span class="gold-label">GAJI KARYAWAN</span>
 <h2>${escapeHtml(String(e.name))}</h2>
 <p class="muted" style="margin-bottom:12px">Pengaturan ini hanya berlaku untuk karyawan ini. Kosongkan berarti mengikuti pengaturan umum bisnis.</p>
@@ -2847,6 +2870,11 @@ function openEmployeePayrollForm(employeeId){
  <label>Tanggal Mulai Periode (kosong = ikut bisnis)<input id="epPeriodDay" type="number" min="1" max="31" value="${ownDay}"></label>
  ${allFields}
 </div>
+${(()=>{
+  const {unassigned}=payrollServiceGroups();
+  if(!unassigned.length)return '';
+  return `<p class="muted" style="margin-top:10px"><b>${unassigned.length} layanan Owner belum berkategori, jadi tidak ikut dihitung:</b> ${unassigned.map(x=>escapeHtml(String(x.name||''))).join(' · ')}</p>`;
+})()}
 <div class="dialog-actions">
  ${enabled?'<button type="button" class="btn danger" onclick="resetEmployeePayroll(\''+escapeHtml(String(e.id))+'\')">Kembalikan ke Umum</button>':'<span></span>'}
  <button type="button" class="btn" onclick="closeModal()">Batal</button>
@@ -2921,6 +2949,46 @@ async function resetEmployeePayroll(employeeId){
     return false;
   }
 }
+// Layanan milik tenant ini, dikelompokkan per kategori gaji. Halaman
+// Pengaturan Gaji harus menampilkan data layanan yang benar-benar dimiliki
+// Owner, bukan daftar kategori tetap yang tidak ada hubungannya dengan tokony.
+// Layanan yang belum diberi kategori dikembalikan sebagai "unassigned" supaya
+// Owner bisa mengaturnya langsung dari halaman ini.
+function payrollServiceGroups(){
+  const list=Array.isArray(db.services)?db.services:[];
+  const groups={};
+  PAYROLL_CATEGORY_KEYS.forEach(k=>{groups[k]=[]});
+  const unassigned=[];
+  list.forEach(svc=>{
+    const key=payrollServiceKey(svc);
+    if(key&&groups[key])groups[key].push(svc);
+    else unassigned.push(svc);
+  });
+  return {groups,unassigned,total:list.length};
+}
+function payrollServiceOptions(current){
+  const value=String(current||'');
+  return PAYROLL_CATEGORIES.map(c=>`<option value="${c.key}"${value===c.key?' selected':''}>${c.label}</option>`).join('');
+}
+function payrollServiceNames(key){
+  const {groups}=payrollServiceGroups();
+  const names=(groups[key]||[]).map(svc=>String(svc.name||'').trim()).filter(Boolean);
+  if(!names.length)return '<span class="muted">Belum ada layanan Owner yang memakai kategori ini.</span>';
+  return names.map(n=>escapeHtml(n)).join(' · ');
+}
+async function setServicePayrollCategory(serviceId,category){
+  if(!['owner','manager'].includes(currentUser?.role))
+    return toast('Hanya Owner/Manager yang dapat mengubah kategori gaji layanan.',true);
+  const svc=(db.services||[]).find(x=>String(x.id)===String(serviceId));
+  if(!svc)return toast('Layanan tidak ditemukan.',true);
+  const next=String(category||'');
+  if(!next&&payrollServiceKey(svc))next=svc.payrollCategory||'';
+  svc.payrollCategory=PAYROLL_CATEGORY_KEYS.includes(next)?next:'';
+  save();
+  toast('Kategori gaji "'+svc.name+'" disimpan.');
+  render();
+}
+
 function payrollEmployeeListHtml(){
   const rows=(db.employees||[]).filter(e=>String(e.role||'').toLowerCase()!=='owner');
   if(!rows.length)return '<div class="empty">Belum ada karyawan.</div>';
@@ -2935,7 +3003,7 @@ function payrollEmployeeListHtml(){
     return `<div class="feature" style="display:grid;grid-template-columns:1.2fr .9fr .9fr .8fr;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid #20242b">
       <div><b>${escapeHtml(String(e.name))}</b><div class="subtle">${escapeHtml(String(e.role))} · ${escapeHtml(String(e.id))}</div></div>
       <div><span class="subtle">Gaji</span><br>${rupiah(pay?.baseSalary||0)}</div>
-      <div><span class="subtle">Ambang Haircut</span><br>${rules.rules.haircut.threshold}</div>
+      <div><span class="subtle">Kategori terpakai</span><br>${PAYROLL_CATEGORIES.filter(c=>(payrollServiceGroups().groups[c.key]||[]).length).length} dari 5</div>
       <div style="display:flex;gap:6px;justify-content:flex-end">${own?'<span class="pill">Kustom</span>':''}${diff?`<span class="pill" title="Kategori dengan aturan berbeda dari umum">${diff} beda</span>`:''}<button class="btn small" onclick="openEmployeePayrollForm('${escapeHtml(String(e.id))}')">Atur</button></div>
     </div>`;
   }).join('');
@@ -3386,10 +3454,17 @@ async function payrollSettingsPage(){
 
   const s=db.payrollSettings||payrollSettingsFromServer(null);
   const ruleOf=key=>payrollRuleFrom(payrollPickRule(s,key),PAYROLL_CATEGORY_DEFAULT[key]);
+  const mapping=payrollServiceGroups();
   const ruleFields=PAYROLL_CATEGORIES.map(c=>{
     const r=ruleOf(c.key);
-    return `<label>${c.label} — Ambang<input id="prTh_${c.key}" type="number" min="0" value="${r.threshold}"></label>
-     <label>${c.label} — Bonus (Rp)<input id="prBo_${c.key}" type="number" min="0" value="${r.bonus}"></label>`;
+    const jumlah=(mapping.groups[c.key]||[]).length;
+    return `<div class="payroll-cat-block">
+      <div class="form" style="margin:0">
+        <label>${c.label} — Ambang<input id="prTh_${c.key}" type="number" min="0" value="${r.threshold}"></label>
+        <label>${c.label} — Bonus (Rp)<input id="prBo_${c.key}" type="number" min="0" value="${r.bonus}"></label>
+      </div>
+      <div class="subtle" style="margin-top:4px">Layanan Owner (${jumlah}): ${payrollServiceNames(c.key)}</div>
+    </div>`;
   }).join('');
 
   app.innerHTML=`
@@ -3428,10 +3503,34 @@ async function payrollSettingsPage(){
  </section>
 
  <section class="card section">
+   <h3>🧾 Layanan Master Owner</h3>
+   <p class="muted">Bonus dihitung dari layanan yang Anda beri <b>Kategori gaji</b>. Hanya layanan di bawah ini yang menghasilkan bonus; aturan di atas memakai kategori, bukan nama layanan.</p>
+   ${mapping.total?'':'<div class="empty">Belum ada layanan. Tambahkan di menu Layanan &amp; Promo terlebih dahulu.</div>'}
+   ${PAYROLL_CATEGORIES.map(c=>{
+     const list=mapping.groups[c.key]||[];
+     if(!list.length)return '';
+     return `<div style="margin-top:10px">
+       <b>${c.label} — ${list.length} layanan</b>
+       ${list.map(svc=>`<div class="feature" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #20242b">
+         <span>${escapeHtml(String(svc.name||''))} <span class="subtle">${rupiah(svc.price)} · ${escapeHtml(String(svc.duration||0))} menit</span></span>
+         <select onchange="setServicePayrollCategory('${escapeHtml(String(svc.id))}',this.value)" style="max-width:170px">${payrollServiceOptions(svc.payrollCategory)}</select>
+       </div>`).join('')}
+     </div>`;
+   }).join('')}
+   ${mapping.unassigned.length?`<div style="margin-top:14px"><b style="color:#e0b64a">Belum berkategori — ${mapping.unassigned.length} layanan tidak mendapat bonus</b>
+     ${mapping.unassigned.map(svc=>`<div class="feature" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #20242b">
+       <span>${escapeHtml(String(svc.name||''))} <span class="subtle">${rupiah(svc.price)} · ${escapeHtml(String(svc.duration||0))} menit</span></span>
+       <select onchange="setServicePayrollCategory('${escapeHtml(String(svc.id))}',this.value)" style="max-width:170px">
+         <option value="">Pilih kategori...</option>${payrollServiceOptions(svc.payrollCategory)}
+       </select>
+     </div>`).join('')}</div>`:''}
+ </section>
+
+ <section class="card section">
    <h3>👤 Pengaturan per Karyawan</h3>
    <p class="muted">Setiap karyawan bisa punya ambang dan bonus sendiri. Yang dikosongkan ikut aturan umum di atas. Gaji pokok khusus karyawan akan mengungguli gaji pada data karyawan.</p>
    <div style="display:grid;grid-template-columns:1.2fr .9fr .9fr .8fr;gap:8px;padding:0 0 6px;border-bottom:1px solid #20242b" class="subtle">
-     <span>Karyawan</span><span>Gaji Pokok</span><span>Ambang Haircut</span><span style="text-align:right">Aksi</span>
+     <span>Karyawan</span><span>Gaji Pokok</span><span>Kategori terpakai</span><span style="text-align:right">Aksi</span>
    </div>
    ${payrollEmployeeListHtml()}
  </section>`;
