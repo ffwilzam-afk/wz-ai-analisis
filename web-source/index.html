@@ -1489,10 +1489,15 @@ function notifyAndroid(message,notificationId){
   });
  }).catch(()=>{});
 }
+// Diagnosis/internal status push (FCM/VAPID) hanya untuk developer dan tidak
+// boleh pernah sampai ke pengguna: tidak lewat toast, tidak lewat suara,
+// dan tidak lewat notifikasi Android. Fungsi push/FCM sendiri tetap berjalan
+// penuh; hanya tampilannya yang dimatikan.
+function isPushDiagnostic(message){
+  return /fcm|vapid/i.test(String(message??''));
+}
 function toast(message,silent=false,notificationId){
- // Diagnosis/internal status FCM hanya untuk developer dan tidak boleh pernah
- // tampil ke pengguna. Fungsi FCM sendiri tetap berjalan penuh.
- if(/fcm/i.test(String(message??'')))return;
+ if(isPushDiagnostic(message))return;
  const el=document.getElementById('toast');
  if(!el)return;
  el.textContent=message;
@@ -1657,7 +1662,12 @@ function topbarAvatar(){
 }
 
 let wzForumSeenSavedAt=0;
+let wzForumReadSentAt=0;
 
+// Penanda "sudah dibaca" disimpan di server per user (wz_owner_forum_reads),
+// bukan hanya di app-state. Ini yang membuat badge tetap 0 setelah aplikasi
+// ditutup lalu dibuka lagi: sebelumnya satu-satunya penanda tinggal di dalam
+// satu blob app-state per bisnis, dan blob itu bisa gagal ditulis.
 function markOwnerForumSeen(){
   db.profile=db.profile||{};
   const now=Date.now();
@@ -1665,8 +1675,20 @@ function markOwnerForumSeen(){
   db.profile.ownerForumSeenAt=new Date(wzForumSeenAt).toISOString();
   wzForumUnread=0;
   topbarBadge('wzChatBadge',0);
-  // Persist throttle (bukan sekali per sesi): kalau tidak, seenAt yang lebih
-  // baru hanya hidup di memori dan unread lama bisa kembali setelah reload.
+  // Kirim penanda ke server segera (tanpa debounce) supaya tetap berlaku
+  // walau aplikasi ditutup satu detik kemudian. Throttle 15 detik hanya
+  // menahan pengulangan dari auto-refresh, bukan menahan entry pertama.
+  if(now-wzForumReadSentAt>=15000){
+    wzForumReadSentAt=now;
+    Promise.resolve()
+      .then(()=>window.api('owner-forum/read',{method:'POST',body:JSON.stringify({})}))
+      .then(r=>{
+        const serverSeen=Date.parse(r?.lastReadAt||'')||0;
+        if(serverSeen)wzForumSeenAt=Math.max(wzForumSeenAt,serverSeen);
+      })
+      .catch(()=>{});
+  }
+  // app-state tetap ditulis sebagai cadangan, mengikuti throttle yang lama.
   if(wzForumSeenAt-wzForumSeenSavedAt<15000)return;
   wzForumSeenSavedAt=wzForumSeenAt;
   window.WZOnlineStateSave?.queue?.();
@@ -1676,6 +1698,19 @@ async function refreshOwnerForumBadge(){
   if(!currentUser||!can('ownerForum')){wzForumUnread=0;topbarBadge('wzChatBadge',0);return}
   if(Date.now()-wzForumCheckedAt<60000)return;
   wzForumCheckedAt=Date.now();
+  // Sumber utama: hitungan unread per user dari server. Kalau endpoint ini
+  // gagal (mis. DDL belum dijalankan), jatuh ke perhitungan lama berbasis
+  // timestamp app-state + 40 pesan terbaru.
+  try{
+    const s=await window.api('owner-forum/read');
+    if(s&&typeof s.unread==='number'){
+      const serverSeen=Date.parse(s.lastReadAt||'')||0;
+      if(serverSeen)wzForumSeenAt=Math.max(wzForumSeenAt,serverSeen);
+      wzForumUnread=Math.max(0,Number(s.unread)||0);
+      topbarBadge('wzChatBadge',wzForumUnread);
+      return;
+    }
+  }catch{}
   try{
     const r=await window.api('owner-forum/messages');
     const list=Array.isArray(r.messages)?r.messages:[];
@@ -4264,6 +4299,7 @@ function resetTenantState(){
   appStateUpdatedAt=null;
   wzForumSeenAt=0;
   wzForumSeenSavedAt=0;
+  wzForumReadSentAt=0;
   wzForumCheckedAt=0;
   wzForumFetchedAt=0;
   wzForumUnread=0;
@@ -4804,7 +4840,7 @@ window.login=async function(ev){
     const authenticatedRole=['owner','manager'].includes(r.user?.role)?r.user.role:'employee';
     currentUser={...r.user,role:authenticatedRole};
     window.WZOnlineSync?.reset?.();
-    wzForumSeenSavedAt=0;wzForumUnread=0;wzForumCheckedAt=0;wzForumFetchedAt=0;
+    wzForumSeenSavedAt=0;wzForumReadSentAt=0;wzForumUnread=0;wzForumCheckedAt=0;wzForumFetchedAt=0;
     const screen=document.getElementById('loginScreen');
     const badge=document.getElementById('roleBadge');if(badge)badge.textContent=r.user.name;
     setActionLoading(75,'Memuat data akun dan bisnis...','MASUK KE SISTEM');

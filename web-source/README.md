@@ -35,7 +35,7 @@ Online bridge (login, hidrasi state, sinkronisasi transaksi/shift, FCM) berada *
 ## Database
 Vercel memakai environment variable PostgreSQL Neon. API menerima `WZDATABASE` (prioritas utama), `DATABASE_URL`, `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, atau `NEON_DATABASE_URL`.
 
-Tabel dibuat/di-upgrade otomatis oleh `ensureSchema()` saat request pertama: `wz_businesses`, `wz_branches`, `wz_employees`, `wz_users`, `wz_sessions`, `wz_transactions`, `wz_shift_reports`, `wz_subscriptions`, `wz_subscription_orders`, `wz_subscription_plans`, `wz_push_subscriptions`, `wz_fcm_tokens`, `wz_app_states`, `wz_user_profiles`, `wz_owner_forum_messages`, `wz_owner_forum_reactions`, `wz_payroll_settings`.
+Tabel dibuat/di-upgrade otomatis oleh `ensureSchema()` saat request pertama: `wz_businesses`, `wz_branches`, `wz_employees`, `wz_users`, `wz_sessions`, `wz_transactions`, `wz_shift_reports`, `wz_subscriptions`, `wz_subscription_orders`, `wz_subscription_plans`, `wz_push_subscriptions`, `wz_fcm_tokens`, `wz_app_states`, `wz_user_profiles`, `wz_owner_forum_messages`, `wz_owner_forum_reactions`, `wz_owner_forum_polls`, `wz_owner_forum_poll_options`, `wz_owner_forum_poll_votes`, `wz_owner_forum_reads`, `wz_payroll_settings`.
 
 ## Web Push & notifikasi
 Environment:
@@ -47,7 +47,7 @@ Environment:
 Buat key VAPID dengan `npx web-push generate-vapid-keys`.
 
 ## Endpoint API utama
-`ready` · `auth/register` · `auth/login` · `auth/me` · `auth/logout` · `business` · `branches` (GET/POST/PUT/DELETE) · `employees` (GET/POST/PUT/DELETE) · `employees/me` · `transaction` · `transaction/void` · `shift-report` · `app-state` (GET/PUT) · `profile` · `password` · `reset-business` · `sync-business` · `payroll/settings` · `notifications/read` · `push/subscribe` · `push/unsubscribe` · `push/fcm-token` · `push/vapid-public-key` · `owner-forum/messages` · `owner-forum/reactions` · `subscription` · `subscription/order` · `subscription/webhook`
+`ready` · `auth/register` · `auth/login` · `auth/me` · `auth/logout` · `business` · `branches` (GET/POST/PUT/DELETE) · `employees` (GET/POST/PUT/DELETE) · `employees/me` · `transaction` · `transaction/void` · `shift-report` · `app-state` (GET/PUT) · `profile` · `password` · `reset-business` · `sync-business` · `payroll/settings` · `notifications/read` · `push/subscribe` · `push/unsubscribe` · `push/fcm-token` · `push/vapid-public-key` · `owner-forum/messages` · `owner-forum/reactions` · `owner-forum/read` (GET+POST) · `owner-forum/polls` · `owner-forum/polls/vote` · `subscription` · `subscription/order` · `subscription/webhook`
 
 ## Akun & registrasi
 Tidak ada akun seed di kode. Akun owner dibuat lewat `POST /api/auth/register` (nama bisnis, nama owner, nama cabang, username, password), dan akun karyawan dibuat oleh owner/manager dari halaman Karyawan. Daftar akun lama (`owner/owner123`, dst.) sudah tidak berlaku sejak skema multi-tenant.
@@ -62,6 +62,12 @@ Nota transaksi dirancang untuk printer struk 1-bit (thermal), bukan printer kant
 - Di Android, tombol Cetak Nota memakai `WZAndroid.print()` (Android Print framework). Perangkat memerlukan print service; bila tidak ada, Android menyediakan **Save as PDF**. Untuk printer thermal Bluetooth murah, biasanya perlu aplikasi perantara print service (mis. RawBT) yang menyediakan layanan cetak ESC/POS.
 
 Catatan: printer 58mm menggunakan area cetak sekitar 48mm, jadi teks panjang seperti ID transaksi dapat terpotong. Gunakan 80mm bila struk memuat banyak baris.
+
+## Badge unread Obrolan Owner
+- Penanda "sudah dibaca" disimpan **di server per user** pada `wz_owner_forum_reads.last_read_at` lewat `POST /api/owner-forum/read` (waktu server yang jadi sumber kebenaran), bukan hanya di `app-state`.
+- `GET /api/owner-forum/read` mengembalikan `{lastReadAt, unread}`; `refreshOwnerForumBadge()` memakai angka itu untuk badge `wzChatBadge`.
+- Alasannya: `app-state` adalah satu blob JSON per bisnis yang hanya bisa ditulis Owner/Manager dan bisa gagal karena konflik `expectedUpdatedAt`, subscription read-only, atau aplikasi ditutup sebelum debounce 250ms selesai. Akibatnya badge lama muncul lagi setiap aplikasi dibuka ulang, seolah obrolan tidak pernah dibaca.
+- `db.profile.ownerForumSeenAt` masih ditulis sebagai cadangan, dan `refreshOwnerForumBadge()` masih punya jalur lama (40 pesan terbaru + timestamp) kalau endpoint `owner-forum/read` gagal — misalnya saat DDL belum sempat dijalankan.
 
 ## Verifikasi sebelum deploy
 ```bash

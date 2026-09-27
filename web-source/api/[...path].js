@@ -459,6 +459,24 @@ async function schema(){
     CREATE INDEX IF NOT EXISTS wz_owner_forum_reactions_message_idx
       ON wz_owner_forum_reactions(message_id);
 
+    -- ---- Penanda "sudah dibaca" per user Owner untuk badge chat ---------
+    -- Sebelumnya badge unread dihitung dari ownerForumSeenAt yang disimpan
+    -- di dalam app-state, yaitu satu blob JSON per bisnis. Blob itu bisa
+    -- gagal ditulis ( konflik expectedUpdatedAt, subscription read-only,
+    -- atau aplikasi ditutup sebelum debounce 250ms selesai ), sehingga
+    -- badge lama kembali muncul begitu aplikasi dibuka ulang. Penanda di
+    -- tabel ini milik per user, tidak lewat app-state, dan tidak ikut
+    -- tertimpa oleh write app-state yang lain.
+    CREATE TABLE IF NOT EXISTS wz_owner_forum_reads(
+      user_id BIGINT PRIMARY KEY REFERENCES wz_users(id) ON DELETE CASCADE,
+      business_id TEXT REFERENCES wz_businesses(id) ON DELETE CASCADE,
+      last_read_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS wz_owner_forum_reads_business_idx
+      ON wz_owner_forum_reads(business_id);
+
     -- ---- Polling (jenis pesan baru di Obrolan Owner) --------------------
     -- Polling butuh message_type baru ('poll') + tiga tabel. DDL di sini
     -- idempotent dan mengikuti pola ensureSchema() yang sudah dipakai fitur

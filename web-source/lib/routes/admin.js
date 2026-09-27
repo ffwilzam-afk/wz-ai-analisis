@@ -151,6 +151,44 @@ async function ownerForumRoutes(ctx,req,res,path){
   if(user.role!=='owner')return send(res,403,{ok:false,error:'Akses hanya untuk Owner.'}),true;
   const pool=getPool();
 
+  // Penanda "sudah dibaca" milik user yang sedang login. Sengaja dipisah dari
+  // app-state: app-state adalah satu blob per bisnis yang hanya bisa ditulis
+  // Owner/Manager dan bisa gagal karena konflik versi atau subscription
+  // read-only. Karena itu badge chat lama pernah kembali muncul setiap kali
+  // aplikasi dibuka ulang, seolah obrolan tidak pernah dibuka.
+  if(path==='owner-forum/read'){
+    if(req.method==='GET'){
+      const r=await pool.query('SELECT last_read_at AS "lastReadAt" FROM wz_owner_forum_reads WHERE user_id=$1',[user.id]);
+      const lastReadAt=r.rowCount?r.rows[0].lastReadAt:null;
+      const u=await pool.query(
+        `SELECT COUNT(*)::int AS count
+         FROM wz_owner_forum_messages m
+         WHERE m.deleted_at IS NULL
+           AND (m.sender_user_id IS NOT NULL OR m.sender_admin_id IS NOT NULL)
+           AND COALESCE(m.sender_user_id,m.sender_admin_id)<>$1
+           AND ($2::timestamptz IS NULL OR m.created_at>$2)`,
+        [user.id,lastReadAt]
+      );
+      return send(res,200,{ok:true,lastReadAt,unread:u.rows[0].count}),true;
+    }
+    if(req.method==='POST'){
+      // Waktu server yang jadi sumber kebenaran. Nilai dari klien tidak
+      // dipercaya, jadi pesan yang baru saja masuk tidak bisa ikut
+      // ditandai sudah dibaca oleh perangkat yang salah.
+      const r=await pool.query(
+        `INSERT INTO wz_owner_forum_reads(user_id,business_id,last_read_at,updated_at)
+         VALUES($1,$2,NOW(),NOW())
+         ON CONFLICT (user_id) DO UPDATE
+         SET last_read_at=GREATEST(wz_owner_forum_reads.last_read_at,NOW()),
+             business_id=EXCLUDED.business_id,
+             updated_at=NOW()
+         RETURNING last_read_at AS "lastReadAt"`,
+        [user.id,user.business_id||null]
+      );
+      return send(res,200,{ok:true,lastReadAt:r.rows[0].lastReadAt}),true;
+    }
+  }
+
   if(path==='owner-forum/messages'){
     if(req.method==='GET'){
       const q=queryOf(req);
