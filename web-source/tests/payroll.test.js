@@ -354,3 +354,38 @@ test('payroll: master menang atas snapshot, jadi perbaikan kategori berlaku ke r
   assert.strictEqual(pay.counts.hairstyling.customers, 12);
   assert.strictEqual(pay.counts.hairstyling.bonus, 24000);
 });
+
+test('payroll: dropdown kategori menampilkan keadaan sebenarnya, bukan opsi pertama', async () => {
+  const w = await boot();
+  // S3 "Gundul" sengaja dibiarkan tanpa payrollCategory. Namanya cocok dengan
+  // haircut, jadi ia masuk ke grup Haircut lewat pencocokan nama -- tapi yang
+  // benar-benar tersimpan tetap kosong, dan dropdown harus jujur soal itu.
+  const unassigned = w.eval(`payrollServiceOptions('')`);
+  assert.ok(/<option value="" selected>Belum diatur<\/option>/.test(unassigned),
+    'opsi kosong harus terpilih untuk layanan yang belum berkategori');
+  // Layanan yang sudah berkategori tidak boleh memakai opsi kosong.
+  const assigned = w.eval(`payrollServiceOptions('hairwash')`);
+  assert.ok(assigned.includes('<option value="hairwash" selected>Hairwash</option>'),
+    'kategori tersimpan harus terpilih');
+  assert.ok(!/<option value=""[^>]*selected/.test(assigned),
+    'opsi kosong tidak boleh terpilih pada layanan yang sudah berkategori');
+});
+
+test('payroll: memilih kategori pada halaman Pengaturan Gaji benar-benar tersimpan', async () => {
+  const w = await boot();
+  w.eval(`
+    db.branches=[{id:'B1',name:'Pusat',active:true}];
+    db.employees=[];
+    db.transactions=[]; db.attendance=[]; db.shiftReports=[];
+    db.services=[{id:'S3',name:'Gundul',payrollCategory:'',price:50000,duration:30,active:true}];
+    currentUser={id:'U1',username:'owner',role:'owner',name:'Owner',businessId:'BIZ1',branchId:'B1'};
+    true;`);
+  // Pilih Hairwash lewat jalur yang sama dengan dropdown di layar.
+  await w.setServicePayrollCategory('S3', 'hairwash');
+  assert.strictEqual(JSON.parse(w.eval(`JSON.stringify(db.services[0].payrollCategory)`)), 'hairwash');
+  assert.strictEqual(w.eval(`payrollServiceKey(db.services[0])`), 'hairwash');
+  assert.strictEqual(w.eval(`payrollServiceGroups().unassigned.length`), 0);
+  // Memilih ulang kategori yang sama harus tetap aman.
+  await w.setServicePayrollCategory('S3', 'hairwash');
+  assert.strictEqual(w.eval(`payrollServiceKey(db.services[0])`), 'hairwash');
+});

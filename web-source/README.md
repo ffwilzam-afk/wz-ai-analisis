@@ -80,6 +80,9 @@ Tiga lapis, dari paling umum ke paling khusus. Yang tidak diisi di lapis khusus 
 - Transaksi POS pada tanggal yang sama dengan laporan tutup shift karyawan diabaikan untuk komisi, karena laporan shift adalah catatan karyawan sendiri. Tanpa ini satu pekerjaan bisa dibayar dua kali.
 - **Kategori gaji ada di master layanan** (`payrollCategory`), bukan ditebak dari nama. Data lama tanpa kategori masih dicocokkan dari nama sebagai cadangan.
 - Halaman **Pengaturan Gaji → Layanan Master Owner** mencerminkan data layanan tenant itu sendiri: layanan dikelompokkan per kategori, dan layanan yang belum berkategori ditandai **tidak mendapat bonus** beserta dropdown untuk mengaturnya langsung di sana. Dialog **Atur Gaji** per karyawan juga menyebut layanan apa saja yang masuk tiap kategori.
+- Dropdown **Kategori gaji** selalu menampilkan keadaan sebenarnya, termasuk opsi **Belum diatur** untuk layanan yang belum punya kategori. Sebelumnya tidak ada opsi kosong sama sekali, sehingga browser otomatis menyorot opsi pertama (Haircut) untuk layanan yang belum berkategori: layar berbohong, dan memilih ulang Haircut tidak memicu event `change` sehingga kategori tidak pernah tersimpan.
+- Layanan yang hanya cocok lewat nama (mis. "Gundul") tetap dihitung, tetapi ditandai **belum diatur, dicocokkan dari nama** supaya jelas bonusnya berasal dari pencocokan cadangan, bukan dari pilihan Owner.
+- Form **Tambah/Ubah Karyawan** tidak lagi menampilkan blok "Aturan Bonus Upah" dengan angka hardcode. Aturan bonus hanya diatur di **Atur Gaji** (khusus karyawan) dan **Aturan Umum** (umum bisnis).
 - Tes: `tests/payroll.test.js` memuat `index.html` di jsdom dan memanggil engine aslinya, jadi regresi di sini tertangkap `npm test`.
 
 ## ID karyawan lintas tenant

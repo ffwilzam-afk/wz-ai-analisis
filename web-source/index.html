@@ -2966,9 +2966,16 @@ function payrollServiceGroups(){
   });
   return {groups,unassigned,total:list.length};
 }
+// Opsi kategori untuk sebuah layanan. `current` adalah payrollCategory yang
+// benar-benar tersimpan, jadi kalau kosong Select akan menampilkan "Belum
+// diatur" sebagai pilihan aktif. Sebelumnya tidak ada opsi kosong sama sekali,
+// sehingga browser otomatis menyorot opsi pertama (Haircut) untuk layanan yang
+// belum berkategori: layar berbohong, dan memilih ulang Haircut tidak memicu
+// event `change` sehingga kategori tidak pernah tersimpan.
 function payrollServiceOptions(current){
-  const value=String(current||'');
-  return PAYROLL_CATEGORIES.map(c=>`<option value="${c.key}"${value===c.key?' selected':''}>${c.label}</option>`).join('');
+  const value=String(current||'').trim();
+  return `<option value=""${PAYROLL_CATEGORY_KEYS.includes(value)?'':' selected'}>Belum diatur</option>`
+    +PAYROLL_CATEGORIES.map(c=>`<option value="${c.key}"${value===c.key?' selected':''}>${c.label}</option>`).join('');
 }
 function payrollServiceNames(key){
   const {groups}=payrollServiceGroups();
@@ -3036,9 +3043,6 @@ function openEmployee(id){
  <label>Role<select id="eRole"><option ${role==='Barber'?'selected':''}>Barber</option><option ${role==='Kasir'?'selected':''}>Kasir</option><option ${role==='Manager'?'selected':''}>Manager</option></select></label>
  <label>Cabang<select id="eBranch">${db.branches.filter(b=>b.active!==false).map(b=>`<option value="${escapeHtml(String(b.id))}" ${((e&&e.branchId)||defaultBranchId)===b.id?'selected':''}>${escapeHtml(String(b.name))}</option>`).join('')}</select></label>
  <label>Gaji Pokok<input id="eSalary" type="number" value="${salary||2000000}"></label><label>Komisi %<input id="eComm" type="number" value="0" readonly></label><label>Target<input id="eTarget" type="number" value="${target}"></label>
- <div class="goldline"></div><h3>Aturan Bonus Upah</h3>
- <p class="muted">Periode penggajian: <b>tanggal 24 sampai tanggal 24 bulan berikutnya</b>.</p>
- <div class="detail-grid">${box('Haircut','Ke-157 dan seterusnya · Rp10.000')}${box('Hairwash','Setiap pelanggan · Rp2.000')}${box('Hairstyling','Setiap pelanggan · Rp2.000')}${box('Shaving','Setiap pelanggan · Rp2.000')}${box('Haircoloring','Setiap pelanggan · Rp20.000')}</div>
 <div class="goldline"></div><h3>Akun Login Karyawan</h3>
  <label>Username<input value="${e?defaultEmployeeUsername(e.name):defaultEmployeeUsername(name)}" readonly></label><label>Password<input id="ePassword" type="text" value="${password}"></label>
  <p class="muted">Username akun dibuat otomatis dari nama karyawan. Password dapat dibuat atau diubah Owner/Manager.</p>
@@ -3512,7 +3516,7 @@ async function payrollSettingsPage(){
      return `<div style="margin-top:10px">
        <b>${c.label} — ${list.length} layanan</b>
        ${list.map(svc=>`<div class="feature" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #20242b">
-         <span>${escapeHtml(String(svc.name||''))} <span class="subtle">${rupiah(svc.price)} · ${escapeHtml(String(svc.duration||0))} menit</span></span>
+         <span>${escapeHtml(String(svc.name||''))} <span class="subtle">${rupiah(svc.price)} · ${escapeHtml(String(svc.duration||0))} menit${PAYROLL_CATEGORY_KEYS.includes(String(svc.payrollCategory||''))?'':' · <b style="color:#e0b64a">belum diatur, dicocokkan dari nama</b>'}</span></span>
          <select onchange="setServicePayrollCategory('${escapeHtml(String(svc.id))}',this.value)" style="max-width:170px">${payrollServiceOptions(svc.payrollCategory)}</select>
        </div>`).join('')}
      </div>`;
@@ -3520,9 +3524,7 @@ async function payrollSettingsPage(){
    ${mapping.unassigned.length?`<div style="margin-top:14px"><b style="color:#e0b64a">Belum berkategori — ${mapping.unassigned.length} layanan tidak mendapat bonus</b>
      ${mapping.unassigned.map(svc=>`<div class="feature" style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #20242b">
        <span>${escapeHtml(String(svc.name||''))} <span class="subtle">${rupiah(svc.price)} · ${escapeHtml(String(svc.duration||0))} menit</span></span>
-       <select onchange="setServicePayrollCategory('${escapeHtml(String(svc.id))}',this.value)" style="max-width:170px">
-         <option value="">Pilih kategori...</option>${payrollServiceOptions(svc.payrollCategory)}
-       </select>
+       <select onchange="setServicePayrollCategory('${escapeHtml(String(svc.id))}',this.value)" style="max-width:170px">${payrollServiceOptions(svc.payrollCategory)}</select>
      </div>`).join('')}</div>`:''}
  </section>
 
