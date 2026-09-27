@@ -128,6 +128,18 @@ Yang tersedia sebagai gantinya:
 
 Audit juga memverifikasi hal-hal yang harus benar, bukan hanya "tidak error": setiap handler `on*` harus punya fungsi global, setiap halaman harus merender isi (dengan data kosong maupun data nyata), dan angka yang diketik Owner harus benar-benar muncul di payload POST.
 
+## Presisi timestamp pada app-state (penyebab "tersimpan tapi hilang")
+
+`wz_app_states.updated_at` bertipe `timestamptz`, jadi `NOW()` menyimpan **mikrodetik**. Nilai yang dikirim klien -- dan yang kembali lagi lewat JSON -- hanya punya **milidetik**, karena objek `Date` di JavaScript tidak menyimpan mikrodetik.
+
+Akibatnya `WHERE business_id=$1 AND updated_at=$3` **hampir tidak pernah cocok**: setiap penyimpanan kedua dan seterusnya dijawab `409 STATE_CONFLICT` dengan pesan *"Data server sudah berubah. Muat ulang sebelum menyimpan"* -- padahal tidak ada yang berubah. Gejalanya: Owner mengubah sesuatu, aplikasi menampilkan "Tersimpan", lalu perubahannya hilang begitu aplikasi ditutup. Semua yang lewat `app-state` terkena: kategori gaji layanan, pengeluaran, pengaturan, dan lainnya.
+
+- `writeAppState()` membandingkan dengan `date_trunc('milliseconds',updated_at) = $3::timestamptz`, sehingga kedua sisi presisi sama tanpa kehilangan proteksi konflik antar-perangkat.
+- Pemeriksaan awal di handler membedakan objek `Date` (yang dikirim `pg`) dari teks. `String(date)` menghasilkan *"Sun Nov 07 2026 ..."* yang tidak bisa diparse -- kalau tidak ditangani, setiap simpan ditolak 409.
+- **Konflik tidak lagi membuang perubahan.** Dulu `persistAppState()` memanggil `hydrateAppState()` + `render()` saat konflik, yang menimpa perubahan Owner dengan versi server. Sekarang ia mengambil `updatedAt` terbaru lalu mengirim ulang **snapshot yang sama**.
+- Error asli kini dibawa sampai ke layar. `api()` menyertakan `code` dari server, dan `setServicePayrollCategory()` menampilkan penyebab sebenarnya, bukan tebakan "periksa koneksi" yang ternyata menyesatkan.
+- Tes: `tests/app-state-conflict.test.js`. Salah satunya memeriksa **SQL-nya** secara langsung, karena stub perilaku bisa lulus meski query-nya salah.
+
 ## Menyimpan state & balapan dengan auto-refresh
 
 `tests/state-save.test.js` menjalankan aplikasi di jsdom dengan server sungguhan (app-state benar-benar tersimpan), lalu mengukur **apa yang benar-benar tersimpan ke server**.

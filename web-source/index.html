@@ -1555,6 +1555,11 @@ function playNotificationSound(){
  }catch(e){console.debug('Suara notifikasi tidak tersedia.',e)}
 }
 
+// Alasan penyimpanan terakhir yang gagal, dibaca oleh UI untuk
+// menampilkan penyebab yang sebenarnya. Harus dideklarasikan di script #1
+// karena setServicePayrollCategory() membacanya dari sana, sedangkan
+// persistAppState() menuliskannya dari dalam IIFE bridge.
+let lastSaveError=null;
 function save(){
   // Nilai balik: Promise<boolean> yang true kalau benar-benar tersimpan ke
   // server. Pemanggil boleh mengabaikannya, tapi boleh juga mengecek hasilnya.
@@ -3048,9 +3053,13 @@ async function setServicePayrollCategory(serviceId,category){
   // Tunggu jawaban server sebelum menyatakan berhasil. Sebelumnya toast
   // "disimpan" muncul apa yang terjadi padahal, sehingga Owner mengira
   // kategorinya sudah aman padahal tidak pernah sampai ke server.
+  lastSaveError=null;
   const ok=await save();
-  if(ok)toast('Kategori gaji "'+svc.name+'" disimpan.');
-  else toast('Kategori "'+svc.name+'" belum tersimpan. Periksa koneksi, lalu pilih lagi.',true);
+  if(ok){toast('Kategori gaji "'+svc.name+'" disimpan.');return}
+  // Tampilkan ALASAN sebenarnya. Pesan "periksa koneksi" dulu hanya tebakan,
+  // dan terbukti menyesatkan: penyebab sebenarnya bisa konflik versi,
+  // langganan tidak aktif, atau state yang kebesaran.
+  toast('Kategori "'+svc.name+'" belum tersimpan. '+(lastSaveError?.message||'Coba lagi sebentar.'),true);
 }
 
 function payrollEmployeeListHtml(){
@@ -4714,7 +4723,14 @@ async function api(path,options={}){
     const text=await res.text();
     let data=null;
     try{data=text?JSON.parse(text):null}catch{}
-    if(!res.ok)throw new Error(data?.error||data?.message||("HTTP "+res.status));
+    if(!res.ok){
+      const err=new Error(data?.error||data?.message||("HTTP "+res.status));
+      // Kode dari server ikut dibawa supaya pemanggil bisa membedakan
+      // "konflik" dari "langganan tidak aktif" dari "jaringan putus".
+      err.code=data?.code||'';
+      err.status=res.status;
+      throw err;
+    }
     return data;
   }catch(e){
     if(e?.name==="AbortError")throw new Error("Server tidak merespons. Silakan coba lagi.");
@@ -4834,7 +4850,7 @@ function appStateSnapshot(){
   }
   return snapshot;
 }
-async function persistAppState(presetSnapshot){
+async function persistAppState(presetSnapshot,alreadyRetried){
   if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
   // Kalau ada snapshot yang sudah diambil sebelumnya, pakai itu. Ambil ulang
   // di sini justru berbahaya: lihat catatan di queueAppStateSave().
@@ -4846,10 +4862,18 @@ async function persistAppState(presetSnapshot){
     if(el)el.textContent='● Tersimpan online';
     return true;
   }catch(e){
-    if(e.message==='Data server sudah berubah. Muat ulang sebelum menyimpan.'){
-      await hydrateAppState();
-      if(typeof render==='function')render();
+    // Konflik: ambil timestamp terbaru lalu kirim ulang snapshot yang SAMA.
+    // Sebelumnya di sini dipanggil hydrateAppState() + render(), yang
+    // menimpa perubahan Owner dengan versi server -- jadi konflik apa pun
+    // berarti perubahan hilang, bukan sekadar gagal disimpan.
+    if(e&&e.code==='STATE_CONFLICT'&&!alreadyRetried){
+      try{
+        const fresh=await api('app-state');
+        appStateUpdatedAt=fresh?.updatedAt||null;
+        return await persistAppState(snapshot,true);
+      }catch(_){/* biarkan jatuh ke penanganan di bawah*/}
     }
+    lastSaveError={message:String(e&&e.message||e),code:String(e&&e.code||''),status:Number(e&&e.status||0)};
     console.warn('Online app-state save failed:',e.message||e);
     const el=document.getElementById('saveState');
     if(el)el.textContent='● Belum tersimpan ke server';

@@ -39,6 +39,28 @@ function getPool(){
   return pool;
 }
 
+// Menulis state bisnis, dengan penjaga optimistic-concurrency.
+//
+// PENTING: perbandingan harus dilakukan pada presisi MILIDETIK.
+// Kolom updated_at bertipe timestamptz, jadi NOW() menyimpan mikrodetik yang
+// hampir selalu bukan nol. Nilai yang dikirim klien -- dan yang kembali lagi
+// lewat JSON -- hanya punya milidetik, karena objek Date di JavaScript tidak
+// menyimpan mikrodetik. Membandingkan `updated_at = $3` secara langsung
+// karena itu hampir tidak pernah cocok, sehingga SETIAP penyimpanan kedua
+// dan seterusnya dijawab 409 "Data server sudah berubah" padahal tidak ada
+// yang berubah. date_trunc('milliseconds', ...) menyamakan keduanya tanpa
+// kehilanganConcurrency antar-perangkat.
+//
+// Mengembalikan updatedAt terbaru, atau null bila baris tidak cocok
+// (konflik).
+async function writeAppState(businessId,payload,expectedUpdatedAt){
+  if(!expectedUpdatedAt){
+    const r=await getPool().query(`INSERT INTO wz_app_states(business_id,data,updated_at) VALUES($1,$2::jsonb,NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_at=NOW() RETURNING updated_at AS "updatedAt"`,[businessId,payload]);
+    return r.rows[0]?.updatedAt||null;
+  }
+  const r=await getPool().query(`UPDATE wz_app_states SET data=$2::jsonb,updated_at=NOW() WHERE business_id=$1 AND date_trunc('milliseconds',updated_at)=$3::timestamptz RETURNING updated_at AS "updatedAt"`,[businessId,payload,expectedUpdatedAt]);
+  return r.rowCount?(r.rows[0]?.updatedAt||null):null;
+}
 function firebaseConfigured(){
   return !!(
     process.env.FIREBASE_PROJECT_ID &&
@@ -1561,18 +1583,26 @@ async function handler(req,res){
       if(b?.expectedUpdatedAt&&(!expectedUpdatedAt||Number.isNaN(expectedUpdatedAt.getTime())))
         return send(res,400,{ok:false,error:'Timestamp konflik tidak valid.'});
       const current=await getPool().query('SELECT data,updated_at AS "updatedAt" FROM wz_app_states WHERE business_id=$1',[u.business_id]);
-      if(expectedUpdatedAt&&current.rowCount&&new Date(current.rows[0].updatedAt).getTime()!==expectedUpdatedAt.getTime())
-        return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
+      // Perbandingan harus sama-sama presisi milidetik dengan penulisan di
+      // writeAppState(). Kalau kolom ini sampai dikembalikan sebagai teks
+      // mentah, new Date() bisa gagal parse dan setiap simpan ditolak 409.
+      if(expectedUpdatedAt&&current.rowCount){
+        // pg mengembalikan timestamptz sebagai objek Date. Kalau suatu saat
+        // dikembalikan sebagai teks, String(date) akan jadi "Sun Nov 07 2026
+        // ..." yang tidak bisa diparse, dan setiap simpan akan ditolak 409.
+        const raw=current.rows[0].updatedAt;
+        const stored=raw instanceof Date?raw.getTime():Date.parse(String(raw||'').replace(' ','T'));
+        if(!Number.isFinite(stored)||Math.trunc(stored)!==expectedUpdatedAt.getTime())
+          return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
+      }
       const currentData=current.rowCount&&current.rows[0].data&&typeof current.rows[0].data==='object'?current.rows[0].data:{};
       if(u.role==='employee'){
         const customers=Array.isArray(data.customers)?data.customers:[];
         if(JSON.stringify(customers).length>4*1024*1024)return send(res,413,{ok:false,error:'Data pelanggan terlalu besar.'});
         const payload=JSON.stringify({...currentData,customers});
-        const saved=expectedUpdatedAt
-          ?await getPool().query(`UPDATE wz_app_states SET data=$2::jsonb,updated_at=NOW() WHERE business_id=$1 AND updated_at=$3 RETURNING updated_at AS "updatedAt"`,[u.business_id,payload,expectedUpdatedAt])
-          :await getPool().query(`INSERT INTO wz_app_states(business_id,data,updated_at) VALUES($1,$2::jsonb,NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_at=NOW() RETURNING updated_at AS "updatedAt"`,[u.business_id,payload]);
-        if(expectedUpdatedAt&&!saved.rowCount)return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
-        return send(res,200,{ok:true,updatedAt:saved.rows[0]?.updatedAt||null});
+        const saved=await writeAppState(u.business_id,payload,expectedUpdatedAt);
+      if(expectedUpdatedAt&&saved===null)return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
+      return send(res,200,{ok:true,updatedAt:saved});
       }
       if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat menyimpan data online.'});
       // Notifikasi tidak pernah diturunkan statusnya oleh penulisan state biasa.
@@ -1586,11 +1616,9 @@ async function handler(req,res){
       };
       const payload=JSON.stringify(mergedData);
       if(payload.length>8*1024*1024)return send(res,413,{ok:false,error:'Data aplikasi terlalu besar.'});
-      const saved=expectedUpdatedAt
-        ?await getPool().query(`UPDATE wz_app_states SET data=$2::jsonb,updated_at=NOW() WHERE business_id=$1 AND updated_at=$3 RETURNING updated_at AS "updatedAt"`,[u.business_id,payload,expectedUpdatedAt])
-        :await getPool().query(`INSERT INTO wz_app_states(business_id,data,updated_at) VALUES($1,$2::jsonb,NOW()) ON CONFLICT(business_id) DO UPDATE SET data=EXCLUDED.data,updated_at=NOW() RETURNING updated_at AS "updatedAt"`,[u.business_id,payload]);
-      if(expectedUpdatedAt&&!saved.rowCount)return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
-      return send(res,200,{ok:true,updatedAt:saved.rows[0]?.updatedAt||null});
+      const saved=await writeAppState(u.business_id,payload,expectedUpdatedAt);
+      if(expectedUpdatedAt&&saved===null)return send(res,409,{ok:false,code:'STATE_CONFLICT',error:'Data server sudah berubah. Muat ulang sebelum menyimpan.'});
+      return send(res,200,{ok:true,updatedAt:saved});
     }
     if(path==='profile' && req.method==='GET'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});

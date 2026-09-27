@@ -166,8 +166,11 @@ test('cakupan: fungsi privat IIFE yang dipakai script #1 harus terjangkau', asyn
   const scanRanges = [[2, scriptOneEnd], [end + 1, INDEX_LINES.length]];
   for (const [a, b] of scanRanges) {
     for (let i = a; i <= b; i++) {
-      const line = INDEX_LINES[i - 1];
-      if (!line) continue;
+      const raw = INDEX_LINES[i - 1];
+      if (!raw) continue;
+      // Komentar hanya menyebut nama fungsi, tidak memanggilnya. Tanpa
+      // pemotongan ini, dokumentasi yang rapi ikut dianggap bug.
+      const line = raw.replace(/\/\/.*$/, '').replace(/\/\*.*?\*\//g, '');
       for (const n of privateNames) {
         if (new RegExp('(?<![\\w.$])' + n + '\\s*\\(').test(line)
           && !new RegExp('^\\s*(function|const|let|var|class)\\s+' + n + '\\b').test(line)) usedFromOutside.add(n);
