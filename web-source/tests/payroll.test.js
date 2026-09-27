@@ -389,3 +389,56 @@ test('payroll: memilih kategori pada halaman Pengaturan Gaji benar-benar tersimp
   await w.setServicePayrollCategory('S3', 'hairwash');
   assert.strictEqual(w.eval(`payrollServiceKey(db.services[0])`), 'hairwash');
 });
+
+/* Harness jsdom di atas dipakai lagi di sini untuk bagian UI: halaman Profil
+   harus menyediakan jalan ganti username untuk semua role, dan username
+   baru di memori harus ikut berubah supaya navbar tidak menampilkan data
+   lama setelah dialog ditutup. */
+test('profil: tombol Ubah Username ada untuk semua role', async () => {
+  const w = await boot();
+  for (const role of ['owner', 'manager', 'employee']) {
+    w.eval(`
+      currentUser={id:'U1',username:'owner-a',role:${JSON.stringify(role)},name:'Budi',businessId:'BIZ1',branchId:'B1'};
+      location.hash='#profile'; render(); true;`);
+    const html = w.document.getElementById('content').innerHTML;
+    assert.ok(html.includes('changeMyUsername()'), `role ${role} harus bisa mengganti username`);
+  }
+});
+
+test('profil: ganti username memakai API online dan memperbarui currentUser', async () => {
+  const w = await boot();
+  w.eval(`
+    currentUser={id:'U1',username:'owner-a',role:'owner',name:'Budi',businessId:'BIZ1',branchId:'B1'};
+    location.hash='#profile'; render();
+    var __req=null;
+    window.WZOnlineEmployee.api=async(p,o)=>{__req={path:p,body:JSON.parse(o.body)};return {ok:true,user:{id:'U1',username:'owner-baru'}};};
+    true;`);
+  w.changeMyUsername();
+  assert.ok(w.document.getElementById('uOldPass'), 'dialog minta password lama');
+  assert.ok(w.document.getElementById('uNewName'), 'dialog punya input username baru');
+
+  w.document.getElementById('uOldPass').value = 'rahasia';
+  w.document.getElementById('uNewName').value = 'Owner-Baru';
+  await w.saveMyUsername();
+
+  const req = JSON.parse(w.eval('JSON.stringify(__req)'));
+  assert.strictEqual(req.path, 'account/username', 'harus memakai endpoint ganti username');
+  assert.strictEqual(req.body.username, 'owner-baru', 'username harus dinormalkan ke huruf kecil');
+  assert.strictEqual(req.body.currentPassword, 'rahasia');
+  // Navbar membaca currentUser, jadi harus ikut berubah tanpa reload.
+  assert.strictEqual(w.eval('currentUser.username'), 'owner-baru');
+});
+
+test('profil: username tidak valid ditolak sebelum memanggil server', async () => {
+  const w = await boot();
+  w.eval(`
+    currentUser={id:'U1',username:'owner-a',role:'owner',name:'Budi',businessId:'BIZ1',branchId:'B1'};
+    var __called=false;
+    window.WZOnlineEmployee.api=async()=>{__called=true;return {ok:true};};
+    true;`);
+  w.changeMyUsername();
+  w.document.getElementById('uOldPass').value = 'rahasia';
+  w.document.getElementById('uNewName').value = 'Ada Spasi';
+  await w.saveMyUsername();
+  assert.strictEqual(w.eval('__called'), false, 'tidak boleh memanggil server untuk username tidak valid');
+});

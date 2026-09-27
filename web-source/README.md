@@ -92,6 +92,25 @@ Tiga lapis, dari paling umum ke paling khusus. Yang tidak diisi di lapis khusus 
 - Klien wajib memakai `employee.id` yang dikembalikan server, bukan tebakan lokalnya.
 - Tes: `tests/payroll-routes.test.js` — dua bisnis sama-sama meminta `E001`, keduanya tetap tersimpan dengan `business_id` masing-masing.
 
+## Ganti username & password sendiri
+
+Semua pemilik akun (Owner, Manager, Karyawan) bisa mengganti **username** dan **password** miliknya sendiri dari halaman **Profil Saya**.
+- `POST /api/account/username` dengan `{currentPassword, username}`. Password lama wajib dimasukkan, karena mengganti username sama bergunanya dengan mengganti password untuk mengambil alih akun. Body tidak menerima `userId`, jadi tidak ada jalan untuk mengganti akun orang lain.
+- Aturan username mengikuti `auth/register`: huruf kecil, angka, titik, garis bawah, atau strip, 3-50 karakter. Unik **per bisnis**, bukan global (indeks `wz_users_business_username_uq`) -- username yang sama di bisnis lain tetap boleh karena login sudah membedakan lewat kode bisnis.
+- Sesi yang sedang berjalan tidak ikut putus: `wz_sessions` menyimpan `user_id`, bukan username.
+- `POST /api/password` (yang sudah ada) untuk mengganti password.
+- **Manager sebelumnya tidak punya akses ke halaman `profile`** (`ACCESS.manager`), jadi tidak bisa membuka halaman akunnya sendiri sama sekali. Sudah ditambahkan.
+- Tes: `tests/account.test.js` (jalur HTTP dengan stub pg) dan bagian profil di `tests/payroll.test.js` (jalur UI lewat jsdom).
+
+## Password owner di panel admin
+
+`wz_users.password_hash` menyimpan `scrypt(salt + password)` -- satu arah. **Password owner tidak bisa dibaca, bukan karena disembunyikan, tapi karena plaintext-nya memang tidak ada di mana pun.** Karena itu panel admin sengaja tidak punya kolom password, dan tidak akan pernah ada: menambahkannya berarti menyimpan password owner dalam bentuk yang bisa dibaca, yang justru membuat setiap kebocoran database langsung jadi semua credential.
+
+Yang tersedia sebagai gantinya:
+- **Kode bisnis** (`wz_businesses.id`) dan **username owner** tampil di tab **Owner / User** dan di detail bisnis.
+- `POST /api/admin/users/:id/reset-password` hanya untuk akun **Owner**. Admin bisa menentukan password baru atau membiarkan server membuatkannya, lalu menyampaikannya ke owner. Sesi owner di perangkat lain langsung dicabut (`DELETE FROM wz_sessions`), dan aksinya tercatat di `wz_admin_audit_logs` sebagai `admin.user.reset_password`.
+- Mengubah username owner bukan urusan admin; owner melakukannya sendiri lewat halaman Profil.
+
 ## Badge unread Obrolan Owner
 - Penanda "sudah dibaca" disimpan **di server per user** pada `wz_owner_forum_reads.last_read_at` lewat `POST /api/owner-forum/read` (waktu server yang jadi sumber kebenaran), bukan hanya di `app-state`.
 - `GET /api/owner-forum/read` mengembalikan `{lastReadAt, unread}`; `refreshOwnerForumBadge()` memakai angka itu untuk badge `wzChatBadge`.

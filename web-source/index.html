@@ -1347,9 +1347,12 @@ const ACCESS={
     'notifications','branches','profile','settings','payrollSettings','ownerForum','system','subscription','auth'
   ,'cs'],
   manager:[
+    // 'profile' sebelumnya tidak ada di sini, jadi Manager tidak bisa membuka
+    // halaman akunnya sendiri sama sekali -- padahal dia tetap harus bisa
+    // mengganti username dan password-nya.
     'dashboard','transactions','shiftReports','employees','customers',
     'services','finance','reports','operations','analytics',
-    'notifications','branches','settings','system','subscription','auth'
+    'notifications','branches','profile','settings','system','subscription','auth'
   ,'cs'],
   employee:[
     'dashboard','transactions','shiftReports','customers','services',
@@ -3345,6 +3348,7 @@ function profile(){
   <div class="feature" style="margin-top:14px"><b>Informasi Kontak</b><div style="margin-top:8px">${contact}</div></div>
   <div class="dialog-actions" style="margin-top:16px">
    <button class="btn primary" type="button" onclick="editMyProfile()">Ubah Profil</button>
+   <button class="btn" type="button" onclick="changeMyUsername()">Ubah Username</button>
    <button class="btn" type="button" onclick="changeMyPassword()">Ubah Password</button>
   </div>
  </section>`;
@@ -3355,7 +3359,7 @@ function editMyProfile(){
  show(`<span class="gold-label">PROFIL AKUN</span><h2>Ubah Profil</h2>
  <div class="form">
   <label>Nama<input id="pName" value="${escapeHtml(String(currentUser.name||''))}" ${currentUser.role==='employee'?'readonly':''}></label>
-  <label>Username<input value="${currentUser.username||''}" readonly></label>
+  <label>Username<input value="${escapeHtml(String(currentUser.username||''))}" readonly></label>
   <label>Informasi Kontak<input id="pContact" value="${escapeHtml(String(currentUser.phone||emp?.phone||''))}" placeholder="Nomor telepon"></label>
   <label>Foto Profil<input id="pAvatar" type="file" accept="image/*"></label>
  </div>
@@ -3406,6 +3410,34 @@ async function saveMyPassword(){
   await window.WZOnlineEmployee.api('password',{method:'POST',body:JSON.stringify({oldPassword:old,newPassword:newP})});
   closeModal();toast('Password berhasil diubah online.');
  }catch(e){alert('Password gagal diubah: '+(e.message||e));}
+}
+
+function changeMyUsername(){
+ if(!currentUser)return;
+ show(`<span class="gold-label">KEAMANAN</span><h2>Ubah Username</h2>
+ <div class="form">
+  <label>Username Saat Ini<input value="${escapeHtml(String(currentUser.username||''))}" readonly></label>
+  <label>Password Lama<input id="uOldPass" type="password"></label>
+  <label>Username Baru<input id="uNewName" value="${escapeHtml(String(currentUser.username||''))}" autocapitalize="none" autocomplete="off"></label>
+ </div>
+ <p class="muted" style="margin-top:8px">Password lama wajib dimasukkan. Username harus unik di bisnis ini, dan hanya huruf kecil, angka, titik, garis bawah, atau strip (3-50 karakter). Kode bisnis untuk login tidak berubah.</p>
+ <div class="dialog-actions"><button class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveMyUsername()">Simpan</button></div>`);
+}
+async function saveMyUsername(){
+ if(!currentUser)return;
+ const oldPass=document.getElementById('uOldPass')?.value||'';
+ const username=String(document.getElementById('uNewName')?.value||'').trim().toLowerCase();
+ if(!/^[a-z0-9._-]{3,50}$/.test(username))return alert('Username hanya boleh huruf kecil, angka, titik, garis bawah, atau strip (3-50 karakter).');
+ if(!oldPass)return alert('Isi password lama.');
+ if(username===String(currentUser.username||''))return alert('Username baru sama dengan yang sekarang.');
+ try{
+  const r=await window.WZOnlineEmployee.api('account/username',{method:'POST',body:JSON.stringify({currentPassword:oldPass,username})});
+  // currentUser dipakai hampir semua halaman, jadi harus ikut diperbarui
+  // di memori; kalau tidak, navbar masih menampilkan username lama sampai
+  // aplikasi dimuat ulang.
+  if(r&&r.user)currentUser.username=r.user.username;
+  closeModal();toast('Username berhasil diubah.');render();
+ }catch(e){alert('Username gagal diubah: '+(e.message||e));}
 }
 
 async function exportBackup(){

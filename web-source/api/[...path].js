@@ -1618,6 +1618,38 @@ async function handler(req,res){
       return send(res,200,{ok:true});
     }
 
+    // Ganti username sendiri. Password lama wajib dimasukkan supaya username
+    // tidak bisa diganti dari perangkat yang sedang login tanpa izin pemilik
+    // akun: mengganti username sama bergunanya dengan mengganti password
+    // untuk mengambil alih akun, jadi harus lewat verifikasi password lama.
+    // Sesi tidak ikut putus karena wz_sessions menyimpan user_id, bukan
+    // username, jadi login yang sedang berjalan tetap berlaku.
+    if(path==='account/username' && req.method==='POST'){
+      const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      const b=await body(req),currentPassword=String(b.currentPassword||''),username=String(b.username||'').trim().toLowerCase();
+      if(!/^[a-z0-9._-]{3,50}$/.test(username))
+        return send(res,400,{ok:false,error:'Username hanya boleh huruf kecil, angka, titik, garis bawah, atau strip (3-50 karakter).'});
+      const r=await getPool().query('SELECT username,password_hash FROM wz_users WHERE id=$1 AND active=true',[u.id]);
+      if(!r.rowCount||!verifyPassword(currentPassword,r.rows[0].password_hash))
+        return send(res,400,{ok:false,error:'Password lama salah.'});
+      if(r.rows[0].username===username)return send(res,200,{ok:true,user:{id:u.id,username}});
+      // Unik per bisnis, bukan global: indeks wz_users_business_username_uq.
+      // Username yang sama di bisnis lain tetap boleh, karena login sudah
+      // membedakan lewat kode bisnis.
+      const taken=await getPool().query('SELECT 1 FROM wz_users WHERE business_id=$1 AND lower(username)=$2 AND id<>$3',[u.business_id,username,u.id]);
+      if(taken.rowCount)return send(res,400,{ok:false,error:'Username sudah dipakai akun lain di bisnis ini.'});
+      let updated;
+      try{
+        updated=await getPool().query('UPDATE wz_users SET username=$1,updated_at=NOW() WHERE id=$2 RETURNING id,username,role,name,employee_id AS "employeeId",business_id AS "businessId"',[username,u.id]);
+      }catch(e){
+        // 23505 = unique_violation. Balasan yang sama supaya tidak membocorkan
+        // detail database ke layar pengguna.
+        if(e&&e.code==='23505')return send(res,400,{ok:false,error:'Username sudah dipakai akun lain di bisnis ini.'});
+        throw e;
+      }
+      return send(res,200,{ok:true,user:updated.rows[0]});
+    }
+
     if(path==='reset-business' && req.method==='POST'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mereset data bisnis.'});

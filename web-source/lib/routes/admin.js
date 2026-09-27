@@ -534,6 +534,27 @@ module.exports=async function adminRoutes(ctx,req,res,path){
     return ctx.send(res,200,{ok:true,user:r.rows[0]}),true;
   }
 
+  // Reset password akun Owner.
+  //
+  // Password owner SENGAJA tidak bisa dibaca admin: wz_users hanya menyimpan
+  // scrypt(salt+password) yang satu arah, jadi plaintext-nya memang tidak ada
+  // di mana pun. Yang bisa dan seharusnya dilakukan admin adalah menetapkan
+  // password baru, lalu menyampaikannya ke owner. Sesi lama ikut dicabut supaya
+  // password yang bocor di perangkat lain langsung tidak berlaku.
+  const passwordMatch=path.match(/^admin\/users\/(\d+)\/reset-password$/);
+  if(passwordMatch && (req.method==='POST'||req.method==='PATCH')){
+    const userId=Number(passwordMatch[1]);
+    if(!Number.isInteger(userId)||userId<1)return ctx.send(res,400,{ok:false,error:'ID user tidak valid.'}),true;
+    const b=await ctx.body(req);
+    const temporary=String(b.newPassword||'').trim()||('wz-'+ctx.token(5).slice(0,10));
+    if(temporary.length<8||temporary.length>128)return ctx.send(res,400,{ok:false,error:'Password baru minimal 8 karakter.'}),true;
+    const r=await p.query('UPDATE wz_users SET password_hash=$1,active=true,updated_at=NOW() WHERE id=$2 AND role=\'owner\' RETURNING id,business_id AS "businessId",username,name,role',[ctx.hashPassword(temporary),userId]);
+    if(!r.rowCount)return ctx.send(res,404,{ok:false,error:'Akun Owner tidak ditemukan. Reset password hanya untuk akun Owner.'}),true;
+    await p.query('DELETE FROM wz_sessions WHERE user_id=$1',[userId]);
+    await audit(ctx,admin,'admin.user.reset_password',{targetType:'user',targetId:String(userId),businessId:r.rows[0].businessId,metadata:{username:r.rows[0].username}});
+    return ctx.send(res,200,{ok:true,user:r.rows[0],temporaryPassword:temporary,sessionsRevoked:true}),true;
+  }
+
   if(path==='admin/subscriptions' && req.method==='GET'){
     const {limit,offset,page:pageNo}=pageParams(q),status=statusFilter(q.get('status')),plan=text(q.get('plan'),30).toUpperCase(),search=text(q.get('search'),120);
     const r=await p.query(`SELECT s.business_id AS "businessId",b.name AS "businessName",u.name AS owner,s.plan,s.status,CASE WHEN s.status='ACTIVE' AND s.current_period_end<NOW() THEN 'EXPIRED' WHEN s.status<>'ACTIVE' AND o.status='PENDING' THEN 'PENDING' WHEN s.status<>'ACTIVE' AND o.status='FAILED' THEN 'FAILED' ELSE s.status END AS "subscriptionStatus",s.billing_period AS "billingPeriod",s.trial_started_at AS "trialStartedAt",s.current_period_start AS "currentPeriodStart",s.current_period_end AS "currentPeriodEnd",o.order_id AS "orderId",o.status AS "paymentStatus",o.amount,o.payment_provider AS "paymentProvider",o.external_id AS "paymentReference",o.paid_at AS "paidAt",o.created_at AS "orderCreatedAt" FROM wz_subscriptions s JOIN wz_businesses b ON b.id=s.business_id LEFT JOIN LATERAL(SELECT * FROM wz_users x WHERE x.business_id=s.business_id AND x.role='owner' ORDER BY x.id LIMIT 1)u ON true LEFT JOIN LATERAL(SELECT * FROM wz_subscription_orders x WHERE x.business_id=s.business_id ORDER BY x.created_at DESC LIMIT 1)o ON true WHERE ($1='' OR b.id ILIKE '%'||$1||'%' OR b.name ILIKE '%'||$1||'%' OR u.name ILIKE '%'||$1||'%') AND ($2='' OR (CASE WHEN s.status='ACTIVE' AND s.current_period_end<NOW() THEN 'EXPIRED' WHEN s.status<>'ACTIVE' AND o.status='PENDING' THEN 'PENDING' WHEN s.status<>'ACTIVE' AND o.status='FAILED' THEN 'FAILED' ELSE s.status END)=$2) AND ($3='' OR s.plan=$3) ORDER BY s.current_period_end NULLS FIRST LIMIT $4 OFFSET $5`,[search,status,plan,limit,offset]);
