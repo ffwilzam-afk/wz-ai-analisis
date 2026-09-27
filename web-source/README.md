@@ -35,7 +35,7 @@ Online bridge (login, hidrasi state, sinkronisasi transaksi/shift, FCM) berada *
 ## Database
 Vercel memakai environment variable PostgreSQL Neon. API menerima `WZDATABASE` (prioritas utama), `DATABASE_URL`, `POSTGRES_URL`, `POSTGRES_URL_NON_POOLING`, atau `NEON_DATABASE_URL`.
 
-Tabel dibuat/di-upgrade otomatis oleh `ensureSchema()` saat request pertama: `wz_businesses`, `wz_branches`, `wz_employees`, `wz_users`, `wz_sessions`, `wz_transactions`, `wz_shift_reports`, `wz_subscriptions`, `wz_subscription_orders`, `wz_subscription_plans`, `wz_push_subscriptions`, `wz_fcm_tokens`, `wz_app_states`, `wz_user_profiles`, `wz_owner_forum_messages`, `wz_owner_forum_reactions`, `wz_owner_forum_polls`, `wz_owner_forum_poll_options`, `wz_owner_forum_poll_votes`, `wz_owner_forum_reads`, `wz_payroll_settings`.
+Tabel dibuat/di-upgrade otomatis oleh `ensureSchema()` saat request pertama: `wz_businesses`, `wz_branches`, `wz_employees`, `wz_users`, `wz_sessions`, `wz_transactions`, `wz_shift_reports`, `wz_subscriptions`, `wz_subscription_orders`, `wz_subscription_plans`, `wz_push_subscriptions`, `wz_fcm_tokens`, `wz_app_states`, `wz_user_profiles`, `wz_owner_forum_messages`, `wz_owner_forum_reactions`, `wz_owner_forum_polls`, `wz_owner_forum_poll_options`, `wz_owner_forum_poll_votes`, `wz_owner_forum_reads`, `wz_payroll_settings`, `wz_employee_payroll`.
 
 ## Web Push & notifikasi
 Environment:
@@ -47,7 +47,7 @@ Environment:
 Buat key VAPID dengan `npx web-push generate-vapid-keys`.
 
 ## Endpoint API utama
-`ready` · `auth/register` · `auth/login` · `auth/me` · `auth/logout` · `business` · `branches` (GET/POST/PUT/DELETE) · `employees` (GET/POST/PUT/DELETE) · `employees/me` · `transaction` · `transaction/void` · `shift-report` · `app-state` (GET/PUT) · `profile` · `password` · `reset-business` · `sync-business` · `payroll/settings` · `notifications/read` · `push/subscribe` · `push/unsubscribe` · `push/fcm-token` · `push/vapid-public-key` · `owner-forum/messages` · `owner-forum/reactions` · `owner-forum/read` (GET+POST) · `owner-forum/polls` · `owner-forum/polls/vote` · `subscription` · `subscription/order` · `subscription/webhook`
+`ready` · `auth/register` · `auth/login` · `auth/me` · `auth/logout` · `business` · `branches` (GET/POST/PUT/DELETE) · `employees` (GET/POST/PUT/DELETE) · `employees/me` · `transaction` · `transaction/void` · `shift-report` · `app-state` (GET/PUT) · `profile` · `password` · `reset-business` · `sync-business` · `payroll/settings` · `payroll/employee` (GET/POST/DELETE) · `notifications/read` · `push/subscribe` · `push/unsubscribe` · `push/fcm-token` · `push/vapid-public-key` · `owner-forum/messages` · `owner-forum/reactions` · `owner-forum/read` (GET+POST) · `owner-forum/polls` · `owner-forum/polls/vote` · `subscription` · `subscription/order` · `subscription/webhook`
 
 ## Akun & registrasi
 Tidak ada akun seed di kode. Akun owner dibuat lewat `POST /api/auth/register` (nama bisnis, nama owner, nama cabang, username, password), dan akun karyawan dibuat oleh owner/manager dari halaman Karyawan. Daftar akun lama (`owner/owner123`, dst.) sudah tidak berlaku sejak skema multi-tenant.
@@ -62,6 +62,31 @@ Nota transaksi dirancang untuk printer struk 1-bit (thermal), bukan printer kant
 - Di Android, tombol Cetak Nota memakai `WZAndroid.print()` (Android Print framework). Perangkat memerlukan print service; bila tidak ada, Android menyediakan **Save as PDF**. Untuk printer thermal Bluetooth murah, biasanya perlu aplikasi perantara print service (mis. RawBT) yang menyediakan layanan cetak ESC/POS.
 
 Catatan: printer 58mm menggunakan area cetak sekitar 48mm, jadi teks panjang seperti ID transaksi dapat terpotong. Gunakan 80mm bila struk memuat banyak baris.
+
+## Sistem gaji (payroll)
+Tiga lapis, dari paling umum ke paling khusus. Yang tidak diisi di lapis khusus otomatis memakai lapis di atasnya.
+
+| Lapis | Sumber | Dipakai untuk |
+| --- | --- | --- |
+| Bawaan | `PAYROLL_CATEGORIES` di `index.html` | Nilai sebelum ada pengaturan tenant |
+| Umum bisnis | `wz_payroll_settings` | Halaman **Pengaturan Gaji → Aturan Umum** |
+| Khusus karyawan | `wz_employee_payroll` | Tombol **Atur Gaji** per karyawan |
+
+- `GET/POST/DELETE /api/payroll/employee` (+ `?employeeId=`) — pengaturan khusus karyawan. `periodStartDay` boleh `null` = ikut pengaturan umum.
+- **Setiap owner hanya mengatur karyawannya sendiri.** `business_id` selalu diambil dari sesi, tidak pernah dari body, dan `employee_id` diverifikasi milik tenant tersebut sebelum ditulis. Tes: `tests/payroll-routes.test.js` membuktikan Owner A mendapat 404 untuk karyawan Owner B **dan tidak ada satu pun query tulis yang terkirim**.
+- `base_salary` pada `wz_employee_payroll` bernilai `0` berarti "tidak menimpa", bukan "gaji 0". Urutan sumber gaji pokok: pengaturan khusus karyawan → gaji pada data karyawan → pengaturan umum bisnis.
+- **Nilai 0 selalu sah** di semua angka aturan (ambang 0 = semua pelanggan dihitung, bonus 0 = bonus dimatikan). Sebelumnya `||` dipakai sehingga 0 diam-diam diganti bawaan.
+- Periode gaji bersifat setengah terbuka: `[tanggal mulai, tanggal mulai berikutnya)`. Tanggal mulai periode **sudah milik periode berikutnya**, jadi tidak ada transaksi yang terhitung di dua periode.
+- Transaksi POS pada tanggal yang sama dengan laporan tutup shift karyawan diabaikan untuk komisi, karena laporan shift adalah catatan karyawan sendiri. Tanpa ini satu pekerjaan bisa dibayar dua kali.
+- **Kategori gaji ada di master layanan** (`payrollCategory`), bukan ditebak dari nama. Data lama tanpa kategori masih dicocokkan dari nama sebagai cadangan.
+- Tes: `tests/payroll.test.js` memuat `index.html` di jsdom dan memanggil engine aslinya, jadi regresi di sini tertangkap `npm test`.
+
+## ID karyawan lintas tenant
+- `wz_employees.id` adalah **PRIMARY KEY global**: satu ID hanya boleh dimiliki satu bisnis di seluruh database.
+- Klien menebak ID berurutan dari jumlah karyawannya sendiri (`E001`, `E002`, ...), jadi dua bisnis bisa sama-sama meminta `E001`. Sebelumnya itu jadi *no-op senyap* — `ON CONFLICT(id) DO UPDATE ... WHERE business_id=EXCLUDED.business_id` tidak menyentuh baris dan tidak memunculkan error, server tetap membalas `200 ok`, dan karyawannya hilang begitu layar disegarkan.
+- Sekarang `POST /api/employees` memakai ID dari klien sebagai **saran saja**: kalau ID itu sudah dipakai tenant lain, server membuat ID sendiri dan mengirimkannya lewat `employee.id`. Kalau baris akhirnya tidak ada, server membalas 500, bukan sukses palsu.
+- Klien wajib memakai `employee.id` yang dikembalikan server, bukan tebakan lokalnya.
+- Tes: `tests/payroll-routes.test.js` — dua bisnis sama-sama meminta `E001`, keduanya tetap tersimpan dengan `business_id` masing-masing.
 
 ## Badge unread Obrolan Owner
 - Penanda "sudah dibaca" disimpan **di server per user** pada `wz_owner_forum_reads.last_read_at` lewat `POST /api/owner-forum/read` (waktu server yang jadi sumber kebenaran), bukan hanya di `app-state`.

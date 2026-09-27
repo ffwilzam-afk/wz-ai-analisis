@@ -2618,103 +2618,334 @@ function saveShiftReport(){
 }
 
 
-/* PAYROLL ENGINE — PERIODE 24–24
-   Aturan:
+/* PAYROLL ENGINE
+   Aturan default (bisa diganti per bisnis, dan per karyawan):
    - Gaji pokok Rp2.000.000
-   - Haircut: bonus hanya setelah 156 Haircut; setiap Haircut ke-157 dst = Rp10.000
-   - Hairwash: Rp2.000/transaksi
-   - Hairstyling: Rp2.000/transaksi
-   - Shaving: Rp2.000/transaksi
-   - Haircoloring: Rp20.000/transaksi
-*/
-const PAYROLL_RULES_DEFAULT={
- baseSalary:2000000,
- periodStartDay:24,
- haircut:{threshold:157,bonus:10000},
- hairwash:{threshold:1,bonus:2000},
- hairstyling:{threshold:1,bonus:2000},
- shaving:{threshold:1,bonus:2000},
- haircoloring:{threshold:1,bonus:20000}
-};
-function getPayrollRules(){
- const s=db.payrollSettings;
- if(!s||typeof s!=='object')return PAYROLL_RULES_DEFAULT;
- return {
-  baseSalary:Number(s.baseSalary)||PAYROLL_RULES_DEFAULT.baseSalary,
-  periodStartDay:Number(s.periodStartDay)||PAYROLL_RULES_DEFAULT.periodStartDay,
-  haircut:{threshold:Number(s.haircut?.threshold)||PAYROLL_RULES_DEFAULT.haircut.threshold,bonus:Number(s.haircut?.bonus)||PAYROLL_RULES_DEFAULT.haircut.bonus},
-  hairwash:{threshold:Number(s.hairwash?.threshold)||PAYROLL_RULES_DEFAULT.hairwash.threshold,bonus:Number(s.hairwash?.bonus)||PAYROLL_RULES_DEFAULT.hairwash.bonus},
-  hairstyling:{threshold:Number(s.hairstyling?.threshold)||PAYROLL_RULES_DEFAULT.hairstyling.threshold,bonus:Number(s.hairstyling?.bonus)||PAYROLL_RULES_DEFAULT.hairstyling.bonus},
-  shaving:{threshold:Number(s.shaving?.threshold)||PAYROLL_RULES_DEFAULT.shaving.threshold,bonus:Number(s.shaving?.bonus)||PAYROLL_RULES_DEFAULT.shaving.bonus},
-  haircoloring:{threshold:Number(s.haircoloring?.threshold)||PAYROLL_RULES_DEFAULT.haircoloring.threshold,bonus:Number(s.haircoloring?.bonus)||PAYROLL_RULES_DEFAULT.haircoloring.bonus}
- };
+   - Haircut: bonus mulai dari Haircut ke-157, tiap potong Rp10.000
+   - Hairwash / Hairstyling / Shaving: Rp2.000 per transaksi
+   - Haircoloring: Rp20.000 per transaksi
+
+   Tiga lapis, dari yang paling umum ke yang paling khusus:
+   1. bawaan di bawah ini
+   2. pengaturan umum bisnis (wz_payroll_settings)
+   3. pengaturan khusus karyawan (wz_employee_payroll)
+
+   Yang tidak diisi di lapis 2/3 otomatis memakai lapis di atasnya. Semua
+   angka dibaca apa adanya, jadi 0 berarti "benar-benar 0" (bonus dimatikan
+   atau tanpa ambang), bukan "tidak diisi". */
+const PAYROLL_DEFAULT_BASE_SALARY=2000000;
+const PAYROLL_DEFAULT_PERIOD_DAY=24;
+const PAYROLL_CATEGORIES=[
+  {key:'haircut',label:'Haircut',threshold:157,bonus:10000},
+  {key:'hairwash',label:'Hairwash',threshold:1,bonus:2000},
+  {key:'hairstyling',label:'Hairstyling',threshold:1,bonus:2000},
+  {key:'shaving',label:'Shaving',threshold:1,bonus:2000},
+  {key:'haircoloring',label:'Haircoloring',threshold:1,bonus:20000}
+];
+const PAYROLL_CATEGORY_KEYS=PAYROLL_CATEGORIES.map(c=>c.key);
+const PAYROLL_CATEGORY_LABEL=Object.fromEntries(PAYROLL_CATEGORIES.map(c=>[c.key,c.label]));
+const PAYROLL_CATEGORY_DEFAULT=Object.fromEntries(PAYROLL_CATEGORIES.map(c=>[c.key,{threshold:c.threshold,bonus:c.bonus}]));
+const PAYROLL_SERVER_KEY={haircut:'Haircut',hairwash:'Hairwash',hairstyling:'Hairstyling',shaving:'Shaving',haircoloring:'Haircoloring'};
+
+// Angka finite dipakai apa adanya; 0 sah. Hanya yang bukan angka (undefined,
+// '', null, NaN) yang jatuh ke bawaan.
+function payrollNum(value,fallback){
+  if(value===''||value===null||value===undefined)return fallback;
+  const n=Number(value);
+  return Number.isFinite(n)?n:fallback;
 }
-const PAYROLL_RULES={
- baseSalary:2000000,
- haircut:{threshold:157,bonus:10000},
- hairwash:{threshold:1,bonus:2000},
- hairstyling:{threshold:1,bonus:2000},
- shaving:{threshold:1,bonus:2000},
- haircoloring:{threshold:1,bonus:20000}
-};
-function payrollPeriodFor(dateStr){
- const rules=getPayrollRules();
- const startDay=Number(rules.periodStartDay)||24;
- const d=dashboardDateObj(dateStr||dateNow()), y=d.getUTCFullYear(),m=d.getUTCMonth(),day=d.getUTCDate();
- let start,end;
- if(day>=startDay){start=new Date(Date.UTC(y,m,startDay));end=new Date(Date.UTC(y,m+1,startDay));}
- else{start=new Date(Date.UTC(y,m-1,startDay));end=new Date(Date.UTC(y,m,startDay));}
- return {start:dashboardIso(start),end:dashboardIso(end)};
+function payrollDay(value,fallback){
+  const n=Math.trunc(payrollNum(value,fallback));
+  return Math.min(31,Math.max(1,n||PAYROLL_DEFAULT_PERIOD_DAY));
 }
-function payrollServiceKey(service){
- const n=String(service?.name||'').toLowerCase().replace(/[^a-z]/g,'');
- if(n.includes('haircolor'))return 'haircoloring';
- if(n.includes('hairwash'))return 'hairwash';
- if(n.includes('hairstyl'))return 'hairstyling';
- if(n.includes('shav'))return 'shaving';
- if(n.includes('haircut'))return 'haircut';
- return null;
+function payrollRuleFrom(raw,fallback){
+  const base=fallback||{threshold:1,bonus:0};
+  if(!raw||typeof raw!=='object')return {...base};
+  return {
+    threshold:Math.max(0,Math.trunc(payrollNum(raw.threshold,base.threshold))),
+    bonus:Math.max(0,payrollNum(raw.bonus,base.bonus))
+  };
 }
-function payrollCounts(employeeId,start,end){
- const counts={haircut:0,hairwash:0,hairstyling:0,shaving:0,haircoloring:0};
- (db.transactions||[]).filter(t=>t.employeeId===employeeId&&t.status==='SELESAI'&&dashboardInRange(t.date,start,end)).forEach(t=>{
-  const key=payrollServiceKey(getService(t.serviceId)); if(key)counts[key]++;
- });
- (db.shiftReports||[]).filter(r=>r.employeeId===employeeId&&dashboardInRange(r.date,start,end)).forEach(r=>{
-  (r.services||[]).forEach(x=>{
-   const key=payrollServiceKey(getService(x.serviceId)||{name:x.serviceName});
-   if(key)counts[key]+=Number(x.qty||0);
+function payrollRuleBucket(source){
+  const raw=source&&typeof source.serviceRules==='object'&&!Array.isArray(source.serviceRules)?source.serviceRules:{};
+  return raw;
+}
+function payrollPickRule(raw,key){
+  const bucket=payrollRuleBucket(raw);
+  return bucket[PAYROLL_SERVER_KEY[key]]||bucket[key]||null;
+}
+
+// Pengaturan khusus karyawan (bisa null = tidak ada, ikut pengaturan umum).
+function payrollSettingsForEmployee(employeeId){
+  const map=db.payrollSettings?.employees;
+  if(!map||typeof map!=='object'||Array.isArray(map))return null;
+  const row=map[String(employeeId??'')];
+  return row&&typeof row==='object'&&!Array.isArray(row)?row:null;
+}
+function employeeHasCustomPayroll(employeeId){
+  return Boolean(payrollSettingsForEmployee(employeeId));
+}
+
+// Aturan yang benar-benar dipakai untuk satu karyawan (umum + khusus).
+function getPayrollRules(employeeId){
+  const business=db.payrollSettings&&typeof db.payrollSettings==='object'?db.payrollSettings:{};
+  const own=payrollSettingsForEmployee(employeeId);
+  const merged={};
+  PAYROLL_CATEGORIES.forEach(c=>{
+    const fromBusiness=payrollRuleFrom(payrollPickRule(business,c.key),PAYROLL_CATEGORY_DEFAULT[c.key]);
+    merged[c.key]=own?payrollRuleFrom(payrollPickRule(own,c.key),fromBusiness):fromBusiness;
   });
- });
- return counts;
+  const businessSalary=payrollNum(business.baseSalary,PAYROLL_DEFAULT_BASE_SALARY);
+  const ownSalary=own?payrollNum(own.baseSalary,0):0;
+  return {
+    rules:merged,
+    baseSalary:ownSalary>0?ownSalary:businessSalary,
+    periodStartDay:own&&own.periodStartDay?payrollDay(own.periodStartDay,payrollDay(business.periodStartDay,PAYROLL_DEFAULT_PERIOD_DAY))
+      :payrollDay(business.periodStartDay,PAYROLL_DEFAULT_PERIOD_DAY),
+    customized:Boolean(own)
+  };
+}
+
+// Kategori gaji sebuah layanan. Kategori eksplisit di master layanan selalu
+// menang; pencocokan nama hanya cadangan untuk data lama yang belum diisi.
+function payrollServiceKey(service){
+  const explicit=String(service?.payrollCategory||'').trim().toLowerCase();
+  if(PAYROLL_CATEGORY_KEYS.includes(explicit))return explicit;
+  const n=String(service?.name||'').toLowerCase().replace(/[^a-z]/g,'');
+  if(!n)return null;
+  if(n.includes('haircolor'))return 'haircoloring';
+  if(n.includes('hairwash')||n.includes('creambath')||n.includes('shampoo'))return 'hairwash';
+  if(n.includes('hairstyl'))return 'hairstyling';
+  if(n.includes('shav'))return 'shaving';
+  if(n.includes('haircut')||n.includes('gundul')||n.includes('potongrambut')||n.includes('potong'))return 'haircut';
+  return null;
+}
+
+// Periode [start, endExclusive): tanggal mulai periode sudah milik periode
+// berikutnya, jadi tidak ada yang terhitung di dua periode sekaligus.
+function payrollPeriodFor(dateStr,startDayOverride){
+  const startDay=payrollDay(startDayOverride,getPayrollRules().periodStartDay);
+  const d=dashboardDateObj(dateStr||dateNow()),y=d.getUTCFullYear(),m=d.getUTCMonth(),day=d.getUTCDate();
+  const lastDay=new Date(Date.UTC(y,m+1,0)).getUTCDate();
+  const eff=Math.min(startDay,lastDay);
+  const base=day>=eff?new Date(Date.UTC(y,m,eff)):new Date(Date.UTC(y,m-1,eff));
+  const next=new Date(Date.UTC(base.getUTCFullYear(),base.getUTCMonth()+1,Math.min(startDay,new Date(Date.UTC(base.getUTCFullYear(),base.getUTCMonth()+2,0)).getUTCDate())));
+  return {
+    start:dashboardIso(base),
+    endExclusive:dashboardIso(next),
+    // Hari terakhir yang sudah termasuk, untuk ditampilkan ke user.
+    end:dashboardIso(new Date(next.getTime()-86400000))
+  };
+}
+function payrollInRange(date,start,endExclusive){
+  const d=String(date||'').slice(0,10);
+  return d>=start&&d<endExclusive;
+}
+
+function payrollCounts(employeeId,start,endExclusive){
+  const counts={haircut:0,hairwash:0,hairstyling:0,shaving:0,haircoloring:0};
+  const reports=(db.shiftReports||[]).filter(r=>r.employeeId===employeeId&&payrollInRange(r.date,start,endExclusive));
+  // Laporan tutup shift adalah catatan karyawan sendiri, jadi itu yang dipakai.
+  // Transaksi POS pada tanggal yang sama untuk karyawan yang sama diabaikan;
+  // kalau tidak, satu pekerjaan yang dicatat dua kali akan dibayar komisi
+  // dua kali.
+  const reportedDates=new Set(reports.map(r=>String(r.date||'').slice(0,10)));
+  (db.transactions||[]).filter(t=>t.employeeId===employeeId&&t.status==='SELESAI'&&payrollInRange(t.date,start,endExclusive)&&!reportedDates.has(String(t.date||'').slice(0,10))).forEach(t=>{
+    const key=payrollServiceKey(getService(t.serviceId));
+    if(key)counts[key]+=1;
+  });
+  reports.forEach(r=>{
+    (r.services||[]).forEach(x=>{
+      const svc=getService(x.serviceId)||{name:x.serviceName,payrollCategory:x.payrollCategory};
+      const key=payrollServiceKey(svc);
+      if(key)counts[key]+=Number(x.qty||0);
+    });
+  });
+  return counts;
+}
+
+// Satu harga minced: N pelanggan menghasilkan bonus mulai pelanggan ke-`threshold`.
+function payrollBonusCustomers(count,threshold){
+  const start=Math.max(1,Math.trunc(Number(threshold)||1));
+  return Math.max(0,count-(start-1));
+}
+function payrollBaseSalaryFor(employeeId,employee,rules){
+  const own=payrollSettingsForEmployee(employeeId);
+  const ownSalary=own?Number(own.baseSalary)||0:0;
+  if(ownSalary>0)return {baseSalary:ownSalary,source:'Pengaturan khusus karyawan'};
+  const employeeSalary=Number(employee?.salary)||0;
+  if(employeeSalary>0)return {baseSalary:employeeSalary,source:'Gaji pada data karyawan'};
+  const businessSalary=Number(rules.baseSalary)||PAYROLL_DEFAULT_BASE_SALARY;
+  return {baseSalary:businessSalary,source:'Pengaturan umum bisnis'};
 }
 function calculatePayroll(employeeId,periodDate){
- const e=getEmployee(employeeId); if(!e)return null;
- const period=payrollPeriodFor(periodDate||dateNow()), counts=payrollCounts(employeeId,period.start,period.end);
- const rules=getPayrollRules();
- const detail={};
- Object.keys(counts).forEach(key=>{
-  const rule=rules[key];
-  const bonusCustomers=key==='haircut'
-   ? Math.max(0,counts[key]-156)
-   : counts[key];
-  detail[key]={customers:counts[key],threshold:rule.threshold,bonusCustomers,rate:rule.bonus,bonus:bonusCustomers*rule.bonus};
- });
- const totalBonus=Object.values(detail).reduce((s,x)=>s+x.bonus,0);
- const baseSalary=Number(e.salary)||Number(rules.baseSalary)||2000000;
- return {employeeId,periodStart:period.start,periodEnd:period.end,baseSalary,counts:detail,totalBonus,totalPay:baseSalary+totalBonus};
+  const e=getEmployee(employeeId);
+  if(!e)return null;
+  const rules=getPayrollRules(employeeId);
+  const period=payrollPeriodFor(periodDate||dateNow(),rules.periodStartDay);
+  const counts=payrollCounts(employeeId,period.start,period.endExclusive);
+  const detail={};
+  PAYROLL_CATEGORIES.forEach(c=>{
+    const rule=rules.rules[c.key];
+    const bonusCustomers=payrollBonusCustomers(counts[c.key],rule.threshold);
+    detail[c.key]={label:c.label,customers:counts[c.key],threshold:rule.threshold,bonusCustomers,rate:rule.bonus,bonus:bonusCustomers*rule.bonus};
+  });
+  const totalBonus=Object.values(detail).reduce((s,x)=>s+x.bonus,0);
+  const base=payrollBaseSalaryFor(employeeId,e,rules);
+  return {
+    employeeId,employeeName:e.name,
+    periodStart:period.start,periodEnd:period.end,periodEndExclusive:period.endExclusive,
+    periodStartDay:rules.periodStartDay,
+    baseSalary:base.baseSalary,baseSalarySource:base.source,
+    customized:rules.customized,
+    counts:detail,totalBonus,totalPay:base.baseSalary+totalBonus
+  };
 }
 function payrollSummaryHtml(pay){
- const names={haircut:'Haircut',hairwash:'Hairwash',hairstyling:'Hairstyling',shaving:'Shaving',haircoloring:'Haircoloring'};
- return `<div class="detail-grid">${box('Gaji Pokok',rupiah(pay.baseSalary))}${box('Total Bonus',rupiah(pay.totalBonus))}${box('Total Upah',rupiah(pay.totalPay))}${box('Periode',pay.periodStart+' → '+pay.periodEnd)}</div>
- <div class="feature" style="margin-top:12px"><b>Rincian Bonus</b>${Object.entries(pay.counts).map(([k,x])=>`<div style="display:grid;grid-template-columns:1.3fr .7fr .8fr .9fr;gap:6px;padding:8px 0;border-bottom:1px solid #20242b"><span>${names[k]}</span><span>${x.customers} pelanggan</span><span>${x.bonusCustomers} bonus</span><b style="text-align:right">${rupiah(x.bonus)}</b></div>`).join('')}</div>`;
+  return `<div class="detail-grid">${box('Gaji Pokok',rupiah(pay.baseSalary))}${box('Total Bonus',rupiah(pay.totalBonus))}${box('Total Upah',rupiah(pay.totalPay))}${box('Periode',pay.periodStart+' → '+pay.periodEnd)}</div>
+ <p class="muted" style="margin-top:10px">Gaji pokok mengikuti: ${escapeHtml(String(pay.baseSalarySource||'-'))}${pay.customized?' · memakai pengaturan khusus karyawan ini.':''}</p>
+ <div class="feature" style="margin-top:12px"><b>Rincian Bonus</b>${PAYROLL_CATEGORIES.map(c=>{const x=pay.counts[c.key];return `<div style="display:grid;grid-template-columns:1.3fr .8fr .8fr .9fr;gap:6px;padding:8px 0;border-bottom:1px solid #20242b"><span>${c.label}</span><span>${x.customers} pelanggan</span><span title="Ambang">≥${x.threshold}</span><b style="text-align:right">${rupiah(x.bonus)}</b></div>`}).join('')}</div>
+ <p class="muted" style="margin-top:8px">Kolom ≥ adalah jumlah pelanggan minimum sebelum bonus mulai dihitung. ${pay.periodStart} sudah termasuk, ${pay.periodEndExclusive} sudah menjadi milik periode berikutnya.</p>`;
+}
+
+/* ---- Pengaturan gaji per karyawan --------------------------------------
+   Tiap karyawan bisa punya ambang (threshold) dan bonus sendiri. Kolom yang
+   dikosongkan berarti "ikuti pengaturan umum", jadi owner cukup mengisi
+   yang memang berbeda. */
+function payrollEmployeeRow(employeeId){
+  return payrollSettingsForEmployee(employeeId);
+}
+function payrollEmployeeFormValue(own,key,field,fallback){
+  const rule=payrollPickRule(own,key);
+  if(!rule)return '';
+  const raw=rule[field];
+  if(raw===undefined||raw===null||raw==='')return '';
+  return String(raw);
+}
+function openEmployeePayrollForm(employeeId){
+  if(!guard('payrollSettings'))return;
+  const e=getEmployee(employeeId);
+  if(!e)return toast('Karyawan tidak ditemukan.',true);
+  const own=payrollEmployeeRow(employeeId);
+  const general=getPayrollRules();
+  const enabled=Boolean(own);
+  const ownSalary=own&&Number(own.baseSalary)>0?String(Number(own.baseSalary)):'';
+  const ownDay=own&&own.periodStartDay?String(Number(own.periodStartDay)):'';
+  const ruleField=(key,field,placeholder)=>{
+    const c=PAYROLL_CATEGORIES.find(x=>x.key===key);
+    const generalRule=general.rules[key];
+    const id='ep_'+key+'_'+field;
+    return `<label>${c.label} — ${field==='threshold'?'Ambang':'Bonus'}<input id="${id}" type="number" min="0" data-k="${key}" data-f="${field}" placeholder="${placeholder}" value="${enabled?payrollEmployeeFormValue(own,key,field,generalRule[field]):''}"></label>`;
+  };
+  const allFields=PAYROLL_CATEGORIES.flatMap(c=>[ruleField(c.key,'threshold',String(general.rules[c.key].threshold)),ruleField(c.key,'bonus',String(general.rules[c.key].bonus))]).join('');
+  show(`<span class="gold-label">GAJI KARYAWAN</span>
+<h2>${escapeHtml(String(e.name))}</h2>
+<p class="muted" style="margin-bottom:12px">Pengaturan ini hanya berlaku untuk karyawan ini. Kosongkan berarti mengikuti pengaturan umum bisnis.</p>
+<div class="form">
+ <label class="full" style="display:flex;align-items:center;gap:8px"><input id="epEnabled" type="checkbox" ${enabled?'checked':''}> Gunakan pengaturan khusus untuk karyawan ini</label>
+ <label>Gaji Pokok (kosong = pakai data karyawan)<input id="epBaseSalary" type="number" min="0" value="${ownSalary}"></label>
+ <label>Tanggal Mulai Periode (kosong = ikut bisnis)<input id="epPeriodDay" type="number" min="1" max="31" value="${ownDay}"></label>
+ ${allFields}
+</div>
+<div class="dialog-actions">
+ ${enabled?'<button type="button" class="btn danger" onclick="resetEmployeePayroll(\''+escapeHtml(String(e.id))+'\')">Kembalikan ke Umum</button>':'<span></span>'}
+ <button type="button" class="btn" onclick="closeModal()">Batal</button>
+ <button class="btn primary" onclick="saveEmployeePayroll('${escapeHtml(String(e.id))}')">Simpan</button>
+</div>`);
+}
+function readPayrollEmployeeForm(){
+  const enabled=document.getElementById('epEnabled')?.checked!==false;
+  const baseSalaryRaw=document.getElementById('epBaseSalary')?.value??'';
+  const periodDayRaw=document.getElementById('epPeriodDay')?.value??'';
+  const serviceRules={};
+  document.querySelectorAll('#dialog [data-k]').forEach(input=>{
+    const key=input.dataset.k,field=input.dataset.f,raw=String(input.value??'').trim();
+    if(raw==='')return;
+    const n=Number(raw);
+    if(!Number.isFinite(n)||n<0)return;
+    if(!serviceRules[PAYROLL_SERVER_KEY[key]])serviceRules[PAYROLL_SERVER_KEY[key]]={};
+    serviceRules[PAYROLL_SERVER_KEY[key]][field]=field==='threshold'?Math.trunc(n):n;
+  });
+  return {
+    enabled,
+    baseSalary:baseSalaryRaw===''?0:Number(baseSalaryRaw),
+    periodStartDay:periodDayRaw===''?null:Number(periodDayRaw),
+    serviceRules
+  };
+}
+async function saveEmployeePayroll(employeeId){
+  if(!guard('payrollSettings'))return;
+  if(!['owner','manager'].includes(currentUser?.role))return toast('Hanya Owner/Manager yang dapat mengubah pengaturan gaji.',true);
+  const form=readPayrollEmployeeForm();
+  if(!form.enabled){
+    await resetEmployeePayroll(employeeId);
+    return;
+  }
+  if(form.baseSalary>0&&(!Number.isFinite(form.baseSalary)||form.baseSalary<0))return toast('Gaji pokok tidak valid.',true);
+  if(form.periodStartDay!==null&&(!Number.isInteger(form.periodStartDay)||form.periodStartDay<1||form.periodStartDay>31))
+    return toast('Tanggal mulai periode tidak valid.',true);
+  try{
+    const r=await api('payroll/employee',{
+      method:'POST',
+      body:JSON.stringify({
+        employeeId,
+        payrollType:'BASE_PLUS_SERVICE_BONUS',
+        baseSalary:form.baseSalary,
+        periodStartDay:form.periodStartDay,
+        serviceRules:form.serviceRules
+      })
+    });
+    if(!r?.ok||!r?.settings)throw new Error(r?.error||'Server tidak menyimpan pengaturan gaji karyawan.');
+    db.payrollSettings=db.payrollSettings||payrollSettingsFromServer(null);
+    db.payrollSettings.employees=db.payrollSettings.employees||{};
+    db.payrollSettings.employees[String(employeeId)]=r.settings;
+    closeModal();
+    toast('Pengaturan gaji '+String(getEmployee(employeeId)?.name||employeeId)+' disimpan.');
+    render();
+  }catch(e){
+    toast('Gagal menyimpan pengaturan gaji karyawan: '+(e.message||e),true);
+  }
+}
+async function resetEmployeePayroll(employeeId){
+  if(!guard('payrollSettings'))return false;
+  try{
+    await api('payroll/employee?employeeId='+encodeURIComponent(employeeId),{method:'DELETE'});
+    if(db.payrollSettings?.employees)delete db.payrollSettings.employees[String(employeeId)];
+    const modal=document.getElementById('modal');
+    if(modal?.classList.contains('open'))closeModal();
+    toast('Pengaturan khusus karyawan dihapus, kembali ke pengaturan umum.');
+    render();
+    return true;
+  }catch(e){
+    toast('Gagal mengembalikan pengaturan umum: '+(e.message||e),true);
+    return false;
+  }
+}
+function payrollEmployeeListHtml(){
+  const rows=(db.employees||[]).filter(e=>String(e.role||'').toLowerCase()!=='owner');
+  if(!rows.length)return '<div class="empty">Belum ada karyawan.</div>';
+  return rows.map(e=>{
+    const own=payrollEmployeeRow(e.id);
+    const rules=getPayrollRules(e.id);
+    const pay=calculatePayroll(e.id);
+    const diff=own?PAYROLL_CATEGORIES.filter(c=>{
+      const r=payrollPickRule(own,c.key);
+      return r&&(r.threshold!==rules.rules[c.key].threshold||r.bonus!==rules.rules[c.key].bonus);
+    }).length:0;
+    return `<div class="feature" style="display:grid;grid-template-columns:1.2fr .9fr .9fr .8fr;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid #20242b">
+      <div><b>${escapeHtml(String(e.name))}</b><div class="subtle">${escapeHtml(String(e.role))} · ${escapeHtml(String(e.id))}</div></div>
+      <div><span class="subtle">Gaji</span><br>${rupiah(pay?.baseSalary||0)}</div>
+      <div><span class="subtle">Ambang Haircut</span><br>${rules.rules.haircut.threshold}</div>
+      <div style="display:flex;gap:6px;justify-content:flex-end">${own?'<span class="pill">Kustom</span>':''}${diff?`<span class="pill" title="Kategori dengan aturan berbeda dari umum">${diff} beda</span>`:''}<button class="btn small" onclick="openEmployeePayrollForm('${escapeHtml(String(e.id))}')">Atur</button></div>
+    </div>`;
+  }).join('');
 }
 
 function employees(){
  if(!guard('employees'))return;
  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">EMPLOYEE</span><h1>Karyawan & KPI</h1><p>Kelola karyawan, akun login, password, dan laporan.</p></div><button class="btn primary" onclick="openEmployee()">＋ Tambah Karyawan</button></div><div class="grid">${db.employees.filter(e=>String(e.role||'').toLowerCase()!=='owner').map(e=>{
  const tx=db.transactions.filter(t=>t.employeeId===e.id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===e.id),branch=db.branches.find(b=>b.id===e.branchId),rev=tx.reduce((s,t)=>s+Number(t.total||0),0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),ach=e.target?Math.min(100,rev/e.target*100):0,acc=accountForEmployee(e.id),pay=calculatePayroll(e.id);
- return `<div class="card"><span class="gold-label">${escapeHtml(String(e.role))}</span><h3 style="margin-top:7px">${escapeHtml(String(e.name))}</h3><p class="muted">${escapeHtml(String(e.id))} · ${e.active?'Aktif':'Nonaktif'} · Cabang: ${escapeHtml(String(branch?.name||'Belum dipilih'))}</p><div class="bar-row" style="grid-template-columns:70px 1fr 45px"><span>KPI</span><div class="bar"><i style="width:${ach}%"></i></div><span class="bar-num">${ach.toFixed(0)}%</span></div><p>Aktivitas <b>${tx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0)}</b> · Omzet <b class="payroll-revenue">${rupiah(rev)}</b></p><p>Upah periode berjalan <b class="payroll-wage">${rupiah(pay.totalPay)}</b> · Bonus <b class="payroll-bonus">${rupiah(pay.totalBonus)}</b></p><p class="muted">Login: <b>${acc?'karyawan':'Belum dibuat'}</b></p><div class="dialog-actions"><button class="btn small" onclick="employeeDetail('${escapeHtml(String(e.id))}')">Lihat laporan</button><button class="btn small" onclick="openEmployee('${escapeHtml(String(e.id))}')">Ubah</button><button class="btn small danger" onclick="deleteEmployee('${escapeHtml(String(e.id))}')">Hapus</button></div></div>`}).join('')}</div>`;
+ return `<div class="card"><span class="gold-label">${escapeHtml(String(e.role))}</span><h3 style="margin-top:7px">${escapeHtml(String(e.name))}</h3><p class="muted">${escapeHtml(String(e.id))} · ${e.active?'Aktif':'Nonaktif'} · Cabang: ${escapeHtml(String(branch?.name||'Belum dipilih'))}</p><div class="bar-row" style="grid-template-columns:70px 1fr 45px"><span>KPI</span><div class="bar"><i style="width:${ach}%"></i></div><span class="bar-num">${ach.toFixed(0)}%</span></div><p>Aktivitas <b>${tx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0)}</b> · Omzet <b class="payroll-revenue">${rupiah(rev)}</b></p><p>Upah periode berjalan <b class="payroll-wage">${rupiah(pay.totalPay)}</b> · Bonus <b class="payroll-bonus">${rupiah(pay.totalBonus)}</b></p>${employeeHasCustomPayroll(e.id)?'<p><span class="pill" title="Memakai pengaturan gaji khusus">Gaji kustom</span></p>':''}<p class="muted">Login: <b>${acc?'karyawan':'Belum dibuat'}</b></p><div class="dialog-actions"><button class="btn small" onclick="employeeDetail('${escapeHtml(String(e.id))}')">Lihat laporan</button><button class="btn small" onclick="openEmployeePayrollForm('${escapeHtml(String(e.id))}')">Atur Gaji</button><button class="btn small" onclick="openEmployee('${escapeHtml(String(e.id))}')">Ubah</button><button class="btn small danger" onclick="deleteEmployee('${escapeHtml(String(e.id))}')">Hapus</button></div></div>`}).join('')}</div>`;
 }
 function deleteEmployee(id){
  if(!guard('employees'))return;const e=getEmployee(id);if(!e)return;
@@ -2818,16 +3049,20 @@ function customerDetail(id){const c=getCustomer(id),tx=db.transactions.filter(t=
 
 function services(){
   const canManage=['owner','manager'].includes(currentUser?.role);
-  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SERVICE</span><h1>Layanan & Promo</h1><p>Daftar layanan dan harga.</p></div>${canManage?'<button class="btn primary" onclick="openService()">＋ Tambah Layanan</button>':''}</div><div class="grid">${db.services.map(s=>`<div class="card"><span class="gold-label">${escapeHtml(String(s.category||''))}</span><h3>${escapeHtml(String(s.name||''))}</h3><div class="value">${rupiah(s.price)}</div><p class="muted">${escapeHtml(String(s.duration||0))} menit</p><span class="pill">${s.active?'Aktif':'Nonaktif'}</span>${canManage?`<div class="dialog-actions" style="margin-top:12px"><button class="btn small" onclick="editService('${escapeHtml(String(s.id))}')">Edit</button></div>`:''}</div>`).join('')}</div>`;
+  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SERVICE</span><h1>Layanan & Promo</h1><p>Daftar layanan dan harga.</p></div>${canManage?'<button class="btn primary" onclick="openService()">＋ Tambah Layanan</button>':''}</div><div class="grid">${db.services.map(s=>`<div class="card"><span class="gold-label">${escapeHtml(String(s.category||''))}</span><h3>${escapeHtml(String(s.name||''))}</h3><div class="value">${rupiah(s.price)}</div><p class="muted">${escapeHtml(String(s.duration||0))} menit</p><span class="pill">${s.active?'Aktif':'Nonaktif'}</span>${s.payrollCategory?` <span class="pill" title="Kategori untuk bonus gaji">Gaji: ${escapeHtml(PAYROLL_CATEGORY_LABEL[s.payrollCategory]||s.payrollCategory)}</span>`:''}${canManage?`<div class="dialog-actions" style="margin-top:12px"><button class="btn small" onclick="editService('${escapeHtml(String(s.id))}')">Edit</button></div>`:''}</div>`).join('')}</div>`;
 }
-function openService(){show(`<span class="gold-label">LAYANAN</span><h2>Tambah Layanan</h2><div class="form"><label>Nama<input id="sName"></label><label>Kategori<input id="sCat"></label><label>Harga<input id="sPrice" type="number"></label><label>Durasi (menit)<input id="sDur" type="number" value="45"></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveService()">Simpan</button></div>`)}
+function payrollCategoryOptions(current){
+  const value=String(current||'');
+  return PAYROLL_CATEGORIES.map(c=>`<option value="${c.key}"${value===c.key?' selected':''}>${c.label}</option>`).join('');
+}
+function openService(){show(`<span class="gold-label">LAYANAN</span><h2>Tambah Layanan</h2><div class="form"><label>Nama<input id="sName"></label><label>Kategori<input id="sCat"></label><label>Kategori Gaji<select id="sPayCat"><option value="">Tidak dihitung</option>${payrollCategoryOptions('')}</select></label><label>Harga<input id="sPrice" type="number"></label><label>Durasi (menit)<input id="sDur" type="number" value="45"></label></div><p class="muted" style="margin-top:8px">Kategori gaji dipakai untuk menghitung bonus karyawan, jadi tidak perlu nama layanan berbahasa Inggris.</p><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveService()">Simpan</button></div>`)}
 function saveService(){
   if(!['owner','manager'].includes(currentUser?.role))return toast('Hanya Owner/Manager yang dapat menambah layanan.',true);
-  const s={id:'S'+String(db.services.length+1).padStart(3,'0'),name:document.getElementById('sName')?.value.trim()||'',category:document.getElementById('sCat')?.value.trim()||'Umum',price:Number(document.getElementById('sPrice')?.value)||0,duration:Number(document.getElementById('sDur')?.value)||45,active:true};
+  const s={id:'S'+String(db.services.length+1).padStart(3,'0'),name:document.getElementById('sName')?.value.trim()||'',category:document.getElementById('sCat')?.value.trim()||'Umum',payrollCategory:document.getElementById('sPayCat')?.value||'',price:Number(document.getElementById('sPrice')?.value)||0,duration:Number(document.getElementById('sDur')?.value)||45,active:true};
   if(!s.name)return alert('Isi nama layanan');db.services.push(s);save();closeModal();toast('Layanan ditambahkan.');render();
 }
-function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
-function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return alert('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return alert('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return alert('Durasi layanan tidak valid.');s.name=name;s.category=category;s.price=price;s.duration=duration;s.active=esActive.checked;save();closeModal();toast('Layanan berhasil diperbarui.');render()}
+function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Kategori Gaji<select id="esPayCat"><option value="">Tidak dihitung</option>${payrollCategoryOptions(s.payrollCategory||'')}</select></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
+function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return alert('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return alert('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return alert('Durasi layanan tidak valid.');s.name=name;s.category=category;s.payrollCategory=document.getElementById('esPayCat')?.value||'';s.price=price;s.duration=duration;s.active=esActive.checked;save();closeModal();toast('Layanan berhasil diperbarui.');render()}
 
 function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',rupiah(revenue()),'finance')}${kpi('💸','Pengeluaran',rupiah(expenses()),'finance')}${kpi('📈','Laba',rupiah(profit()),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(e.date||''))} · ${escapeHtml(String(e.category||''))} · ${escapeHtml(String(e.note||''))}</span><b>${rupiah(e.amount)}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
 function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('fCustomer');if(c)c.value='';},50)}
@@ -3138,77 +3373,67 @@ async function importBackup(event){
  finally{if(event?.target)event.target.value='';}
 }
 async function payrollSettingsPage(){
- if(!guard('payrollSettings'))return;
+  if(!guard('payrollSettings'))return;
 
- const app=document.getElementById('content');
- app.innerHTML='<div class="card"><h2>💵 Pengaturan Gaji</h2><p class="muted">Memuat pengaturan gaji tenant...</p></div>';
+  const app=document.getElementById('content');
+  app.innerHTML='<div class="card"><h2>💵 Pengaturan Gaji</h2><p class="muted">Memuat pengaturan gaji tenant...</p></div>';
 
- try{
-   await syncPayrollSettingsFromServer();
- }catch{}
+  // Fungsi ini hidup di dalam IIFE bridge, jadi harus lewat window. Dipanggil
+  // langsung dari sini selalu ReferenceError yang tertelan try/catch, dan
+  // halaman diam-diam jatuh ke nilai bawaan.
+  await window.WZOnlinePayroll?.settings?.();
+  await window.WZOnlinePayroll?.employee?.();
 
- const s=db.payrollSettings||{};
- const haircut=s.haircut||{threshold:157,bonus:10000};
- const hairwash=s.hairwash||{threshold:1,bonus:2000};
- const hairstyling=s.hairstyling||{threshold:1,bonus:2000};
- const shaving=s.shaving||{threshold:1,bonus:2000};
- const haircoloring=s.haircoloring||{threshold:1,bonus:20000};
+  const s=db.payrollSettings||payrollSettingsFromServer(null);
+  const ruleOf=key=>payrollRuleFrom(payrollPickRule(s,key),PAYROLL_CATEGORY_DEFAULT[key]);
+  const ruleFields=PAYROLL_CATEGORIES.map(c=>{
+    const r=ruleOf(c.key);
+    return `<label>${c.label} — Ambang<input id="prTh_${c.key}" type="number" min="0" value="${r.threshold}"></label>
+     <label>${c.label} — Bonus (Rp)<input id="prBo_${c.key}" type="number" min="0" value="${r.bonus}"></label>`;
+  }).join('');
 
- app.innerHTML=`
+  app.innerHTML=`
  <div class="section-head">
    <div>
      <span class="gold-label">PAYROLL</span>
      <h1>Pengaturan Gaji</h1>
-     <p>Atur sistem gaji dan bonus khusus untuk bisnis/tenant ini.</p>
+     <p>Aturan umum bisnis, lalu ada pengecualian per karyawan di bawahnya.</p>
    </div>
  </div>
 
  <section class="card">
-   <h3>⚙️ Sistem Gaji</h3>
-   <p class="muted">Pengaturan ini hanya berlaku untuk tenant yang sedang login.</p>
+   <h3>⚙️ Aturan Umum</h3>
+   <p class="muted">Berlaku untuk semua karyawan, kecuali ada pengaturan khusus di bawah.</p>
 
    <div class="form">
      <label>Gaji Pokok Default
-       <input id="prBaseSalary" type="number" min="0" value="${Number(s.baseSalary)||0}">
+       <input id="prBaseSalary" type="number" min="0" value="${payrollNum(s.baseSalary,PAYROLL_DEFAULT_BASE_SALARY)}">
      </label>
 
      <label>Tanggal Mulai Periode
-       <input id="prPeriodDay" type="number" min="1" max="31" value="${Number(s.periodStartDay)||24}">
+       <input id="prPeriodDay" type="number" min="1" max="31" value="${payrollDay(s.periodStartDay,PAYROLL_DEFAULT_PERIOD_DAY)}">
      </label>
    </div>
+
+   <p class="muted" style="margin-top:8px">Periode berjalan dari tanggal mulai sampai sehari sebelum tanggal mulai berikutnya. Ambang berarti bonus baru dihitung mulai pelanggan ke-angka tersebut; 0 berarti semua pelanggan dihitung.</p>
 
    <div class="goldline"></div>
-   <h4 style="margin:10px 0 6px">Bonus Layanan</h4>
+   <h4 style="margin:10px 0 6px">Bonus per Layanan</h4>
 
-   <div class="form">
-     <label>Haircut — Threshold
-       <input id="prHcThreshold" type="number" min="0" value="${Number(haircut.threshold)||157}">
-     </label>
-
-     <label>Haircut — Bonus/potong (Rp)
-       <input id="prHcBonus" type="number" min="0" value="${Number(haircut.bonus)||10000}">
-     </label>
-
-     <label>Hairwash — Bonus/layanan (Rp)
-       <input id="prHwBonus" type="number" min="0" value="${Number(hairwash.bonus)||2000}">
-     </label>
-
-     <label>Hairstyling — Bonus/layanan (Rp)
-       <input id="prHsBonus" type="number" min="0" value="${Number(hairstyling.bonus)||2000}">
-     </label>
-
-     <label>Shaving — Bonus/layanan (Rp)
-       <input id="prSvBonus" type="number" min="0" value="${Number(shaving.bonus)||2000}">
-     </label>
-
-     <label>Haircoloring — Bonus/layanan (Rp)
-       <input id="prHcColBonus" type="number" min="0" value="${Number(haircoloring.bonus)||20000}">
-     </label>
-   </div>
+   <div class="form">${ruleFields}</div>
 
    <button class="btn primary" style="margin-top:12px" onclick="savePayrollSettings()">
-     Simpan Pengaturan Gaji
+     Simpan Pengaturan Umum
    </button>
+ </section>
+
+ <section class="card section">
+   <h3>👤 Pengaturan per Karyawan</h3>
+   <p class="muted">Setiap karyawan bisa punya ambang dan bonus sendiri. Yang dikosongkan ikut aturan umum di atas. Gaji pokok khusus karyawan akan mengungguli gaji pada data karyawan.</p>
+   <div style="display:grid;grid-template-columns:1.2fr .9fr .9fr .8fr;gap:8px;padding:0 0 6px;border-bottom:1px solid #20242b" class="subtle">
+     <span>Karyawan</span><span>Gaji Pokok</span><span>Ambang Haircut</span><span style="text-align:right">Aksi</span>
+   </div>
+   ${payrollEmployeeListHtml()}
  </section>`;
 }
 
@@ -4533,6 +4758,9 @@ window.markAllServerNotificationsRead=markAllServerNotificationsRead;
 window.markNotificationRead=markNotificationRead;
 window.markRead=markRead;
 window.savePayrollSettings=savePayrollSettings;
+// Bridge untuk kode di luar IIFE (payrollSettingsPage). Tanpa ini, halaman
+// Pengaturan Gaji selalu gagal memuat pengaturan yang tersimpan.
+window.WZOnlinePayroll={settings:syncPayrollSettingsFromServer,employee:syncEmployeePayrollFromServer,save:savePayrollSettings};
 window.syncNativeFcmToken=syncNativeFcmToken;
 
 async function syncNativeFcmToken(){
@@ -4548,25 +4776,26 @@ async function syncNativeFcmToken(){
 
 window.WZOnlineFcm={sync:syncNativeFcmToken};
 
+// Bentuk yang disimpan di db.payrollSettings sengaja datar dan mengikuti
+// bentuk server, supaya tidak ada dua representasi aturan gaji di aplikasi.
+function payrollSettingsFromServer(s){
+  return {
+    payrollType:s?.payrollType||'BASE_PLUS_SERVICE_BONUS',
+    baseSalary:payrollNum(s?.baseSalary,PAYROLL_DEFAULT_BASE_SALARY),
+    targetAmount:payrollNum(s?.targetAmount,0),
+    periodStartDay:payrollDay(s?.periodStartDay,PAYROLL_DEFAULT_PERIOD_DAY),
+    serviceRules:(s?.serviceRules&&typeof s.serviceRules==='object'&&!Array.isArray(s.serviceRules))?s.serviceRules:{},
+    employees:{}
+  };
+}
 async function syncPayrollSettingsFromServer(){
   if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+  const previousEmployees=db.payrollSettings?.employees||{};
   try{
     const r=await api('payroll/settings');
     if(r?.settings){
-      const s=r.settings;
-      const rules=s.serviceRules&&typeof s.serviceRules==='object'?s.serviceRules:{};
-      db.payrollSettings={
-        payrollType:s.payrollType||'BASE_PLUS_SERVICE_BONUS',
-        baseSalary:Number(s.baseSalary)||0,
-        targetAmount:Number(s.targetAmount)||0,
-        periodStartDay:Number(s.periodStartDay)||24,
-        periodEndDay:Number(s.periodEndDay)||24,
-        haircut:rules.Haircut||rules.haircut||{threshold:157,bonus:10000},
-        hairwash:rules.Hairwash||rules.hairwash||{threshold:1,bonus:2000},
-        hairstyling:rules.Hairstyling||rules.hairstyling||{threshold:1,bonus:2000},
-        shaving:rules.Shaving||rules.shaving||{threshold:1,bonus:2000},
-        haircoloring:rules.Haircoloring||rules.haircoloring||{threshold:1,bonus:20000}
-      };
+      db.payrollSettings=payrollSettingsFromServer(r.settings);
+      db.payrollSettings.employees=previousEmployees;
       return true;
     }
   }catch(e){
@@ -4574,10 +4803,27 @@ async function syncPayrollSettingsFromServer(){
   }
   return false;
 }
+// Pengaturan khusus karyawan disimpan terpisah dari pengaturan umum, jadi
+// membuka halaman Pengaturan Gaji tidak menimpa hasil suntingan tiap karyawan.
+async function syncEmployeePayrollFromServer(){
+  if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
+  try{
+    const r=await api('payroll/employee');
+    const rows=Array.isArray(r?.settings)?r.settings:[];
+    const map={};
+    rows.forEach(row=>{if(row&&row.employeeId)map[String(row.employeeId)]=row});
+    db.payrollSettings=db.payrollSettings||payrollSettingsFromServer(null);
+    db.payrollSettings.employees=map;
+    return true;
+  }catch(e){
+    console.warn('Employee payroll sync failed:',e.message||e);
+    return false;
+  }
+}
 
 async function savePayrollSettings(){
-  if(!currentUser || currentUser.role!=='owner'){
-    toast('Hanya Owner yang dapat mengubah pengaturan gaji.');
+  if(!currentUser || !['owner','manager'].includes(currentUser.role)){
+    toast('Hanya Owner/Manager yang dapat mengubah pengaturan gaji.');
     return;
   }
 
@@ -4602,28 +4848,26 @@ async function savePayrollSettings(){
     return;
   }
 
-  const serviceRules={
-    Haircut:{
-      threshold:Number(document.getElementById('prHcThreshold')?.value)||157,
-      bonus:Number(document.getElementById('prHcBonus')?.value)||10000
-    },
-    Hairwash:{
-      threshold:1,
-      bonus:Number(document.getElementById('prHwBonus')?.value)||2000
-    },
-    Hairstyling:{
-      threshold:1,
-      bonus:Number(document.getElementById('prHsBonus')?.value)||2000
-    },
-    Shaving:{
-      threshold:1,
-      bonus:Number(document.getElementById('prSvBonus')?.value)||2000
-    },
-    Haircoloring:{
-      threshold:1,
-      bonus:Number(document.getElementById('prHcColBonus')?.value)||20000
+  // Semua kategori punya ambang. Nilai 0 sah dan harus terkirim apa adanya,
+  // bukan diganti bawaan.
+  const serviceRules={};
+  for(const c of PAYROLL_CATEGORIES){
+    const t=document.getElementById('prTh_'+c.key)?.value;
+    const b=document.getElementById('prBo_'+c.key)?.value;
+    const threshold=Number(t),bonus=Number(b);
+    if(t!==undefined&&(!Number.isInteger(threshold)||threshold<0||threshold>100000)){
+      toast('Ambang '+c.label+' tidak valid.');
+      return;
     }
-  };
+    if(b!==undefined&&(!Number.isFinite(bonus)||bonus<0||bonus>1e9)){
+      toast('Bonus '+c.label+' tidak valid.');
+      return;
+    }
+    serviceRules[PAYROLL_SERVER_KEY[c.key]]={
+      threshold:Number.isFinite(threshold)?threshold:PAYROLL_CATEGORY_DEFAULT[c.key].threshold,
+      bonus:Number.isFinite(bonus)?bonus:PAYROLL_CATEGORY_DEFAULT[c.key].bonus
+    };
+  }
 
   try{
     const r=await api('payroll/settings',{
@@ -4642,33 +4886,17 @@ async function savePayrollSettings(){
       throw new Error(r?.error||'Server tidak mengembalikan pengaturan gaji.');
     }
 
-    const saved=r.settings;
-    const rules=saved.serviceRules||serviceRules;
+    const employees=db.payrollSettings?.employees||{};
+    db.payrollSettings=payrollSettingsFromServer(r.settings);
+    db.payrollSettings.employees=employees;
 
-    db.payrollSettings={
-      payrollType:saved.payrollType||'BASE_PLUS_SERVICE_BONUS',
-      baseSalary:Number(saved.baseSalary)||0,
-      targetAmount:Number(saved.targetAmount)||0,
-      periodStartDay:Number(saved.periodStartDay)||periodStartDay,
-      periodEndDay:Number(saved.periodEndDay)||periodStartDay,
-      haircut:rules.Haircut||rules.haircut||serviceRules.Haircut,
-      hairwash:rules.Hairwash||rules.hairwash||serviceRules.Hairwash,
-      hairstyling:rules.Hairstyling||rules.hairstyling||serviceRules.Hairstyling,
-      shaving:rules.Shaving||rules.shaving||serviceRules.Shaving,
-      haircoloring:rules.Haircoloring||rules.haircoloring||serviceRules.Haircoloring
-    };
-
-    await syncPayrollSettingsFromServer();
-
-    toast('Pengaturan gaji berhasil disimpan.');
-
-    await payrollSettingsPage();
+    toast('Pengaturan umum gaji berhasil disimpan.');
+    render();
   }catch(e){
-    console.error('Save payroll settings failed:',e);
+    console.warn('Save payroll settings failed:',e);
     toast('Gagal menyimpan pengaturan gaji: '+(e.message||e));
   }
 }
-
 
 async function fullHydrate(){
   if(!currentUser)return false;
@@ -4684,6 +4912,10 @@ async function fullHydrate(){
   if(['owner','manager'].includes(currentUser.role)){
     await syncEmployeesFromServer();
     await syncPayrollSettingsFromServer();
+    // Badge "Gaji kustom" di halaman Karyawan bergantung pada ini, jadi harus
+    // ikut termuat saat aplikasi dibuka, bukan hanya saat halaman Pengaturan
+    // Gaji dibuka.
+    await syncEmployeePayrollFromServer();
   }else{
     const employeeSynced=await syncMyEmployeeFromServer();
     if(!employeeSynced){
@@ -4959,8 +5191,15 @@ window.saveEmployee=async function(id){
   }
   const username=(name.trim().toLowerCase().replace(/[^a-z0-9]+/g,''))||'employee';
   try{
+    // Saat membuat baru, ID di atas hanya saran. wz_employees.id itu PRIMARY KEY
+    // global untuk semua bisnis, jadi kalau ID yang sama sudah dipakai bisnis
+    // lain, server membuat ID sendiri. Karena itu WAJIB memakai employee.id
+    // yang dikembalikan server, bukan tebakan lokal.
     const result=await api('employees',{method:id?'PUT':'POST',body:JSON.stringify({id:employeeId,name,role,password,username,branchId,salary,target})});
-    if(result?.employee){
+    if(!result?.employee||!result.employee.id)
+      throw new Error('Server tidak menyimpan karyawan. Silakan coba lagi.');
+    employeeId=result.employee.id;
+    {
       const existing=(db.employees||[]).find(e=>e.id===result.employee.id);
       if(existing)Object.assign(existing,result.employee); else db.employees.push(result.employee);
     }

@@ -579,6 +579,47 @@ async function schema(){
     );
     CREATE INDEX IF NOT EXISTS wz_payroll_settings_business_idx
       ON wz_payroll_settings(business_id);
+
+    -- Default bawaan harus sama dengan yang dipakai engine di klien
+    -- (periode 24-24). Baris yang dulu dibuat dengan default lama
+    -- (hari 1, gaji 0, tanpa aturan) diperbaiki di sini, tapi hanya bila
+    -- ownersempurna belum pernah mengubah apa pun, supaya pilihan
+    -- ownersengaja tidak ditimpa.
+    UPDATE wz_payroll_settings
+    SET period_start_day=24,
+        period_end_day=24,
+        base_salary=2000000,
+        service_rules=service_rules || '{
+          "Haircut":{"threshold":157,"bonus":10000},
+          "Hairwash":{"threshold":1,"bonus":2000},
+          "Hairstyling":{"threshold":1,"bonus":2000},
+          "Shaving":{"threshold":1,"bonus":2000},
+          "Haircoloring":{"threshold":1,"bonus":20000}
+        }'::jsonb,
+        updated_at=NOW()
+    WHERE period_start_day=1
+      AND period_end_day=31
+      AND base_salary=0
+      AND target_amount=0
+      AND (service_rules IS NULL OR service_rules='{}'::jsonb);
+
+    -- ---- Pengaturan gaji per karyawan (per tenant) -----------------------
+    -- Setiap owner bisa mengatur gaji & bonus tiap karyawannya sendiri,
+    -- terpisah dari pengaturan umum bisnis. Yang tidak diisi di sini
+    -- otomatis mengikuti wz_payroll_settings.
+    CREATE TABLE IF NOT EXISTS wz_employee_payroll(
+      employee_id TEXT PRIMARY KEY REFERENCES wz_employees(id) ON DELETE CASCADE,
+      business_id TEXT NOT NULL REFERENCES wz_businesses(id) ON DELETE CASCADE,
+      payroll_type TEXT NOT NULL DEFAULT 'BASE_PLUS_SERVICE_BONUS',
+      base_salary NUMERIC NOT NULL DEFAULT 0,
+      period_start_day INTEGER CHECK (period_start_day BETWEEN 1 AND 31),
+      service_rules JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
+    CREATE INDEX IF NOT EXISTS wz_employee_payroll_business_idx
+      ON wz_employee_payroll(business_id);
   `);
   // NO DEFAULT WZ TENANT DATA. Semua bisnis dimulai dari data miliknya sendiri.
 
@@ -1773,7 +1814,26 @@ async function handler(req,res){
           });
       }
 
-      const id=String(b.id||'').trim() || `E${crypto.randomBytes(5).toString('hex').toUpperCase()}`;
+      // wz_employees.id adalah PRIMARY KEY global: satu ID hanya boleh dimiliki
+      // satu bisnis di seluruh database. Klien menebak ID berurutan dari
+      // jumlah karyawannya sendiri ("E001", "E002", ...), jadi dua bisnis bisa
+      // sama-sama meminta "E001". Kalau ID itu sudah dipakai tenant lain, server
+      // membuat ID sendiri dan mengirimkannya balik lewat employee.id. Kalau
+      // tidak, penulisan karyawan lama akan gagal diam-diam karena
+      // "ON CONFLICT ... WHERE business_id" jadi no-op tanpa error.
+      // requestedId sudah dibaca di atas blok ini.
+      const claimed=requestedId
+        ? (await p.query('SELECT business_id FROM wz_employees WHERE id=$1',[requestedId])).rows[0]
+        : null;
+      let id=requestedId;
+      if(claimed&&String(claimed.business_id)!==String(u.business_id)) id='';
+      if(!id){
+        for(let attempt=0;attempt<6&&!id;attempt++){
+          const candidate=`E${crypto.randomBytes(6).toString('hex').toUpperCase()}`;
+          if(!(await p.query('SELECT 1 FROM wz_employees WHERE id=$1',[candidate])).rowCount) id=candidate;
+        }
+        if(!id)return send(res,503,{ok:false,error:'Gagal membuat ID karyawan baru. Silakan coba lagi.'});
+      }
       const role=String(b.role||'Barber'),salary=Number(b.salary)||0,target=Number(b.target)||0,username=String(b.username||defaultUsername(name)).trim();
       const client=await p.connect();
       try{
@@ -1786,6 +1846,9 @@ async function handler(req,res){
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
       const r=await p.query(`SELECT id,name,role,branch_id AS "branchId",salary,commission,target,attendance,eval,active FROM wz_employees WHERE id=$1 AND business_id=$2`,[id,u.business_id]);
+      // Jangan pernah membalas sukses tanpa karyawan yang benar-benar ada:
+      // klien akan menampilkan "tersimpan" padahal datanya tidak ada.
+      if(!r.rowCount)return send(res,500,{ok:false,error:'Karyawan gagal disimpan. Silakan coba lagi.'});
       return send(res,200,{ok:true,employee:r.rows[0],username});
     }
     if(path==='employees' && req.method==='DELETE'){
@@ -1816,7 +1879,8 @@ async function handler(req,res){
         r=await p.query(
           `INSERT INTO wz_payroll_settings
              (business_id,payroll_type,base_salary,target_amount,period_start_day,period_end_day,service_rules)
-           VALUES($1,'BASE_PLUS_SERVICE_BONUS',0,0,1,31,'{}'::jsonb)
+           VALUES($1,'BASE_PLUS_SERVICE_BONUS',2000000,0,24,24,
+             '{"Haircut":{"threshold":157,"bonus":10000},"Hairwash":{"threshold":1,"bonus":2000},"Hairstyling":{"threshold":1,"bonus":2000},"Shaving":{"threshold":1,"bonus":2000},"Haircoloring":{"threshold":1,"bonus":20000}}'::jsonb)
            RETURNING id,business_id AS "businessId",payroll_type AS "payrollType",
                      base_salary AS "baseSalary",target_amount AS "targetAmount",
                      period_start_day AS "periodStartDay",period_end_day AS "periodEndDay",
@@ -1885,6 +1949,115 @@ async function handler(req,res){
       );
 
       return send(res,200,{ok:true,settings:r.rows[0]});
+    }
+
+    // ---- Pengaturan gaji per karyawan ------------------------------------
+    // Terpisah dari payroll/settings (yang bersifat umum per bisnis) supaya
+    // tiap owner bisa mengatur gaji tiap karyawannya sendiri. Kolom yang
+    // tidak diisi berarti "ikuti pengaturan umum".
+    if(path==='payroll/employee'){
+      const u=await authUser(req);
+      if(!u)return send(res,401,{ok:false,error:'Belum login.'});
+      if(!['owner','manager'].includes(u.role))
+        return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mengatur gaji karyawan.'});
+      const p=getPool();
+      const q=new URL(req.url,'http://localhost').searchParams;
+      const employeeId=q.get('employeeId');
+
+      // Hanya karyawan milik tenant ini yang boleh diatur. ID karyawan itu
+      // format global (E001, E002, ...) dan sama di semua tenant, jadi
+      // pengecekan di server ini wajib, bukan sekadar formalitas.
+      if(employeeId){
+        const own=await p.query('SELECT id FROM wz_employees WHERE id=$1 AND business_id=$2',[employeeId,u.business_id]);
+        if(!own.rowCount)return send(res,404,{ok:false,error:'Karyawan tidak ditemukan.'});
+      }
+
+      const readRow=async id=>{
+        const r=await p.query(
+          `SELECT employee_id AS "employeeId",payroll_type AS "payrollType",
+                  base_salary AS "baseSalary",period_start_day AS "periodStartDay",
+                  service_rules AS "serviceRules",updated_at AS "updatedAt"
+           FROM wz_employee_payroll
+           WHERE business_id=$1 ${id ? 'AND employee_id=$2' : ''}
+           ORDER BY employee_id`,
+          id ? [u.business_id,id] : [u.business_id]
+        );
+        return r.rows;
+      };
+
+      if(req.method==='GET'){
+        const rows=await readRow(employeeId||null);
+        return send(res,200,{ok:true,settings:employeeId?(rows[0]||null):rows}),true;
+      }
+
+      if(req.method==='DELETE'){
+        if(!employeeId)return send(res,400,{ok:false,error:'ID karyawan wajib diisi.'});
+        await p.query('DELETE FROM wz_employee_payroll WHERE business_id=$1 AND employee_id=$2',[u.business_id,employeeId]);
+        return send(res,200,{ok:true}),true;
+      }
+
+      if(req.method==='POST'){
+        const access=await getSubscriptionAccess(u.business_id);
+        if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
+
+        const b=await body(req);
+        const id=String(b.employeeId||employeeId||'').trim();
+        if(!id)return send(res,400,{ok:false,error:'ID karyawan wajib diisi.'});
+        const own=await p.query('SELECT id FROM wz_employees WHERE id=$1 AND business_id=$2',[id,u.business_id]);
+        if(!own.rowCount)return send(res,404,{ok:false,error:'Karyawan tidak ditemukan.'});
+
+        const payrollType=String(b.payrollType||'BASE_PLUS_SERVICE_BONUS').trim();
+        const baseSalary=Number(b.baseSalary);
+        if(!Number.isFinite(baseSalary)||baseSalary<0||baseSalary>1e12)
+          return send(res,400,{ok:false,error:'Gaji pokok tidak valid.'});
+
+        // null = ikut tanggal periode milik bisnis, bukan berarti tanggal 0.
+        const rawDay=b.periodStartDay;
+        const periodStartDay=(rawDay===null||rawDay===undefined||rawDay==='')
+          ? null
+          : Number(rawDay);
+        if(periodStartDay!==null&&(!Number.isInteger(periodStartDay)||periodStartDay<1||periodStartDay>31))
+          return send(res,400,{ok:false,error:'Tanggal mulai periode tidak valid.'});
+
+        const inRules=b.serviceRules&&typeof b.serviceRules==='object'&&!Array.isArray(b.serviceRules)
+          ? b.serviceRules
+          : {};
+        const ALLOWED=['Haircut','Hairwash','Hairstyling','Shaving','Haircoloring'];
+        const serviceRules={};
+        for(const key of ALLOWED){
+          const rule=inRules[key];
+          if(!rule||typeof rule!=='object')continue;
+          const threshold=Number(rule.threshold);
+          const bonus=Number(rule.bonus);
+          // 0 itu nilai yang sah (bonus dimatikan / tanpa ambang), jadi tidak
+          // boleh dianggap "tidak diisi" seperti sebelumnya.
+          if(!Number.isFinite(threshold)||threshold<0||!Number.isInteger(threshold)||threshold>100000)
+            return send(res,400,{ok:false,error:`Ambang ${key} tidak valid.`});
+          if(!Number.isFinite(bonus)||bonus<0||bonus>1e9)
+            return send(res,400,{ok:false,error:`Bonus ${key} tidak valid.`});
+          serviceRules[key]={threshold,bonus};
+        }
+
+        const r=await p.query(
+          `INSERT INTO wz_employee_payroll
+             (employee_id,business_id,payroll_type,base_salary,period_start_day,service_rules,updated_at)
+           VALUES($1,$2,$3,$4,$5,$6::jsonb,NOW())
+           ON CONFLICT (employee_id) DO UPDATE
+           SET payroll_type=EXCLUDED.payroll_type,
+               base_salary=EXCLUDED.base_salary,
+               period_start_day=EXCLUDED.period_start_day,
+               service_rules=EXCLUDED.service_rules,
+               updated_at=NOW()
+           -- Sama seperti wz_employees: kalau barisnya milik tenant lain,
+           -- jangan pernah-takeover diam-diam.
+           WHERE wz_employee_payroll.business_id=EXCLUDED.business_id
+           RETURNING employee_id AS "employeeId",payroll_type AS "payrollType",
+                     base_salary AS "baseSalary",period_start_day AS "periodStartDay",
+                     service_rules AS "serviceRules",updated_at AS "updatedAt"`,
+          [id,u.business_id,payrollType,baseSalary,periodStartDay,JSON.stringify(serviceRules)]
+        );
+        return send(res,200,{ok:true,settings:r.rows[0]}),true;
+      }
     }
 
     if(path==='owner-forum/messages'){

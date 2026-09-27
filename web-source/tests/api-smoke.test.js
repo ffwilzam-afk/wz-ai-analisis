@@ -116,6 +116,19 @@ test('rute push/vapid-public-key ditangani modul push', async () => {
   assert.equal(res.statusCode, 401);
 });
 
+test('rute payroll/employee ditangani modul rute (bukan 404)', async () => {
+  const res = makeRes();
+  await handler(makeReq('/api/payroll/employee'), res);
+  assert.notEqual(res.statusCode, 404, 'endpoint pengaturan gaji per karyawan harus terdaftar');
+  assert.equal(res.statusCode, 401, 'tanpa sesi harus ditolak');
+});
+
+test('rute payroll/settings tetap menolak tanpa sesi', async () => {
+  const res = makeRes();
+  await handler(makeReq('/api/payroll/settings'), res);
+  assert.equal(res.statusCode, 401);
+});
+
 test('modul rute tidak mengambil alih path lain', async () => {
   const res = makeRes();
   await handler(makeReq('/api/business'), res);
