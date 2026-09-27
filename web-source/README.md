@@ -117,6 +117,36 @@ Yang tersedia sebagai gantinya:
 - Alasannya: `app-state` adalah satu blob JSON per bisnis yang hanya bisa ditulis Owner/Manager dan bisa gagal karena konflik `expectedUpdatedAt`, subscription read-only, atau aplikasi ditutup sebelum debounce 250ms selesai. Akibatnya badge lama muncul lagi setiap aplikasi dibuka ulang, seolah obrolan tidak pernah dibaca.
 - `db.profile.ownerForumSeenAt` masih ditulis sebagai cadangan, dan `refreshOwnerForumBadge()` masih punya jalur lama (40 pesan terbaru + timestamp) kalau endpoint `owner-forum/read` gagal — misalnya saat DDL belum sempat dijalankan.
 
+## Audit UI menyeluruh
+
+`tests/ui-audit.test.js` memuat `index.html` dan `admin.html` di jsdom lalu menjalankan **seluruh menu × seluruh role**, semua dialog, dan semua jalur simpan. Tes ini lahir dari audit manual sebelum rilis dan menangkap empat bug nyata yang tidak terlihat dari tes biasa:
+
+1. **Fungsi privat IIFE yang dipanggil script #1.** `payrollSettingsFromServer()` hidup di dalam IIFE bridge, padahal dipakai `payrollSettingsPage()` dan `saveEmployeePayroll()` yang ada di script #1. Hasilnya `ReferenceError` yang tertelan `try/catch`, jadi halaman **Pengaturan Gaji diam-diam jatuh ke nilai bawaan** dan pengaturan Owner tidak pernah terbaca. Fungsi itu sekarang tinggal di script #1. Tes mem statically mencari pola yang sama: fungsi yang dideklarasikan di dalam IIFE tapi dipanggil dari luar harus terjangkau sebagai global.
+2. **`ACCESS.manager` tidak punya `payrollSettings`.** Server sudah mengizinkan manager pada `/api/payroll/*`, dan tombol **Atur Gaji** tetap terlihat untuknya -- tapi `guard()` menutupnya sehingga yang muncul hanya toast. Sekarang Manager benar-benar bisa membuka dialognya.
+3. **Simpan pertama pada Atur Gaji justru menghapus.** `readPayrollEmployeeForm()` membaca `enabled` hanya dari kotak centang, dan kotak itu tidak tercentang untuk karyawan yang belum punya pengaturan khusus. Jadi `saveEmployeePayroll()` selalu jatuh ke `resetEmployeePayroll()`: semua angka yang diketik Owner dibuang, dan toast-nya berbunyi *"Pengaturan khusus karyawan dihapus"* -- Owners mengira pengaturan mereka sudah tersimpan. Sekarang isian yang ada selalu menang, dan mengetik angka otomatis mencentang kotaknya.
+4. **`loadView()` di `admin.html` tidak menangkap kegagalan async.** `return loadDashboard()` di dalam `try` tidak masuk `catch` (catch hanya menangani throw sinkron dan `await`), jadi satu kegagalan jaringan membuat panel admin **menggantung selamanya** di "Memuat data Admin..." tanpa pesan apa pun. Sekarang `return await`, plus pesan error dan tombol Coba lagi.
+
+Audit juga memverifikasi hal-hal yang harus benar, bukan hanya "tidak error": setiap handler `on*` harus punya fungsi global, setiap halaman harus merender isi (dengan data kosong maupun data nyata), dan angka yang diketik Owner harus benar-benar muncul di payload POST.
+
+## Ketahanan: data rusak & service worker
+
+`tests/resilience.test.js` mengirim state bermasalah lewat jalur nyata (`app-state` server) dan memastikan aplikasi tidak pernah layar kosong.
+
+- **`normalizeDbState()`** adalah satu penjaga di satu titik, dipanggil saat state server dimuat.Sebelumnya `db` dipakai apa adanya, jadi `services` berupa string atau `customers` berisi `null` langsung memicu `db.x.filter is not a function` di banyak halaman sekaligus. Error itu tidak tertangkap: layar jadi kosong tanpa tombol keluar -- gejala khas "HP freeze setelah update".
+- **`payrollRuleBucket()`** tidak pernah mengembalikan `null`. `typeof null` adalah `'object'`, jadi penjaga `typeof x === 'object' && !Array.isArray(x)` meloloskan `serviceRules: null`, lalu pemanggil melakukan `bucket[key]` pada `null` dan seluruh halaman berhenti.
+- **Handler detail** (`txDetail`, `customerDetail`, `employeeDetail`) memberi pesan "tidak ditemukan" alih-alih melempar error.
+- **Service worker** hanya menyimpan respons sukses sebagai app shell. Sebelumnya halaman error 5xx ikut ter-cache sebagai `/index.html`, jadi pengguna yang sedang offline mendapat halaman error, bukan aplikasi. `/api/*` tetap tidak pernah di-cache.
+- **Teks bermusuhan** (nama pelanggan/layanan/karyawan, catatan, notifikasi) selalu berakhir sebagai teks: tes memindai setiap elemen DOM untuk atribut `on*` berisi payload dan untuk elemen `<img>`/`<script>` yang disisipkan. Saat ini tidak ada yang lolos.
+
+## Alur autentikasi
+
+`tests/auth.test.js` menguji login, registrasi, sesi, dan logout dari sisi server:
+- Username yang dipakai di dua bisnis mewajibkan **Kode Bisnis**; tanpa itu tidak ada sesi yang dibuat.
+- Password salah dan username tidak dikenal mengembalikan **pesan yang sama** (401), supaya tidak bisa dipakai menebak username mana yang terdaftar.
+- `normalizeBusinessId()` menyaring ke huruf/angka kapital, jadi upaya SQL injection lewat kode bisnis tidak pernah sampai ke SQL mentah, dan akun bisnis lain tidak bisa dibuka.
+- Registrasi membungkus seluruh penulisan dalam satu transaksi, dan password owner tersimpan sebagai hash scrypt -- tidak pernah teks polos.
+- `auth/me` tidak pernah menyertakan `password_hash`.
+
 ## Verifikasi sebelum deploy
 ```bash
 npm run check   # node --check untuk API, helper, dan service worker

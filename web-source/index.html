@@ -1350,9 +1350,15 @@ const ACCESS={
     // 'profile' sebelumnya tidak ada di sini, jadi Manager tidak bisa membuka
     // halaman akunnya sendiri sama sekali -- padahal dia tetap harus bisa
     // mengganti username dan password-nya.
+    //
+    // 'payrollSettings' juga tidak ada, padahal server sudah mengizinkan
+    // manager pada /api/payroll/settings dan /api/payroll/employee. Akibatnya
+    // tombol "Atur Gaji" di kartu karyawan terlihat untuk Manager, tapi
+    // diklik hanya memunculkan toast akses ditolak dan dialognya tidak pernah
+    // terbuka. Server dan UI harus sepakat soal siapa yang boleh mengatur gaji.
     'dashboard','transactions','shiftReports','employees','customers',
     'services','finance','reports','operations','analytics',
-    'notifications','branches','profile','settings','system','subscription','auth'
+    'notifications','branches','profile','payrollSettings','settings','system','subscription','auth'
   ,'cs'],
   employee:[
     'dashboard','transactions','shiftReports','customers','services',
@@ -1426,7 +1432,26 @@ function defaultEmployeeUsername(name){return name.trim().toLowerCase().replace(
 function getSession(){return null}
 function login(ev){ev.preventDefault();return window.login?.(ev)}
 function logout(){return window.logout?.()};
-let db=load(); db.shiftReports=db.shiftReports||[];
+// Kumpulan data di db SELALU harus berupa array berisi objek. Data berasal
+// dari app-state di server, jadi bentuknya tidak sepenuhnya kita kendalikan:
+// state yang rusak (mis. services berupa string, customers berisi null, atau
+// employees hilang) akan membuat `db.x.filter is not a function` di banyak
+// halaman sekaligus. Error itu tidak tertangkap, jadi seluruh halaman jadi
+// kosong tanpa ada tombol keluar -- persis gejala "hp freeze setelah update".
+// Satu penjaga di satu titik lebih murah daripada menambal tiap halaman.
+const DB_COLLECTIONS=['branches','employees','services','products','customers','transactions','shiftReports','expenses','attendance','schedules','notifications','accounts'];
+function normalizeDbState(target){
+  if(!target||typeof target!=='object')return target;
+  for(const key of DB_COLLECTIONS){
+    if(!(key in target))continue;
+    const value=target[key];
+    target[key]=Array.isArray(value)?value.filter(item=>item&&typeof item==='object'):[];
+  }
+  if('profile' in target&&(!target.profile||typeof target.profile!=='object'||Array.isArray(target.profile)))target.profile={};
+  if('payrollSettings' in target&&(!target.payrollSettings||typeof target.payrollSettings!=='object'||Array.isArray(target.payrollSettings)))target.payrollSettings=null;
+  return target;
+}
+let db=normalizeDbState(load()); db.shiftReports=db.shiftReports||[];
 /* NO DEFAULT WZ ROSTER */
 
 
@@ -2318,7 +2343,7 @@ function dashboardFilter(){
  if(el)el.innerHTML=`<b>${list.length}</b> transaksi · Pendapatan <b>${rupiah(r)}</b> · Pengeluaran <b>${rupiah(ex)}</b> · Laba <b>${rupiah(r-ex)}</b>`;
 }
 render();
-function txDetail(id){const t=db.transactions.find(x=>x.id===id);const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${escapeHtml(String(t.id))}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+function txDetail(id){const t=db.transactions.find(x=>x.id===id);if(!t){toast('Transaksi tidak ditemukan.',true);return}const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${escapeHtml(String(t.id))}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(confirm('Void transaksi ini?')){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
 function box(a,b){return `<div class="detail-box"><span class="label">${escapeHtml(String(a??''))}</span><strong>${escapeHtml(String(b??''))}</strong></div>`}
 
@@ -2674,8 +2699,12 @@ function payrollRuleFrom(raw,fallback){
   };
 }
 function payrollRuleBucket(source){
-  const raw=source&&typeof source.serviceRules==='object'&&!Array.isArray(source.serviceRules)?source.serviceRules:{};
-  return raw;
+  // `typeof null` adalah 'object', jadi serviceRules:null lolos dari
+  // pemeriksaan biasa dan keluar dari fungsi ini sebagai null. Pemanggilnya
+  // lalu melakukan `bucket[key]` pada null, dan error itu tidak tertangkap:
+  // seluruh halaman berhenti (blank), bukan cuma satu baris.
+  const rules=source&&typeof source==='object'?source.serviceRules:null;
+  return rules&&typeof rules==='object'&&!Array.isArray(rules)?rules:{};
 }
 function payrollPickRule(raw,key){
   const bucket=payrollRuleBucket(raw);
@@ -2867,7 +2896,7 @@ function openEmployeePayrollForm(employeeId){
   show(`<span class="gold-label">GAJI KARYAWAN</span>
 <h2>${escapeHtml(String(e.name))}</h2>
 <p class="muted" style="margin-bottom:12px">Pengaturan ini hanya berlaku untuk karyawan ini. Kosongkan berarti mengikuti pengaturan umum bisnis.</p>
-<div class="form">
+<div class="form" oninput="syncPayrollEnabledBox()">
  <label class="full" style="display:flex;align-items:center;gap:8px"><input id="epEnabled" type="checkbox" ${enabled?'checked':''}> Gunakan pengaturan khusus untuk karyawan ini</label>
  <label>Gaji Pokok (kosong = pakai data karyawan)<input id="epBaseSalary" type="number" min="0" value="${ownSalary}"></label>
  <label>Tanggal Mulai Periode (kosong = ikut bisnis)<input id="epPeriodDay" type="number" min="1" max="31" value="${ownDay}"></label>
@@ -2884,8 +2913,27 @@ ${(()=>{
  <button class="btn primary" onclick="saveEmployeePayroll('${escapeHtml(String(e.id))}')">Simpan</button>
 </div>`);
 }
+// Apakah Owner sudah mengetik apa pun di dialog Atur Gaji.
+function payrollEmployeeFormHasValue(){
+  if(String(document.getElementById('epBaseSalary')?.value??'').trim()!=='')return true;
+  if(String(document.getElementById('epPeriodDay')?.value??'').trim()!=='')return true;
+  return Array.prototype.some.call(document.querySelectorAll('#dialog [data-k]'),i=>String(i.value??'').trim()!=='');
+}
+// Kotak centang otomatis tercentang begitu ada angka yang diketik, supaya
+// tampilan selalu jujur soal apa yang akan disimpan.
+function syncPayrollEnabledBox(){
+  const box=document.getElementById('epEnabled');
+  if(box&&!box.checked&&payrollEmployeeFormHasValue())box.checked=true;
+}
 function readPayrollEmployeeForm(){
-  const enabled=document.getElementById('epEnabled')?.checked!==false;
+  // Kotak centang menentukan aktif atau tidak -- TAPI isian yang sudah
+  // diketik selalu menang. Sebelumnya `enabled` hanya membaca kotak centang,
+  // dan kotak itu tidak tercentang untuk karyawan yang belum punya
+  // pengaturan khusus. Akibatnya saveEmployeePayroll selalu melihat
+  // "tidak aktif" dan memanggil resetEmployeePayroll: semua angka yang
+  // diketik Owner dibuang, dan toast malah berbunyi "Pengaturan khusus
+  // karyawan dihapus". Fitur Atur Gaji praktis tidak bisa dipakai sama sekali.
+  const enabled=document.getElementById('epEnabled')?.checked!==false||payrollEmployeeFormHasValue();
   const baseSalaryRaw=document.getElementById('epBaseSalary')?.value??'';
   const periodDayRaw=document.getElementById('epPeriodDay')?.value??'';
   const serviceRules={};
@@ -3035,7 +3083,7 @@ function deleteEmployee(id){
  saveAccounts(getAccounts().filter(a=>!(a.role==='employee'&&a.employeeId===id)));
  save();closeModal();toast('Karyawan dan akun login dihapus.');render();
 }
-function employeeDetail(id){if(!currentUser||currentUser.role==='employee'){toast('Detail upah hanya dapat dilihat Owner/Manager.');return}const e=getEmployee(id),branch=db.branches.find(b=>b.id===e?.branchId),ptx=db.transactions.filter(t=>t.employeeId===id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===id),rev=ptx.reduce((s,t)=>s+t.total,0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),pay=calculatePayroll(id),comm=pay?.totalBonus||0,att=db.attendance.filter(a=>a.employeeId===id),late=att.filter(a=>a.status==='Terlambat').length;show(`<span class="gold-label">LAPORAN KARYAWAN</span><h2>${escapeHtml(String(e.name))}</h2><p class="muted">${escapeHtml(String(e.role))} · ${escapeHtml(String(e.id))} · Cabang: ${escapeHtml(String(branch?.name||'Belum dipilih'))}</p><div class="detail-grid">${box('Hadir',e.attendance)}${box('Terlambat',late)}${box('Aktivitas',ptx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0))}${box('Pendapatan',rupiah(rev))}${box('Komisi',rupiah(comm))}${box('Payroll',rupiah(pay))}${box('Target',rupiah(e.target))}${box('Realisasi',e.target?((rev/e.target)*100).toFixed(1)+'%':'-')}${box('Evaluasi',e.eval+'/100')}</div><div class="goldline"></div><h3>Riwayat Transaksi POS</h3>${ptx.map(txRow).join('')||'<div class="empty">Belum ada transaksi POS.</div>'}<h3 style="margin-top:18px">Laporan Tutup Shift</h3>${srs.map(r=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(r.date))} · ${escapeHtml(String(r.shiftType||'-'))} · ${r.customers||0} pelanggan</span><b>${rupiah(r.totalOmzet||0)}</b></div>`).join('')||'<div class="empty">Belum ada laporan tutup shift.</div>'}<h3 style="margin-top:18px">Rincian Perhitungan Upah</h3>${pay?payrollSummaryHtml(pay):'<div class="empty">Belum ada data payroll.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+function employeeDetail(id){if(!currentUser||currentUser.role==='employee'){toast('Detail upah hanya dapat dilihat Owner/Manager.');return}if(!getEmployee(id)){toast('Karyawan tidak ditemukan.',true);return}const e=getEmployee(id),branch=db.branches.find(b=>b.id===e?.branchId),ptx=db.transactions.filter(t=>t.employeeId===id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===id),rev=ptx.reduce((s,t)=>s+t.total,0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),pay=calculatePayroll(id),comm=pay?.totalBonus||0,att=db.attendance.filter(a=>a.employeeId===id),late=att.filter(a=>a.status==='Terlambat').length;show(`<span class="gold-label">LAPORAN KARYAWAN</span><h2>${escapeHtml(String(e.name))}</h2><p class="muted">${escapeHtml(String(e.role))} · ${escapeHtml(String(e.id))} · Cabang: ${escapeHtml(String(branch?.name||'Belum dipilih'))}</p><div class="detail-grid">${box('Hadir',e.attendance)}${box('Terlambat',late)}${box('Aktivitas',ptx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0))}${box('Pendapatan',rupiah(rev))}${box('Komisi',rupiah(comm))}${box('Payroll',rupiah(pay))}${box('Target',rupiah(e.target))}${box('Realisasi',e.target?((rev/e.target)*100).toFixed(1)+'%':'-')}${box('Evaluasi',e.eval+'/100')}</div><div class="goldline"></div><h3>Riwayat Transaksi POS</h3>${ptx.map(txRow).join('')||'<div class="empty">Belum ada transaksi POS.</div>'}<h3 style="margin-top:18px">Laporan Tutup Shift</h3>${srs.map(r=>`<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(r.date))} · ${escapeHtml(String(r.shiftType||'-'))} · ${r.customers||0} pelanggan</span><b>${rupiah(r.totalOmzet||0)}</b></div>`).join('')||'<div class="empty">Belum ada laporan tutup shift.</div>'}<h3 style="margin-top:18px">Rincian Perhitungan Upah</h3>${pay?payrollSummaryHtml(pay):'<div class="empty">Belum ada data payroll.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 function openEmployee(id){
  if(!guard('employees'))return;
  const e=id?getEmployee(id):null,a=e?accountForEmployee(id):null;
@@ -3119,7 +3167,7 @@ async function saveCustomer(){
   }
   db.customers.push(c);save();closeModal();toast('Pelanggan ditambahkan.');render();
 }
-function customerDetail(id){const c=getCustomer(id),tx=db.transactions.filter(t=>t.customerId===id);show(`<span class="gold-label">PELANGGAN</span><h2>${escapeHtml(String(c?.name||'-'))}</h2><div class="detail-grid">${box('Telepon',c?.phone||'-')}${box('Kunjungan',c?.visits||0)}${box('Total Nilai',rupiah(c?.total))}</div><h3 style="margin-top:18px">Riwayat</h3>${tx.map(txRow).join('')||'<div class="empty">Belum ada transaksi.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
+function customerDetail(id){const c=getCustomer(id);if(!c){toast('Pelanggan tidak ditemukan.',true);return}const tx=db.transactions.filter(t=>t.customerId===id);show(`<span class="gold-label">PELANGGAN</span><h2>${escapeHtml(String(c?.name||'-'))}</h2><div class="detail-grid">${box('Telepon',c?.phone||'-')}${box('Kunjungan',c?.visits||0)}${box('Total Nilai',rupiah(c?.total))}</div><h3 style="margin-top:18px">Riwayat</h3>${tx.map(txRow).join('')||'<div class="empty">Belum ada transaksi.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 
 
 function services(){
@@ -3476,6 +3524,22 @@ async function importBackup(event){
  }catch(e){alert('Restore online gagal: '+(e.message||e));}
  finally{if(event?.target)event.target.value='';}
 }
+// Fungsi ini dulu hidup di dalam IIFE bridge, padahal dipakai juga oleh
+// script #1 (payrollSettingsPage dan saveEmployeePayroll). Dari sana
+// pemanggilannya jadi ReferenceError yang tertelan try/catch, jadi halaman
+// Pengaturan Gaji diam-diam jatuh ke nilai bawaan. Fungsi ini murni (tidak
+// menyentuh jaringan), jadi tempatnya adalah script #1 bersama engine gaji.
+function payrollSettingsFromServer(s){
+  return {
+    payrollType:s?.payrollType||'BASE_PLUS_SERVICE_BONUS',
+    baseSalary:payrollNum(s?.baseSalary,PAYROLL_DEFAULT_BASE_SALARY),
+    targetAmount:payrollNum(s?.targetAmount,0),
+    periodStartDay:payrollDay(s?.periodStartDay,PAYROLL_DEFAULT_PERIOD_DAY),
+    serviceRules:(s?.serviceRules&&typeof s.serviceRules==='object'&&!Array.isArray(s.serviceRules))?s.serviceRules:{},
+    employees:{}
+  };
+}
+
 async function payrollSettingsPage(){
   if(!guard('payrollSettings'))return;
 
@@ -4722,7 +4786,7 @@ async function hydrateAppState(){
     const hasState=Object.keys(state).length>0;
     if(hasState){
       const serverNotifications=Array.isArray(state.notifications)?state.notifications:null;
-      Object.assign(db,state);
+      Object.assign(db,normalizeDbState(state));
       if(serverNotifications)applyServerNotifications(serverNotifications);
       const serverSeen=Date.parse((db.profile||{}).ownerForumSeenAt||'')||0;
       if(wzForumSeenAt>serverSeen){
@@ -4911,16 +4975,6 @@ window.WZOnlineFcm={sync:syncNativeFcmToken};
 
 // Bentuk yang disimpan di db.payrollSettings sengaja datar dan mengikuti
 // bentuk server, supaya tidak ada dua representasi aturan gaji di aplikasi.
-function payrollSettingsFromServer(s){
-  return {
-    payrollType:s?.payrollType||'BASE_PLUS_SERVICE_BONUS',
-    baseSalary:payrollNum(s?.baseSalary,PAYROLL_DEFAULT_BASE_SALARY),
-    targetAmount:payrollNum(s?.targetAmount,0),
-    periodStartDay:payrollDay(s?.periodStartDay,PAYROLL_DEFAULT_PERIOD_DAY),
-    serviceRules:(s?.serviceRules&&typeof s.serviceRules==='object'&&!Array.isArray(s.serviceRules))?s.serviceRules:{},
-    employees:{}
-  };
-}
 async function syncPayrollSettingsFromServer(){
   if(!currentUser || !['owner','manager'].includes(currentUser.role))return false;
   const previousEmployees=db.payrollSettings?.employees||{};
