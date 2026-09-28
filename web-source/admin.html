@@ -48,6 +48,10 @@
   }
   .table-wrap td:not([data-wz-th]){justify-content:flex-end}
 }
+
+/* Teks pesan pada dialog konfirmasi/peringatan. */
+.dialog-text{color:#c7ccd3;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.dialog-text+.dialog-actions{margin-top:18px}
 </style>
 </head>
 <body>
@@ -128,7 +132,7 @@ async function loadUsers(){const qs=new URLSearchParams({page:state.page,limit:s
 // jadi yang bisa dilakukan adalah menetapkan password baru. Sesi owner ikut
 // dicabut di server supaya password lama langsung tidak berlaku.
 async function resetOwnerPassword(id,username){
-  if(!confirm('Tetapkan password baru untuk akun Owner "'+username+'"?\n\nSemua sesi owner di perangkat lain akan dikeluarkan dan dia harus login ulang dengan password baru.'))return;
+  if(!await konfirmasi('Tetapkan password baru untuk akun Owner "'+username+'"?\n\nSemua sesi owner di perangkat lain akan dikeluarkan dan dia harus login ulang dengan password baru.','Tetapkan Password Owner','TETAPKAN'))return;
   try{
     const r=await api('admin/users/'+id+'/reset-password',{method:'POST',body:JSON.stringify({})});
     toast('Password Owner "'+username+'" diganti. Sesi lama sudah dikeluarkan.');
@@ -143,8 +147,7 @@ function showPasswordResult(r){
     <div class="card"><h3 style="margin:0 0 6px">${esc(who.username||'-')}</h3><p class="subtle">Kode bisnis ${esc(who.businessId||'-')} · ${esc(who.name||'')}</p><div style="font-size:1.4rem;letter-spacing:.06em;margin-top:10px">${esc(t)}</div></div>
     <p class="subtle">Semua sesi owner di perangkat lain sudah dikeluarkan oleh server.</p>`);
 }
-async function changeUserStatus(id,status){if(!confirmStatus(`Ubah status akun ini menjadi ${status==='suspend'?'SUSPENDED':'ACTIVE'}?`))return;try{await api('admin/users/'+id+'/status',{method:'POST',body:JSON.stringify({active:status==='activate'})});toast('Status akun diperbarui.');loadUsers()}catch(e){toast(e.message)}}
-function confirmStatus(message){return window.confirm(message)}
+async function changeUserStatus(id,status){if(!await konfirmasi(`Ubah status akun ini menjadi ${status==='suspend'?'SUSPENDED':'ACTIVE'}?`,status==='suspend'?'Suspend Akun':'Aktifkan Akun',status==='suspend'?'SUSPEND':'AKTIFKAN'))return;try{await api('admin/users/'+id+'/status',{method:'POST',body:JSON.stringify({active:status==='activate'})});toast('Status akun diperbarui.');loadUsers()}catch(e){toast(e.message)}}
 async function loadSubscriptions(){const qs=new URLSearchParams({page:state.page,limit:state.limit,search:state.search,status:state.status,plan:state.plan});const r=await api('admin/subscriptions?'+qs);viewShell('subscriptions',`<div class="section-head"><div><div class="brand">SUBSCRIPTION OPERATIONS</div><h2>Subscription</h2><p>${r.total} subscription tenant.</p></div></div>${toolbar()}${table(['Business','Owner','Paket','Status','Mulai','Berakhir','Payment','Order'],r.rows.map(x=>`<tr><td><strong>${esc(x.businessName)}</strong><br><small>${esc(x.businessId)}</small></td><td>${esc(x.owner||'-')}</td><td>${badge(x.plan)}</td><td>${badge(x.subscriptionStatus||x.status)}</td><td>${date(x.currentPeriodStart)}</td><td>${date(x.currentPeriodEnd)}</td><td>${badge(x.paymentStatus)} ${rupiah(x.amount)}</td><td>${esc(x.orderId||'-')}</td></tr>`))}${pagination(r)}`);bindToolbar();bindPagination(r)}
 async function loadPlans(){const r=await api('admin/plans');viewShell('plans',`<div class="section-head"><div><div class="brand">PACKAGE CATALOG</div><h2>Paket</h2><p>Konfigurasi sumber database untuk Trial, Pro, dan Pro Max.</p></div></div><div class="grid two">${r.plans.map(x=>`<section class="card"><h3>${badge(x.plan)}</h3><p>${x.plan==='TRIAL'?'Gratis':rupiah(x.priceMonthly)+' / bulan'}</p><p>Cabang: ${x.maxBranches==null?'Unlimited':x.maxBranches} · Karyawan: ${x.maxEmployees==null?'Unlimited':x.maxEmployees}</p><p>Status: ${x.active?'Aktif':'Nonaktif'}</p><button class="btn small" data-plan-edit="${x.plan}">Edit Paket</button></section>`).join('')}</div>`);document.querySelectorAll('[data-plan-edit]').forEach(btn=>btn.onclick=()=>editPlan(r.plans.find(x=>x.plan===btn.dataset.planEdit)))}
 function editPlan(plan){openModal('Edit '+plan.plan,`<form id="planForm" class="settings-form"><div class="grid two"><label class="field">Harga bulanan<input id="pMonthly" type="number" min="0" value="${plan.priceMonthly}"></label><label class="field">Harga tahunan<input id="pYearly" type="number" min="0" value="${plan.priceYearly}"></label><label class="field">Maks cabang<input id="pBranches" type="number" min="0" value="${plan.maxBranches??''}"></label><label class="field">Maks karyawan<input id="pEmployees" type="number" min="0" value="${plan.maxEmployees??''}"></label></div><p class="subtle">Kosongkan batas untuk Unlimited. Perubahan akan masuk Audit Log.</p><button class="btn primary" type="submit">Simpan Paket</button></form>`);document.getElementById('planForm').onsubmit=async e=>{e.preventDefault();const branches=document.getElementById('pBranches').value,employees=document.getElementById('pEmployees').value;try{await api('admin/plans/'+encodeURIComponent(plan.plan),{method:'PATCH',body:JSON.stringify({priceMonthly:Number(document.getElementById('pMonthly').value),priceYearly:Number(document.getElementById('pYearly').value),maxBranches:branches===''?null:Number(branches),maxEmployees:employees===''?null:Number(employees)})});closeModal();toast('Paket diperbarui.');loadPlans()}catch(e){toast(e.message)}}}
@@ -242,6 +245,46 @@ async function loadAudit(){const r=await api('admin/audit-logs?limit=50');viewSh
 async function loadSettings(){const r=await api('admin/settings'),s=r.settings||{};viewShell('settings',`<div class="section-head"><div><div class="brand">GLOBAL CONFIGURATION</div><h2>Pengaturan Sistem</h2><p>Konfigurasi ini hanya berlaku untuk platform.</p></div></div><form id="settingsForm" class="card settings-form"><label class="field">Nama platform<input id="platformName" value="${esc(s.platform_name||'WZ MANAGE PRO')}"></label><label class="field switch"><input id="maintenanceMode" type="checkbox" ${s.maintenance_mode?'checked':''}> Maintenance mode</label><label class="field">Notification settings (JSON)<textarea id="notificationSettings" rows="5">${textArea(JSON.stringify(s.notification_settings||{},null,2))}</textarea></label><button class="btn primary">Simpan Pengaturan</button></form>`);document.getElementById('settingsForm').onsubmit=async e=>{e.preventDefault();try{await api('admin/settings',{method:'PUT',body:JSON.stringify({settings:{platform_name:document.getElementById('platformName').value.trim(),maintenance_mode:document.getElementById('maintenanceMode').checked,notification_settings:JSON.parse(document.getElementById('notificationSettings').value||'{}')}})});toast('Pengaturan sistem disimpan.')}catch(e){toast(e.message)}}}
 function openModal(title,html){document.getElementById('modalTitle').textContent=title;document.getElementById('modalBody').innerHTML=html;document.getElementById('modal').classList.add('open')}
 function closeModal(){document.getElementById('modal').classList.remove('open')}
+/* DIALOG APLIKASI — pengganti dialog bawaan WebView
+   Sama seperti di aplikasi utama: dialog sistem Android memunculkan alamat
+   halaman WebView sebagai judul, sehingga alamat server ikut terlihat.
+   Lihat tests/webview-dialogs.test.js. */
+let wzDialogResolver=null;
+
+function wzResolveDialog(value){
+ const resolve=wzDialogResolver;
+ if(!resolve)return;
+ wzDialogResolver=null;
+ closeModal();
+ resolve(Boolean(value));
+}
+function wzDialogText(pesan){
+ return String(pesan===null||pesan===undefined?'':pesan)
+  .split('\n')
+  .map(line=>line?esc(line):'<br>')
+  .join('<br>');
+}
+function konfirmasi(pesan,judul,okLabel){
+ if(wzDialogResolver)wzResolveDialog(false);
+ return new Promise(resolve=>{
+  wzDialogResolver=resolve;
+  const title=judul||'Konfirmasi';
+  openModal(title,`<div class="dialog-text">${wzDialogText(pesan)}</div>
+   <div class="dialog-actions">
+    <button type="button" class="btn" id="wzDialogCancel">BATAL</button>
+    <button type="button" class="btn danger" id="wzDialogOk">${esc(okLabel||'OKE')}</button>
+   </div>`);
+  document.getElementById('wzDialogCancel').onclick=()=>wzResolveDialog(false);
+  document.getElementById('wzDialogOk').onclick=()=>wzResolveDialog(true);
+ });
+}
+function peringatan(pesan,judul){
+ openModal(judul||'Perhatian',`<div class="dialog-text">${wzDialogText(pesan)}</div>
+  <div class="dialog-actions"><button type="button" class="btn primary" id="wzDialogClose">MENGERTI</button></div>`);
+ const btn=document.getElementById('wzDialogClose');
+ if(btn)btn.onclick=closeModal;
+}
+
 document.getElementById('loginForm').onsubmit=login;document.getElementById('logoutButton').onclick=logout;document.getElementById('modalClose').onclick=closeModal;document.getElementById('nav').onclick=e=>{const btn=e.target.closest('[data-view]');if(btn)setView(btn.dataset.view)};document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()};
 function boot(){nav();setView('dashboard');clearInterval(state.refresh);state.refresh=setInterval(()=>{if(state.admin&&state.view==='dashboard'&&!document.getElementById('modal').classList.contains('open'))loadDashboard().catch(()=>{})},30000)}
 api('admin/me').then(r=>{state.admin=r.admin;document.getElementById('login').classList.add('hidden');document.getElementById('shell').classList.remove('hidden');document.getElementById('adminName').textContent=r.admin.displayName||r.admin.username;boot()}).catch(()=>showLogin());

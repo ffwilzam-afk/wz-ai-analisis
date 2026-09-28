@@ -498,9 +498,16 @@ test('audit admin: reset password owner menampilkan password baru sekali saja', 
   await new Promise(r => setTimeout(r, 80));
   const btn = w.document.querySelector('[data-user-reset]');
   assert.ok(btn, 'tombol Reset Password tidak ada di daftar user');
-  await w.eval(`(async()=>{resetOwnerPassword(${JSON.stringify(btn.dataset.userReset)},${JSON.stringify(btn.dataset.username)})})()`);
+  // Konfirmasi sekarang dialog milik aplikasi, bukan confirm() bawaan:
+  // dialog itu menunggu menekan tombol, jadi klik dulu baru await hasilnya.
+  const pending = w.eval(`resetOwnerPassword(${JSON.stringify(btn.dataset.userReset)},${JSON.stringify(btn.dataset.username)})`);
   await new Promise(r => setTimeout(r, 120));
   const modal = w.document.getElementById('modal');
+  assert.ok(modal.classList.contains('open'), 'dialog konfirmasi tidak terbuka');
+  assert.doesNotMatch(modal.textContent, /https?:\/\//, 'dialog konfirmasi tidak boleh memuat alamat server');
+  w.document.getElementById('wzDialogOk').click();
+  await pending;
+  await new Promise(r => setTimeout(r, 120));
   assert.ok(modal.classList.contains('open'), 'modal password baru tidak terbuka');
   assert.match(modal.textContent, /wz-abcd1234/);
   assert.match(modal.textContent, /BIZ1/);

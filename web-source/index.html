@@ -43,7 +43,11 @@ a{text-decoration:none;color:inherit}
 .two{display:grid;grid-template-columns:1.35fr 1fr;gap:12px}.panel{border:1px solid var(--line);border-radius:12px;background:#0d1014;padding:17px}.bar-row{display:grid;grid-template-columns:120px 1fr 85px;gap:8px;align-items:center;margin:12px 0}.bar{height:9px;border-radius:99px;background:#252a31;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,#84611b,var(--gold2));border-radius:99px}.bar-num{text-align:right;color:#ddd;font-size:12px}.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:700px}.table th,.table td{padding:11px;border-bottom:1px solid #20242b;text-align:left}.table th{font-size:10px;color:#979da6;letter-spacing:.08em;text-transform:uppercase}.table td{font-size:12px}
 .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.toolbar input,.toolbar select,.form input,.form select,.form textarea{background:#090c10;color:#fff;border:1px solid #30353d;border-radius:8px;padding:9px}.toolbar input,.toolbar select{min-width:150px}
 .form{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.form label{display:grid;gap:6px;color:#b2b7bf;font-size:12px}.form .full{grid-column:1/-1}
-.modal{display:none;position:fixed;inset:0;background:#000c;align-items:center;justify-content:center;padding:16px;z-index:50}.modal.open{display:flex}.dialog{width:min(820px,100%);max-height:92vh;overflow:auto;background:#11151a;border:1px solid #73561b;border-radius:14px;padding:20px;box-shadow:var(--shadow)}.dialog h2{font:700 24px Georgia,serif;margin:7px 0 12px}.dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.detail-box{border:1px solid #282d34;border-radius:9px;background:#0b0e12;padding:12px}.detail-box strong{display:block;font-size:18px;margin-top:6px}.result{white-space:pre-wrap;word-break:break-word;background:#07090b;border:1px solid #272b31;padding:12px;border-radius:9px;color:#cfd3d9;font-size:12px}
+/* z-index di atas layar login (100) dan layar start-up (200): dialog
+   konfirmasi/peringatan dipakai juga saat login dan pendaftaran gagal, dan
+   kalau dialog-nya tertutup layar login, peringatan dan konfirmasinya
+   tidak terlihat sama sekali. Jangan diturunkan tanpa mengecek tests/webview-dialogs.test.js. */
+.modal{display:none;position:fixed;inset:0;background:#000c;align-items:center;justify-content:center;padding:16px;z-index:300}.modal.open{display:flex}.dialog{width:min(820px,100%);max-height:92vh;overflow:auto;background:#11151a;border:1px solid #73561b;border-radius:14px;padding:20px;box-shadow:var(--shadow)}.dialog h2{font:700 24px Georgia,serif;margin:7px 0 12px}.dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.detail-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.detail-box{border:1px solid #282d34;border-radius:9px;background:#0b0e12;padding:12px}.detail-box strong{display:block;font-size:18px;margin-top:6px}.result{white-space:pre-wrap;word-break:break-word;background:#07090b;border:1px solid #272b31;padding:12px;border-radius:9px;color:#cfd3d9;font-size:12px}
 .modal-backdrop{position:absolute;inset:0;background:rgba(5,7,10,0.72);backdrop-filter:blur(4px)}
 .subscription-confirm{width:min(430px,100%);margin:auto;text-align:center}
 .subscription-confirm .confirm-brand{font:800 12px/1.2 Arial,Helvetica,sans-serif;letter-spacing:.22em;color:var(--gold2);text-transform:uppercase}
@@ -84,7 +88,7 @@ pointer-events:none
 position:relative;
 z-index:1
 }
-.mobile-menu{display:none}.empty{padding:28px;text-align:center;color:#777f89}.toast{display:none;position:fixed;right:18px;bottom:18px;background:#142219;border:1px solid #356648;color:#bcf1cf;padding:12px 15px;border-radius:9px;z-index:70}
+.mobile-menu{display:none}.empty{padding:28px;text-align:center;color:#777f89}.toast{display:none;position:fixed;right:18px;bottom:18px;background:#142219;border:1px solid #356648;color:#bcf1cf;padding:12px 15px;border-radius:9px;z-index:310}
 footer{text-align:center;color:#5e646d;font-size:10px;padding:34px 0 10px}
 @media(max-width:1100px){.hero{grid-template-columns:190px 1fr}.emblem{display:none}.kpis{grid-template-columns:repeat(3,1fr)}.two{grid-template-columns:1fr}}
 
@@ -1309,6 +1313,10 @@ button,input,select,textarea{max-width:100%}
   .kpi-value{font-size:18px}
   .table-wrap tbody tr{padding:2px 10px}
 }
+
+/* Teks pesan pada dialog konfirmasi/peringatan. */
+.dialog-text{color:#c7ccd3;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
+.dialog-text+.dialog-actions{margin-top:18px}
 </style>
 
 </head>
@@ -1631,14 +1639,14 @@ function save(){
   return true;
 }
 async function resetAll(){
-  if(!confirm('Hapus seluruh transaksi dan laporan shift online?'))return;
+  if(!await konfirmasi('Hapus seluruh transaksi dan laporan shift online?',{judul:'Reset Online',okLabel:'HAPUS',danger:true}))return;
   try{
     if(!window.WZOnlineEmployee?.api)throw new Error('API online belum siap.');
     await window.WZOnlineEmployee.api('reset-business',{method:'POST'});
     db.transactions=[];db.shiftReports=[];
     if(typeof render==='function')render();
     toast('Data transaksi dan laporan shift online berhasil direset.');
-  }catch(e){alert('Reset online gagal: '+(e.message||e));}
+  }catch(e){peringatan('Reset online gagal: '+(e.message||e));}
 }
 function branchBusinessFeed(branchId){
  return ownerBusinessFeed().filter(x=>!branchId||branchOfEmployee(x.employeeId)===branchId);
@@ -1993,6 +2001,65 @@ function showSubscriptionConfirm(label,periodLabel,amount){
     </div>`);
   });
 }
+
+/* DIALOG APLIKASI — pengganti dialog bawaan WebView
+   confirm dan alert bawaan browser memunculkan dialog sistem Android saat
+   dipanggil dari dalam WebView, dan judul jendela dialog itu diambil dari
+   halaman yang sedang dimuat. Karena judul halaman kosong, WebView memakai
+   alamatnya -- sehingga wz-ai-analisis-rust.vercel.app ikut terbaca setiap
+   kali pengguna mengonfirmasi hapus karyawan, void transaksi, atau reset
+   bisnis. Dialog milik aplikasi sendiri tidak pernah memuat alamat server.
+
+   konfirmasi() mengembalikan Promise karena dialog di dalam aplikasi memang
+   harus menunggu pengguna menekan tombol, sedangkan confirm bawaan
+   selalu sinkron. Semua pemanggilan sudah diubah menjadi await konfirmasi(...).
+   tests/webview-dialogs.test.js menjaga agar tidak ada dialog bawaan
+   yang tersisa terpakai. */
+let wzDialogResolver=null;
+
+function wzResolveDialog(value){
+ const resolve=wzDialogResolver;
+ if(!resolve)return;
+ wzDialogResolver=null;
+ closeModal();
+ resolve(Boolean(value));
+}
+window.wzResolveDialog=wzResolveDialog;
+
+function wzDialogText(pesan){
+ return String(pesan===null||pesan===undefined?'':pesan)
+  .split('\n')
+  .map(line=>line?escapeHtml(line):'<br>')
+  .join('<br>');
+}
+window.wzDialogText=wzDialogText;
+
+function konfirmasi(pesan,{judul='Konfirmasi',okLabel='OKE',danger=false}={}){
+ if(wzDialogResolver)wzResolveDialog(false);
+ return new Promise(resolve=>{
+  wzDialogResolver=resolve;
+  show(`<span class="gold-label">${escapeHtml(judul.toUpperCase())}</span>
+   <h2>${escapeHtml(judul)}</h2>
+   <div class="dialog-text">${wzDialogText(pesan)}</div>
+   <div class="dialog-actions">
+    <button type="button" class="btn" onclick="wzResolveDialog(false)">BATAL</button>
+    <button type="button" class="btn ${danger?'danger':'primary'}" onclick="wzResolveDialog(true)">${escapeHtml(okLabel)}</button>
+   </div>`);
+ });
+}
+window.konfirmasi=konfirmasi;
+
+// Dipakai di tempat alert sebelumnya. Nilai balik alert tidak pernah dipakai,
+// jadi dialog boleh tidak memblokir tanpa mengubah alur kode mana pun.
+function peringatan(pesan,{judul='WZ MANAGE PRO'}={}){
+ show(`<span class="gold-label">PERINGATAN</span>
+  <h2>${escapeHtml(judul)}</h2>
+  <div class="dialog-text">${wzDialogText(pesan)}</div>
+  <div class="dialog-actions">
+   <button type="button" class="btn primary" onclick="closeModal()">MENGERTI</button>
+  </div>`);
+}
+window.peringatan=peringatan;
 
 window.selectSubscriptionPlan=async function(plan,period){
   const prices={
@@ -2426,7 +2493,7 @@ function saveTransaction(){
  const employeeEl=document.getElementById('fEmployee');
  const paymentEl=document.getElementById('fPayment');
  const discountEl=document.getElementById('fDiscount');
- if(!customerEl||!serviceEl||!employeeEl||!paymentEl||!discountEl){alert('Form transaksi belum siap.');return;}
+ if(!customerEl||!serviceEl||!employeeEl||!paymentEl||!discountEl){peringatan('Form transaksi belum siap.');return;}
  const svc=getService(serviceEl.value),total=Math.max(0,Number(svc?.price||0)-Number(discountEl.value||0)),id=window.__wzTransactionStableId||('TRX'+String(db.transactions.length+1).padStart(4,'0'));
  const t={id,date:dateNow(),customerId:customerEl.value,serviceId:serviceEl.value,employeeId:employeeEl.value,total,payment:paymentEl.value,status:'SELESAI'};
  db.transactions.push(t);const c=getCustomer(t.customerId);if(c){c.visits=(c.visits||0)+1;c.total=(c.total||0)+total}else{}
@@ -2454,7 +2521,7 @@ function dashboardFilter(){
 }
 render();
 function txDetail(id){const t=db.transactions.find(x=>x.id===id);if(!t){toast('Transaksi tidak ditemukan.',true);return}const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${escapeHtml(String(t.id))}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
-function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(confirm('Void transaksi ini?')){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
+async function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(await konfirmasi('Void transaksi ini? Status transaksi berubah menjadi VOID dan tidak bisa dihitung lagi ke omzet maupun gaji.',{judul:'Void Transaksi',okLabel:'VOID',danger:true})){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
 function box(a,b){return `<div class="detail-box"><span class="label">${escapeHtml(String(a??''))}</span><strong>${escapeHtml(String(b??''))}</strong></div>`}
 
 let pendingAndroidNotification=null;
@@ -3308,9 +3375,9 @@ function employees(){
  const tx=db.transactions.filter(t=>t.employeeId===e.id&&t.status==='SELESAI'),srs=(db.shiftReports||[]).filter(r=>r.employeeId===e.id),branch=db.branches.find(b=>b.id===e.branchId),rev=tx.reduce((s,t)=>s+Number(t.total||0),0)+srs.reduce((s,r)=>s+Number(r.totalOmzet||0),0),ach=e.target?Math.min(100,rev/e.target*100):0,acc=accountForEmployee(e.id),pay=calculatePayroll(e.id);
  return `<div class="card"><span class="gold-label">${escapeHtml(String(e.role))}</span><h3 style="margin-top:7px">${escapeHtml(String(e.name))}</h3><p class="muted">${escapeHtml(String(e.id))} · ${e.active?'Aktif':'Nonaktif'} · Cabang: ${escapeHtml(String(branch?.name||'Belum dipilih'))}</p><div class="bar-row" style="grid-template-columns:70px 1fr 45px"><span>KPI</span><div class="bar"><i style="width:${ach}%"></i></div><span class="bar-num">${ach.toFixed(0)}%</span></div><p>Aktivitas <b>${tx.length+srs.reduce((n,r)=>n+Number(r.customers||0),0)}</b> · Omzet <b class="payroll-revenue">${rupiah(rev)}</b></p><p>Upah periode berjalan <b class="payroll-wage">${rupiah(pay.totalPay)}</b> · Bonus <b class="payroll-bonus">${rupiah(pay.totalBonus)}</b></p>${employeeHasCustomPayroll(e.id)?'<p><span class="pill" title="Memakai pengaturan gaji khusus">Gaji kustom</span></p>':''}<p class="muted">Login: <b>${acc?'karyawan':'Belum dibuat'}</b></p><div class="dialog-actions"><button class="btn small" onclick="employeeDetail('${escapeHtml(String(e.id))}')">Lihat laporan</button><button class="btn small" onclick="openEmployeePayrollForm('${escapeHtml(String(e.id))}')">Atur Gaji</button><button class="btn small" onclick="openEmployee('${escapeHtml(String(e.id))}')">Ubah</button><button class="btn small danger" onclick="deleteEmployee('${escapeHtml(String(e.id))}')">Hapus</button></div></div>`}).join('')}</div>`;
 }
-function deleteEmployee(id){
+async function deleteEmployee(id){
  if(!guard('employees'))return;const e=getEmployee(id);if(!e)return;
- if(!confirm('Hapus karyawan '+e.name+' beserta akun login karyawan ini?'))return;
+ if(!await konfirmasi('Hapus karyawan '+e.name+' beserta akun login karyawan ini? Absensi, laporan tutup shift, dan transaksinya ikut terhapus.',{judul:'Hapus Karyawan',okLabel:'HAPUS',danger:true}))return;
  db.employees=db.employees.filter(x=>x.id!==id);
  db.attendance=(db.attendance||[]).filter(x=>x.employeeId!==id);
  db.shiftReports=(db.shiftReports||[]).filter(x=>x.employeeId!==id);
@@ -3344,9 +3411,9 @@ async function saveEmployee(id){
  const salary=Number(document.getElementById('eSalary')?.value)||0;
  const target=Number(document.getElementById('eTarget')?.value)||0;
 
- if(!name)return alert('Isi nama karyawan');
- if(!password)return alert('Isi password login');
- if(!branchId)return alert('Pilih cabang karyawan');
+ if(!name)return peringatan('Isi nama karyawan');
+ if(!password)return peringatan('Isi password login');
+ if(!branchId)return peringatan('Pilih cabang karyawan');
 
  const username=defaultEmployeeUsername(name);
 
@@ -3377,7 +3444,7 @@ async function saveEmployee(id){
    render();
  }catch(e){
    console.error('saveEmployee online failed:',e);
-   alert('Gagal menyimpan karyawan: '+(e.message||e));
+   peringatan('Gagal menyimpan karyawan: '+(e.message||e));
  }
 }
 
@@ -3390,7 +3457,7 @@ function filterRows(body,inp){const q=document.getElementById(inp).value.toLower
 function openCustomer(){show(`<span class="gold-label">PELANGGAN</span><h2>Tambah Pelanggan</h2><div class="form"><label>Nama<input id="cName"></label><label>Telepon<input id="cPhone"></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveCustomer()">Simpan</button></div>`)}
 async function saveCustomer(){
   const c={id:'C'+String(db.customers.length+1).padStart(3,'0'),name:document.getElementById('cName')?.value.trim()||'',phone:document.getElementById('cPhone')?.value.trim()||'',visits:0,total:0,status:'Aktif'};
-  if(!c.name)return alert('Isi nama pelanggan');
+  if(!c.name)return peringatan('Isi nama pelanggan');
   if(currentUser?.role==='employee'){
     try{
       const customers=[...(db.customers||[]),c];
@@ -3417,10 +3484,10 @@ function openService(){show(`<span class="gold-label">LAYANAN</span><h2>Tambah L
 function saveService(){
   if(!['owner','manager'].includes(currentUser?.role))return toast('Hanya Owner/Manager yang dapat menambah layanan.',true);
   const s={id:'S'+String(db.services.length+1).padStart(3,'0'),name:document.getElementById('sName')?.value.trim()||'',category:document.getElementById('sCat')?.value.trim()||'Umum',payrollCategory:document.getElementById('sPayCat')?.value||'',price:Number(document.getElementById('sPrice')?.value)||0,duration:Number(document.getElementById('sDur')?.value)||45,active:true};
-  if(!s.name)return alert('Isi nama layanan');db.services.push(s);save();closeModal();toast('Layanan ditambahkan.');render();
+  if(!s.name)return peringatan('Isi nama layanan');db.services.push(s);save();closeModal();toast('Layanan ditambahkan.');render();
 }
-function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Kategori Gaji<select id="esPayCat"><option value="">Tidak dihitung</option>${payrollCategoryOptions(s.payrollCategory||'')}</select></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
-function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return alert('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return alert('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return alert('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return alert('Durasi layanan tidak valid.');s.name=name;s.category=category;s.payrollCategory=document.getElementById('esPayCat')?.value||'';s.price=price;s.duration=duration;s.active=esActive.checked;save();closeModal();toast('Layanan berhasil diperbarui.');render()}
+function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Kategori Gaji<select id="esPayCat"><option value="">Tidak dihitung</option>${payrollCategoryOptions(s.payrollCategory||'')}</select></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
+function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return peringatan('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return peringatan('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return peringatan('Durasi layanan tidak valid.');s.name=name;s.category=category;s.payrollCategory=document.getElementById('esPayCat')?.value||'';s.price=price;s.duration=duration;s.active=esActive.checked;save();closeModal();toast('Layanan berhasil diperbarui.');render()}
 
 function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',rupiah(revenue()),'finance')}${kpi('💸','Pengeluaran',rupiah(expenses()),'finance')}${kpi('📈','Laba',rupiah(profit()),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(e.date||''))} · ${escapeHtml(String(e.category||''))} · ${escapeHtml(String(e.note||''))}</span><b>${rupiah(e.amount)}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
 function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('fCustomer');if(c)c.value='';},50)}
@@ -3580,7 +3647,7 @@ async function saveBranch(id){
  const address=document.getElementById('bAddress')?.value.trim()||'';
  const active=document.getElementById('bActive')?.value==='true';
 
- if(!name)return alert('Isi nama cabang');
+ if(!name)return peringatan('Isi nama cabang');
 
  try{
    if(id){
@@ -3601,7 +3668,7 @@ async function saveBranch(id){
    render();
  }catch(e){
    console.error(e);
-   alert(e.message||'Gagal menyimpan cabang');
+   peringatan(e.message||'Gagal menyimpan cabang');
  }
 }
 
@@ -3659,16 +3726,16 @@ async function saveMyProfile(){
    currentUser={...currentUser,...(r?.user||{}),phone:r?.profile?.phone??phone,avatar:r?.profile?.avatar??avatar};
    db.profile=db.profile||{};db.profile.name=currentUser.name||db.profile.name;window.WZOnlineStateSave?.queue?.();
    closeModal();render();toast('Profil berhasil diperbarui online.');
-  }catch(e){alert('Profil gagal disimpan online: '+(e.message||e));}
+  }catch(e){peringatan('Profil gagal disimpan online: '+(e.message||e));}
  };
  if(!f?.files?.[0]){await finish(undefined);return}
  const file=f.files[0];
- if(!file.type.startsWith('image/')){alert('File foto harus berupa gambar.');return}
- if(file.size>2*1024*1024){alert('Ukuran foto maksimal 2 MB.');return}
+ if(!file.type.startsWith('image/')){peringatan('File foto harus berupa gambar.');return}
+ if(file.size>2*1024*1024){peringatan('Ukuran foto maksimal 2 MB.');return}
  const reader=new FileReader();
- reader.onerror=()=>alert('Foto gagal dibaca. Coba pilih foto lain.');
+ reader.onerror=()=>peringatan('Foto gagal dibaca. Coba pilih foto lain.');
  reader.onload=()=>{
-  const img=new Image();img.onerror=()=>alert('Foto tidak dapat diproses.');
+  const img=new Image();img.onerror=()=>peringatan('Foto tidak dapat diproses.');
   img.onload=()=>{const max=800,scale=Math.min(1,max/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));const ctx=c.getContext('2d');ctx.drawImage(img,0,0,c.width,c.height);finish(c.toDataURL('image/jpeg',0.82));};
   img.src=reader.result;
  };
@@ -3687,12 +3754,12 @@ function changeMyPassword(){
 }
 async function saveMyPassword(){
  const old=document.getElementById('oldPass')?.value||'',newP=document.getElementById('newPass')?.value||'',confirmP=document.getElementById('newPass2')?.value||'';
- if(newP.length<4)return alert('Password baru minimal 4 karakter.');
- if(newP!==confirmP)return alert('Konfirmasi password tidak sama.');
+ if(newP.length<4)return peringatan('Password baru minimal 4 karakter.');
+ if(newP!==confirmP)return peringatan('Konfirmasi password tidak sama.');
  try{
   await window.WZOnlineEmployee.api('password',{method:'POST',body:JSON.stringify({oldPassword:old,newPassword:newP})});
   closeModal();toast('Password berhasil diubah online.');
- }catch(e){alert('Password gagal diubah: '+(e.message||e));}
+ }catch(e){peringatan('Password gagal diubah: '+(e.message||e));}
 }
 
 function changeMyUsername(){
@@ -3710,9 +3777,9 @@ async function saveMyUsername(){
  if(!currentUser)return;
  const oldPass=document.getElementById('uOldPass')?.value||'';
  const username=String(document.getElementById('uNewName')?.value||'').trim().toLowerCase();
- if(!/^[a-z0-9._-]{3,50}$/.test(username))return alert('Username hanya boleh huruf kecil, angka, titik, garis bawah, atau strip (3-50 karakter).');
- if(!oldPass)return alert('Isi password lama.');
- if(username===String(currentUser.username||''))return alert('Username baru sama dengan yang sekarang.');
+ if(!/^[a-z0-9._-]{3,50}$/.test(username))return peringatan('Username hanya boleh huruf kecil, angka, titik, garis bawah, atau strip (3-50 karakter).');
+ if(!oldPass)return peringatan('Isi password lama.');
+ if(username===String(currentUser.username||''))return peringatan('Username baru sama dengan yang sekarang.');
  try{
   const r=await window.WZOnlineEmployee.api('account/username',{method:'POST',body:JSON.stringify({currentPassword:oldPass,username})});
   // currentUser dipakai hampir semua halaman, jadi harus ikut diperbarui
@@ -3720,7 +3787,7 @@ async function saveMyUsername(){
   // aplikasi dimuat ulang.
   if(r&&r.user)currentUser.username=r.user.username;
   closeModal();toast('Username berhasil diubah.');render();
- }catch(e){alert('Username gagal diubah: '+(e.message||e));}
+ }catch(e){peringatan('Username gagal diubah: '+(e.message||e));}
 }
 
 async function exportBackup(){
@@ -3734,7 +3801,7 @@ async function exportBackup(){
   const payload={version:2,exportedAt:new Date().toISOString(),source:'WZ MANAGE PRO ONLINE',business,employees:employees?.employees||[],appState:state?.data||{}};
   const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
   a.href=url;a.download=`wz-manage-pro-backup-${new Date().toISOString().slice(0,10)}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Backup online berhasil dibuat.');
- }catch(e){alert('Backup online gagal: '+(e.message||e));}
+ }catch(e){peringatan('Backup online gagal: '+(e.message||e));}
 }
 async function importBackup(event){
  const file=event?.target?.files?.[0];if(!file)return;
@@ -3742,7 +3809,7 @@ async function importBackup(event){
   if(!currentUser||!['owner','manager'].includes(currentUser.role))throw new Error('Restore hanya tersedia untuk Owner/Manager.');
   const payload=JSON.parse(await file.text());
   if(!payload||payload.version!==2||!payload.appState||!payload.business)throw new Error('File backup WZ tidak valid.');
-  if(!confirm('Restore backup online? Data pengaturan/master akan diganti, sedangkan transaksi dan laporan shift akan ditambahkan/diperbarui dari backup.'))return;
+  if(!await konfirmasi('Restore backup online? Data pengaturan/master akan diganti, sedangkan transaksi dan laporan shift akan ditambahkan/diperbarui dari backup.',{judul:'Restore Backup',okLabel:'RESTORE',danger:true}))return;
   const currentState=await window.WZOnlineEmployee.api('app-state');
   await window.WZOnlineEmployee.api('app-state',{method:'PUT',body:JSON.stringify({data:payload.appState,expectedUpdatedAt:currentState?.updatedAt||null})});
   const tx=Array.isArray(payload.business.transactions)?payload.business.transactions:[],sh=Array.isArray(payload.business.shiftReports)?payload.business.shiftReports:[];
@@ -3756,7 +3823,7 @@ async function importBackup(event){
   await (window.WZOnlineBusiness?.sync?.()||Promise.resolve());
   await (window.WZOnlineEmployee?.syncEmployeesFromServer?.()||Promise.resolve());
   render();toast('Restore online selesai. Password akun karyawan dipulihkan ke pola default nama+123.');
- }catch(e){alert('Restore online gagal: '+(e.message||e));}
+ }catch(e){peringatan('Restore online gagal: '+(e.message||e));}
  finally{if(event?.target)event.target.value='';}
 }
 // Fungsi ini dulu hidup di dalam IIFE bridge, padahal dipakai juga oleh
@@ -3896,17 +3963,17 @@ function closeModal(){
  if(modal)modal.classList.remove('open');
  if(modalHistoryState){modalHistoryState=false;if(history.state?.wzModal)history.back()}
 }
-window.addEventListener('popstate',()=>{const modal=document.getElementById('modal');if(modal?.classList.contains('open')){modal.classList.remove('open');modalHistoryState=false;if(typeof resolveSubscriptionConfirm==='function')resolveSubscriptionConfirm(false)}});
+window.addEventListener('popstate',()=>{const modal=document.getElementById('modal');if(modal?.classList.contains('open')){modal.classList.remove('open');modalHistoryState=false;if(typeof resolveSubscriptionConfirm==='function')resolveSubscriptionConfirm(false);if(typeof wzResolveDialog==='function')wzResolveDialog(false)}});
 
 async function shiftTestReset(){
  if(!guard('system'))return;
  const txCount=(db.transactions||[]).length;
  const shiftCount=(db.shiftReports||[]).length;
   const total=txCount+shiftCount;
- if(!confirm(`Hapus seluruh data transaksi (${txCount}) dan seluruh laporan tutup shift (${shiftCount})? Data karyawan, cabang, pelanggan, layanan, pengeluaran, dan pengaturan lain TIDAK akan dihapus.`))return;
- if(typeof window.WZOnlineBusiness?.reset!=='function'){alert('Reset online belum siap. Pastikan koneksi ke server tersedia.');return;}
+ if(!await konfirmasi(`Hapus seluruh data transaksi (${txCount}) dan seluruh laporan tutup shift (${shiftCount})? Data karyawan, cabang, pelanggan, layanan, pengeluaran, dan pengaturan lain TIDAK akan dihapus.`,{judul:'Hapus Semua Data',okLabel:'HAPUS SEMUA',danger:true}))return;
+ if(typeof window.WZOnlineBusiness?.reset!=='function'){peringatan('Reset online belum siap. Pastikan koneksi ke server tersedia.');return;}
  let result;
- try{result=await window.WZOnlineBusiness.reset()}catch(e){alert('Reset online gagal: '+(e.message||e));return}
+ try{result=await window.WZOnlineBusiness.reset()}catch(e){peringatan('Reset online gagal: '+(e.message||e));return}
  if(!result)return;
  closeModal();
  toast(`Berhasil menghapus ${result.transactions} transaksi dan ${result.shiftReports} laporan tutup shift.`);
@@ -5472,7 +5539,7 @@ function openRegisterBusiness(){
   if(!document.getElementById('registerBusinessModal'))document.body.insertAdjacentHTML('beforeend',REGISTER_MODAL_HTML);
   const modal=document.getElementById('registerBusinessModal');
   const error=document.getElementById('registerError');
-  if(!modal||!error){alert('Form pendaftaran tidak dapat dibuka. Silakan muat ulang halaman.');return}
+  if(!modal||!error){peringatan('Form pendaftaran tidak dapat dibuka. Silakan muat ulang halaman.');return}
   modal.style.display='flex';
   error.style.display='none';
   document.getElementById('regBusinessName')?.focus();
@@ -5503,7 +5570,7 @@ window.openRegisterBusiness=openRegisterBusiness;
 window.closeRegisterBusiness=closeRegisterBusiness;
 window.toggleLoginPassword=toggleLoginPassword;
 document.addEventListener('DOMContentLoaded',()=>document.getElementById('registerBusinessButton')?.addEventListener('click',openRegisterBusiness),{once:true});
-async function submitRegisterBusiness(ev){ev.preventDefault();const err=document.getElementById('registerError'),btn=document.getElementById('registerSubmit');const businessName=document.getElementById('regBusinessName').value.trim(),ownerName=document.getElementById('regOwnerName').value.trim(),branchName=document.getElementById('regBranchName').value.trim(),username=document.getElementById('regUsername').value.trim().toLowerCase(),password=document.getElementById('regPassword').value,confirm=document.getElementById('regPassword2').value;if(password!==confirm){err.textContent='Konfirmasi password tidak sama.';err.style.display='block';return}err.style.display='none';btn.disabled=true;btn.textContent='MEMBUAT...';setActionLoading(10,'Memeriksa data pendaftaran...','MEMBUAT BARBERSHOP');try{setActionLoading(35,'Menghubungi server...','MEMBUAT BARBERSHOP');const r=await fetch('/api/auth/register',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({businessName,ownerName,branchName,username,password})});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Pendaftaran gagal.');setActionLoading(75,'Menyiapkan akun Owner dan cabang...','MEMBUAT BARBERSHOP');setActionLoading(95,'Menyiapkan halaman login...','MEMBUAT BARBERSHOP');currentUser=null;closeRegisterBusiness();prepareLoginAfterRegistration(data.business,data.user);setActionLoading(100,'Pendaftaran selesai.','BARBERSHOP BERHASIL DIBUAT');setTimeout(hideActionLoading,350);toast('Bisnis berhasil dibuat. Kode bisnis sudah diisi di form login.');alert('Pendaftaran berhasil!\n\nKode Bisnis: '+data.business.businessId+'\nUsername: '+data.user.username+'\n\nMasukkan password untuk login.')}catch(e){err.textContent=e.message||'Pendaftaran gagal.';err.style.display='block'}finally{btn.disabled=false;btn.textContent='BUAT BISNIS'}}
+async function submitRegisterBusiness(ev){ev.preventDefault();const err=document.getElementById('registerError'),btn=document.getElementById('registerSubmit');const businessName=document.getElementById('regBusinessName').value.trim(),ownerName=document.getElementById('regOwnerName').value.trim(),branchName=document.getElementById('regBranchName').value.trim(),username=document.getElementById('regUsername').value.trim().toLowerCase(),password=document.getElementById('regPassword').value,confirm=document.getElementById('regPassword2').value;if(password!==confirm){err.textContent='Konfirmasi password tidak sama.';err.style.display='block';return}err.style.display='none';btn.disabled=true;btn.textContent='MEMBUAT...';setActionLoading(10,'Memeriksa data pendaftaran...','MEMBUAT BARBERSHOP');try{setActionLoading(35,'Menghubungi server...','MEMBUAT BARBERSHOP');const r=await fetch('/api/auth/register',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({businessName,ownerName,branchName,username,password})});const data=await r.json().catch(()=>({}));if(!r.ok)throw new Error(data.error||'Pendaftaran gagal.');setActionLoading(75,'Menyiapkan akun Owner dan cabang...','MEMBUAT BARBERSHOP');setActionLoading(95,'Menyiapkan halaman login...','MEMBUAT BARBERSHOP');currentUser=null;closeRegisterBusiness();prepareLoginAfterRegistration(data.business,data.user);setActionLoading(100,'Pendaftaran selesai.','BARBERSHOP BERHASIL DIBUAT');setTimeout(hideActionLoading,350);toast('Bisnis berhasil dibuat. Kode bisnis sudah diisi di form login.');peringatan('Pendaftaran berhasil!\n\nKode Bisnis: '+data.business.businessId+'\nUsername: '+data.user.username+'\n\nMasukkan password untuk login.')}catch(e){err.textContent=e.message||'Pendaftaran gagal.';err.style.display='block'}finally{btn.disabled=false;btn.textContent='BUAT BISNIS'}}
 window.submitRegisterBusiness=submitRegisterBusiness;
 
 function setActionLoading(percent,status,title){
@@ -5564,7 +5631,7 @@ window.login=async function(ev){
   }catch(e){
     hideActionLoading();
     if(err){err.textContent='Data login salah. Silakan isi data yang benar.';err.style.display='block';}
-    else alert('Data login salah. Silakan isi data yang benar.');
+    else peringatan('Data login salah. Silakan isi data yang benar.');
     void localLogin; // kept only to avoid shadowing legacy code; no offline fallback.
   }finally{
     if(loginButton){
@@ -5657,9 +5724,9 @@ window.saveEmployee=async function(id){
   const branchId=document.getElementById('eBranch')?.value||'';
   const salary=Number(document.getElementById('eSalary')?.value||0);
   const target=Number(document.getElementById('eTarget')?.value||0);
-  if(!name)return alert('Isi nama karyawan');
-  if(!password)return alert('Isi password login');
-  if(!branchId)return alert('Pilih cabang karyawan');
+  if(!name)return peringatan('Isi nama karyawan');
+  if(!password)return peringatan('Isi password login');
+  if(!branchId)return peringatan('Pilih cabang karyawan');
   let employeeId=id||'';
   if(!employeeId){
     const next=Math.max(0,...(db.employees||[]).map(x=>Number(String(x.id).replace(/\D/g,''))||0))+1;
@@ -5684,7 +5751,7 @@ window.saveEmployee=async function(id){
     }
     closeModal();
     toast(id?'Data karyawan & akun online diperbarui.':'Karyawan & akun login online dibuat.');
-  }catch(e){alert('Gagal menyimpan ke server: '+e.message);}
+  }catch(e){peringatan('Gagal menyimpan ke server: '+e.message);}
   void legacySaveEmployee;
 };
 
@@ -5692,13 +5759,13 @@ const legacyDeleteEmployee=window.deleteEmployee;
 window.deleteEmployee=async function(id){
   if(!guard('employees'))return;
   const e=getEmployee(id);if(!e)return;
-  if(!confirm('Hapus karyawan '+e.name+' beserta akun login karyawan ini?'))return;
+  if(!await konfirmasi('Hapus karyawan '+e.name+' beserta akun login karyawan ini? Absensi, laporan tutup shift, dan transaksinya ikut terhapus.',{judul:'Hapus Karyawan',okLabel:'HAPUS',danger:true}))return;
   try{
     await api('employees?id='+encodeURIComponent(id),{method:'DELETE'});
     if(typeof window.WZOnlineEmployee?.syncEmployeesFromServer==='function'){
       await window.WZOnlineEmployee.syncEmployeesFromServer();
     }
-  }catch(err){alert('Gagal menghapus dari server: '+err.message);}
+  }catch(err){peringatan('Gagal menghapus dari server: '+err.message);}
   void legacyDeleteEmployee;
 };
 
@@ -5708,7 +5775,7 @@ window.saveTransaction=async function(){
   const serviceId=document.getElementById('fService')?.value||'';
   const employeeEl=document.getElementById('fEmployee');
   const employeeId=currentUser?.role==='employee'?(currentUser.employeeId||''):(employeeEl?.value||'');
-  if(currentUser?.role==='employee'&&(!employeeId||!getEmployee(employeeId))){alert('Akun karyawan tidak memiliki ID karyawan yang valid.');return;}
+  if(currentUser?.role==='employee'&&(!employeeId||!getEmployee(employeeId))){peringatan('Akun karyawan tidak memiliki ID karyawan yang valid.');return;}
   if(currentUser?.role==='employee'&&employeeEl)employeeEl.value=employeeId;
   const svc=getService(serviceId),emp=getEmployee(employeeId),customer=getCustomer(customerId);
   const discount=Number(document.getElementById('fDiscount')?.value||0);
@@ -5791,7 +5858,7 @@ window.voidTx=async function(id){
   try{
     await api('transaction/void',{method:'POST',body:JSON.stringify({id})});
     await syncBusiness();
-  }catch(e){alert('Gagal void online: '+e.message);}
+  }catch(e){peringatan('Gagal void online: '+e.message);}
   void legacyVoidTx;
 };
 

@@ -109,6 +109,27 @@ Pesan error juga diperbaiki. Sebelumnya nilai negatif pada kas awal atau pengelu
 
 Tes: `tests/shift-report-validation.test.js` (10 tes) mengirim 20 payload salah dan 12 isian form salah lewat jalur HTTP dan jsdom, lalu memastikan **tidak ada satu pun query INSERT yang terkirim** saat data ditolak. Dua tes terakhir mengunci bentuk kodenya (endpoint tidak boleh kembali menulis angka turunan dari body; kedua jalur simpan wajib lewat validasi bersama) supaya perbaikan ini tidak bisa hilang diam-diam.
 
+## Dialog aplikasi (confirm/alert bawaan membocorkan URL)
+
+`confirm` dan `alert` bawaan browser, saat dipanggil dari dalam WebView Android, memunculkan **dialog sistem** yang judulnya diambil dari halaman yang sedang dimuat. Karena judul halaman kosong, WebView memakai alamatnya -- sehingga `wz-ai-analisis-rust.vercel.app` ikut terbaca. Symptom-nya: menghapus karyawan memunculkan dialog bertuliskan alamat web view. `MainActivity` memasang `WebChromeClient` kosong, jadi tidak ada yang WattsApp itu.
+
+Semua dialog kini milik aplikasi sendiri:
+
+- `konfirmasi(pesan, {judul, okLabel, danger})` -- mengembalikan `Promise<boolean>`. Dijalankan lewat `await`, jadi enam pemanggilan `confirm` (hapus karyawan, void transaksi, reset online, restore backup, hapus semua data, reset password owner) ikut jadi `async`.
+- `peringatan(pesan, {judul})` -- menggantikan 41 `alert`. Nilai balik `alert` tidak pernah dipakai, jadi `peringatan` boleh tidak memblokir tanpa mengubah alur kode.
+- `wzResolveDialog()` menyelesaikan promise; tombol BACK Android ikut membatalkan dialog lewat handler `popstate`, jadi alur yang menunggu tidak pernah menggantung.
+- Dialog baru menggantikan dialog lama (yang tertimpa dianggap batal), dan pesan pengguna selalu di-escape -- `peringatan('<img src=x onerror=...>')` tetap tampil sebagai teks.
+
+**`admin.html` dapat perlakuan yang sama**, termasuk penghapusan wrapper `confirmStatus()`.
+
+### z-index modal
+
+`.modal` dinaikkan ke `300` (dari `50`) dan `.toast` ke `310` (dari `70`). Alasannya bukan estetika: `.login-screen` ber-`z-index:100` dan `.wz-startup-loading` ber-`z-index:200`, sedangkan formulir pendaftaran berada di dalam `.login-screen`. Dengan nilai lama, peringatan "Pendaftaran berhasil! Kode Bisnis: ..." akan tampil **di belakang** layar login -- dialog native selalu ada di atas, dialog aplikasi tidak. Ada tes yang membandingkan angka-angka ini supaya tidak diturunkan diam-diam.
+
+### Pencegahan
+
+`tests/webview-dialogs.test.js` memindai `index.html` dan `admin.html` (komentar dikecualikan) dan **gagal** kalau ada `alert`/`confirm`/`prompt` bawaan yang dipakai lagi, atau kalau ada yang mencetak `location.href` ke pengguna. Jadi menambahkan `confirm()` di kemudian hari tidak bisa lolos ke rilis tanpa ketahuan.
+
 ## Tampilan khusus Android: tabel jadi kartu
 
 Semua tabel punya `min-width:700px`. Di HP 360px itu **selalu** berakhir jadi geser-horizontal -- dan itu komplain yang paling sering masuk dari pengguna Android. Di bawah ambang lebar tertentu (600px di aplikasi, 650px di panel admin, mengikuti titik di mana layout masing-masing berubah) tiap baris tabel dirender sebagai kartu:
