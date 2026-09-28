@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.JsPromptResult;
 import android.webkit.WebView;
 import android.webkit.CookieManager;
 import android.content.pm.PackageManager;
@@ -27,12 +28,15 @@ public class MainActivity extends Activity {
     private static final String START_URL =
             "https://wz-ai-analisis-rust.vercel.app/";
 
+    private static final String APP_HOST = "wz-ai-analisis-rust.vercel.app";
+
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
 
     private WebView web;
     private String pendingNotificationType = "";
     private String pendingNotificationReportId = "";
     private boolean pageReady = false;
+    private boolean showingOfflinePage = false;
     private static MainActivity activeInstance;
 
     public class AndroidPrintBridge {
@@ -80,8 +84,42 @@ public class MainActivity extends Activity {
         s.setBuiltInZoomControls(false);
         s.setDisplayZoomControls(false);
         s.setSupportZoom(false);
+        s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
-        web.setWebChromeClient(new WebChromeClient());
+        // WebChromeClient kosong membuat alert()/confirm()/prompt() di dalam halaman
+        // memakai implementasi bawaan Chromium, sehingga muncul dialog Android asli
+        // yang menampilkan alamat URL. Aplikasi web sudah menggambar dialognya sendiri
+        // lewat konfirmasi()/peringatan(), jadi ketiga callback di bawah ditelan di sini
+        // (return true = sudah ditangani) dan dialog native tidak akan pernah muncul.
+        web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message,
+                                     android.webkit.JsResult result) {
+                if (result != null) {
+                    result.cancel();
+                }
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message,
+                                       android.webkit.JsResult result) {
+                if (result != null) {
+                    result.cancel();
+                }
+                return true;
+            }
+
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message,
+                                      String defaultValue, JsPromptResult result) {
+                if (result != null) {
+                    result.cancel();
+                }
+                return true;
+            }
+        });
+
         web.addJavascriptInterface(new AndroidPrintBridge(), "WZAndroid");
 
         web.setWebViewClient(new WebViewClient() {
@@ -89,11 +127,15 @@ public class MainActivity extends Activity {
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 super.onPageStarted(view, url, favicon);
                 pageReady = false;
+                showingOfflinePage = false;
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
+                if (showingOfflinePage) {
+                    return;
+                }
                 pageReady = true;
                 loadFcmTokenIntoWebView();
                 handlePendingNotification();
@@ -120,7 +162,7 @@ public class MainActivity extends Activity {
                 String host = request.getUrl().getHost();
                 if (("http".equalsIgnoreCase(request.getUrl().getScheme())
                         || "https".equalsIgnoreCase(request.getUrl().getScheme()))
-                        && !"wz-ai-analisis-rust.vercel.app".equalsIgnoreCase(host)) {
+                        && !APP_HOST.equalsIgnoreCase(host)) {
                     try {
                         startActivity(new Intent(Intent.ACTION_VIEW, request.getUrl()));
                     } catch (Exception ignored) {
@@ -138,11 +180,7 @@ public class MainActivity extends Activity {
                     WebResourceError error) {
 
                 if (request.isForMainFrame()) {
-                    Toast.makeText(
-                            MainActivity.this,
-                            "WZ MANAGE PRO tidak dapat terhubung ke server.",
-                            Toast.LENGTH_LONG
-                    ).show();
+                    showOfflinePage();
                 }
             }
         });
@@ -156,8 +194,66 @@ public class MainActivity extends Activity {
             web.loadUrl(START_URL);
         }
 
+        registerBackHandler();
         requestNotificationPermission();
         registerFcmToken();
+    }
+
+    // targetSdk 36 memakai predictive back sehingga onBackPressed() tidak lagi
+    // dipanggil di Android 13+. Daftarkan OnBackInvokedCallback dengan logika
+    // yang sama: kembali ke halaman sebelumnya bila masih ada, selain itu keluar.
+    private void registerBackHandler() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
+        }
+
+        try {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                    android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                    this::goBackOrExit
+            );
+        } catch (Exception ignored) {
+            // Bila registrasi gagal, onBackPressed() di bawah tetap menjadi cadangan.
+        }
+    }
+
+    private void goBackOrExit() {
+        if (web != null && web.canGoBack()) {
+            web.goBack();
+        } else {
+            finish();
+        }
+    }
+
+    // Ganti halaman error bawaan WebView (yang menampilkan alamat URL mentah)
+    // dengan layar "tidak ada koneksi" milik WZ lengkap dengan tombol coba lagi.
+    private void showOfflinePage() {
+        if (web == null || showingOfflinePage) {
+            return;
+        }
+        showingOfflinePage = true;
+        pageReady = false;
+
+        String html = "<!DOCTYPE html><html lang=\"id\"><head><meta charset=\"utf-8\">"
+                + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                + "<title>WZ MANAGE PRO</title><style>"
+                + "*{box-sizing:border-box}body{margin:0;min-height:100vh;display:flex;"
+                + "align-items:center;justify-content:center;background:#08090b;color:#f4f5f7;"
+                + "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"
+                + "padding:24px;text-align:center}"
+                + ".box{max-width:340px}"
+                + "h1{font-size:19px;margin:0 0 10px;font-weight:700}"
+                + "p{font-size:14px;line-height:1.6;color:#9aa1ad;margin:0 0 24px}"
+                + "button{width:100%;padding:14px 20px;border:0;border-radius:12px;"
+                + "background:#f4f5f7;color:#08090b;font-size:15px;font-weight:700;cursor:pointer}"
+                + "</style></head><body><div class=\"box\">"
+                + "<h1>Tidak ada koneksi</h1>"
+                + "<p>WZ MANAGE PRO tidak dapat menghubungi server. Periksa koneksi internet "
+                + "Anda, lalu coba lagi.</p>"
+                + "<button onclick=\"location.href='" + START_URL + "'\">Coba lagi</button>"
+                + "</div></body></html>";
+
+        web.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
     }
 
     private void handleNotificationIntent(Intent intent) {
@@ -307,12 +403,11 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    // Cadangan untuk Android 12 ke bawah. Di Android 13+ logika yang sama
+    // dipindahkan ke OnBackInvokedCallback pada registerBackHandler().
     @Override
+    @SuppressWarnings("deprecation")
     public void onBackPressed() {
-        if (web != null && web.canGoBack()) {
-            web.goBack();
-        } else {
-            super.onBackPressed();
-        }
+        goBackOrExit();
     }
 }

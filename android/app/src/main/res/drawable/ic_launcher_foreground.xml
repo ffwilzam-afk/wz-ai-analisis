@@ -1,0 +1,17 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Monogram WZ diperkecil ke safe zone adaptive icon (lingkaran tengah 66dp)
+         lewat group pivot di titik tengah viewport 108x108. -->
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.72"
+        android:scaleY="0.72">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M23,25h14v58h-14zM37,50h48v13h-48zM71,25h14v58h-14z" />
+    </group>
+</vector>

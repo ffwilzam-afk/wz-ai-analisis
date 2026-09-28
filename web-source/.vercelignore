@@ -11,6 +11,8 @@ INTEGRITY-REPORT.json
 *.sql
 tests/
 .github/
+tools/
+play-store/
 
 # Jangan pernah unggah file rahasia/lokal bila ada di folder ini
 .env

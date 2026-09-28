@@ -3,13 +3,20 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Aplikasi adalah WebView, jadi tidak butuh kamera/lokasi/media.
+         Menandainya tidak ada mencegah Play Console menanyakan izin yang tidak dipakai. -->
+
     <application
         android:theme="@style/AppTheme"
-        android:label="WZ MANAGE PRO"
+        android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:usesCleartextTraffic="false"
         android:allowBackup="false"
-        android:supportsRtl="true">
+        android:fullBackupContent="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:supportsRtl="true"
+        android:enableOnBackInvokedCallback="true">
 
         <service
             android:name=".WzFirebaseMessagingService"
@@ -21,7 +28,9 @@
 
         <activity
             android:name=".MainActivity"
-            android:exported="true">
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout|uiMode"
+            android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

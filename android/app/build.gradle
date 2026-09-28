@@ -11,6 +11,11 @@ if (keystorePropertiesFile.exists()) {
 // Signing release hanya aktif bila keystore lokal tersedia (lihat android/PLAYSTORE-BUILD.md).
 def hasReleaseSigning = keystorePropertiesFile.exists() && keystoreProperties.containsKey('storeFile')
 
+// Minifikasi R8 aktif secara default. Bila ada fitur yang gagal setelah build
+// rilis (misalnya cetak struk berhenti jalan), matikan dengan satu perintah:
+//     ./gradlew bundleRelease -PwzShrink=false
+def useShrink = !project.hasProperty('wzShrink') || project.property('wzShrink').toString() != 'false'
+
 android {
     namespace 'com.wzmanagepro.app'
     buildToolsVersion '36.0.0'
@@ -23,6 +28,10 @@ android {
                 storePassword keystoreProperties['storePassword']
                 keyAlias keystoreProperties['keyAlias']
                 keyPassword keystoreProperties['keyPassword']
+                // Play Console menolak AAB yang hanya ditandatangani v1 (JAR).
+                v1SigningEnabled false
+                v2SigningEnabled true
+                v3SigningEnabled true
             }
         }
     }
@@ -31,13 +40,14 @@ android {
         applicationId 'com.wzmanagepro.app'
         minSdk 29
         targetSdk 36
-        versionCode 2
-        versionName '1.0.1'
+        versionCode 3
+        versionName '1.1.0'
     }
 
     buildTypes {
         release {
-            minifyEnabled false
+            minifyEnabled useShrink
+            shrinkResources useShrink
             // Tanpa keystore lokal, build release tetap jalan sebagai unsigned
             // (cukup untuk uji coba) alih-alih gagal karena signing config kosong.
             if (hasReleaseSigning) {
@@ -45,6 +55,13 @@ android {
             }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+    }
+
+    // Play Console meminta Android App Bundle untuk rilis baru.
+    bundle {
+        language { enableSplit = true }
+        density { enableSplit = true }
+        abi { enableSplit = true }
     }
 }
 
