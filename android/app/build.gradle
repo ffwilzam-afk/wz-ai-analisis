@@ -40,8 +40,8 @@ android {
         applicationId 'com.wzmanagepro.app'
         minSdk 29
         targetSdk 36
-        versionCode 3
-        versionName '1.1.0'
+        versionCode 4
+        versionName '1.1.1'
     }
 
     buildTypes {
@@ -68,4 +68,11 @@ android {
 dependencies {
     implementation platform('com.google.firebase:firebase-bom:34.19.0')
     implementation 'com.google.firebase:firebase-messaging'
+
+    // WzFirebaseMessagingService memakai NotificationCompat dan @NonNull.
+    // Sebelumnya keduanya hanya datang secara transitif dari Firebase, sehingga
+    // build bisa ikut patah kalau versi Firebase berubah. Sekarang keduanya
+    // dideklarasikan eksplisit.
+    implementation 'androidx.core:core:1.15.0'
+    implementation 'androidx.annotation:annotation:1.9.1'
 }

@@ -1,6 +1,6 @@
 # WZ MANAGE PRO - Panduan Build dan Rilis Play Store
 
-Status rilis saat ini: **versionCode 3 / versionName 1.1.0**, `applicationId`
+Status rilis saat ini: **versionCode 4 / versionName 1.1.1**, `applicationId`
 `com.wzmanagepro.app`, minSdk 29, targetSdk 36.
 
 Workspace cloud Freebuff tidak menyediakan Java, Gradle, maupun Android SDK,
@@ -41,7 +41,7 @@ https://wz-ai-analisis-rust.vercel.app/
 
 Aplikasi ini adalah WebView, jadi **APK tidak pernah perlu di-build ulang
 setiap kali web app berubah**. Cukup deploy ke Vercel, lalu naikkan
-`versionCode` dan unggah ulang AAB bila perlu perceptual refresh.
+`versionCode` dan unggah ulang AAB agar pengguna melihat versi terbaru.
 
 Sebelum submit, pastikan:
 
@@ -224,5 +224,20 @@ dihapus, build AAB akan gagal.
 - **`android.aapt2FromMavenOverride`** sudah dihapus dari `gradle.properties`.
   Sebelumnya baris itu menunjuk path Termux (`/data/data/com.termux/...`) dan
   akan menggagalkan build di mesin biasa maupun CI.
+- **Tema gelap sejak awal.** `styles.xml` memakai `wz_window_background`
+  `#08090B` untuk jendela, status bar, dan navigation bar, sama dengan yang
+  dipasang `MainActivity.onCreate()`. Sebelumnya tema masih putih sementara
+  kode menggantinya saat runtime, sehingga layar putih berkedip singkat tiap
+  kali aplikasi dibuka.
+- **AndroidX eksplisit.** `androidx.core` dan `androidx.annotation` kini
+  dideklarasikan langsung. Sebelumnya hanya datang transitif dari Firebase.
+- **`launchMode="singleTop"`.** Dipakai bersama `FLAG_ACTIVITY_CLEAR_TOP`
+  dari notifikasi, supaya tidak terbentuk instance `MainActivity` kedua dan
+  static `activeInstance` selalu menunjuk instance yang terlihat.
+- **Channel notifikasi dibuat sekali.** `ensureNotificationChannel()` mengecek
+  `getNotificationChannel()` lebih dulu, tidak lagi membuat ulang tiap pesan.
+- **Izin notifikasi diminta sekali.** Ditandai di `wz_permissions`, dan tanda
+  itu dibersihkan lagi bila pengguna mencabut izin lewat setelan sistem.
+- **TTS dihapus.** Notifikasi tidak lagi dibacakan dengan suara.
 - **Notifikasi** bergantung pada `app/google-services.json` dan izin
   `POST_NOTIFICATIONS`. Jangan dihapus.

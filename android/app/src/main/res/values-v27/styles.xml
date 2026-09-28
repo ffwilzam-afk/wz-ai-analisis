@@ -1,14 +1,14 @@
 <resources>
     <!--
-      Warna harus sama dengan yang dipasang MainActivity.onCreate() (#08090B).
-      Sebelumnya tema masih putih sementara kode mengubahnya menjadi gelap saat
-      runtime, sehinggalayar putih berkedip singkat setiap kali aplikasi dibuka.
-      Sekarang keduanya gelap sejak awal, jadi tidak ada kedipan sama sekali.
+      Ikon navigation bar harus terang di atas latar gelap. Atribut
+      windowLightNavigationBar baru ada sejak API 27, jadi ditulis di values-v27
+      supaya tidak diabaikan oleh perangkat yang lebih tua.
     -->
     <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowBackground">@color/wz_window_background</item>
         <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
         <item name="android:statusBarColor">@color/wz_window_background</item>
         <item name="android:navigationBarColor">@color/wz_window_background</item>
     </style>

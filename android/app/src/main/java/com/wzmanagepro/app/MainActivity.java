@@ -32,6 +32,9 @@ public class MainActivity extends Activity {
 
     private static final int NOTIFICATION_PERMISSION_REQUEST = 1001;
 
+    private static final String PREFS = "wz_permissions";
+    private static final String PREF_NOTIFICATION_ASKED = "notification_asked";
+
     private WebView web;
     private String pendingNotificationType = "";
     private String pendingNotificationReportId = "";
@@ -327,17 +330,45 @@ public class MainActivity extends Activity {
         handleNotificationIntent(intent);
     }
 
+    // Izin notifikasi hanya diminta satu kali. Sebelumnya permintaan dikirim
+    // ulang setiap cold start; kalau pengguna menolak, Android diam-diam berhenti
+    // menampilkannya, sehinggaPermintaan yang sia-sia tetap berjalan terus.
+    // Kalau izin dicabut lewat setelan sistem, tandanya dibersihkan lagi supaya
+    // pengguna tetap bisa menyalakannya lewat cara resmi Android.
     private void requestNotificationPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
-                    != PackageManager.PERMISSION_GRANTED) {
-
-                requestPermissions(
-                        new String[]{Manifest.permission.POST_NOTIFICATIONS},
-                        NOTIFICATION_PERMISSION_REQUEST
-                );
-            }
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            return;
         }
+
+        if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                == PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+            // Pengguna pernah menolak lalu mengubah pikiran, atau mencabut izin
+            // lewat setelan. Android tidak akan menampilkan dialog lagi, jadi
+            // tandanya dibersihkan supaya permintaan berikutnya tetap dicoba.
+            getSharedPreferences(PREFS, MODE_PRIVATE)
+                    .edit()
+                    .remove(PREF_NOTIFICATION_ASKED)
+                    .apply();
+        }
+
+        if (getSharedPreferences(PREFS, MODE_PRIVATE)
+                .getBoolean(PREF_NOTIFICATION_ASKED, false)) {
+            return;
+        }
+
+        getSharedPreferences(PREFS, MODE_PRIVATE)
+                .edit()
+                .putBoolean(PREF_NOTIFICATION_ASKED, true)
+                .apply();
+
+        requestPermissions(
+                new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                NOTIFICATION_PERMISSION_REQUEST
+        );
     }
 
     private void registerFcmToken() {

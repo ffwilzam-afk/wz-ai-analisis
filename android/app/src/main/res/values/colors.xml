@@ -2,4 +2,8 @@
 <resources>
     <!-- Warna yang sama dengan status bar aplikasi (#08090b) dan tema PWA. -->
     <color name="ic_launcher_background">#08090B</color>
+
+    <!-- Latar jendela, status bar, dan navigation bar. Dipakai styles.xml
+         supaya tidak ada layar putih berkedip saat aplikasi dibuka. -->
+    <color name="wz_window_background">#08090B</color>
 </resources>

@@ -5,17 +5,12 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Intent;
 import android.os.Build;
-import android.os.Handler;
-import android.os.Looper;
-import android.speech.tts.TextToSpeech;
 
 import androidx.annotation.NonNull;
 import androidx.core.app.NotificationCompat;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
-
-import java.util.Locale;
 
 public class WzFirebaseMessagingService extends FirebaseMessagingService {
 
@@ -43,7 +38,6 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
         String reportId = remoteMessage.getData().get("reportId");
 
         showNotification(title, body, type, reportId);
-        speakNotification(body);
         MainActivity.notifyNewReport(type, reportId);
     }
 
@@ -55,45 +49,34 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
                 .apply();
     }
 
-    private void speakNotification(String message) {
-        try {
-            final TextToSpeech[] ttsHolder = new TextToSpeech[1];
-
-            ttsHolder[0] = new TextToSpeech(
-                    getApplicationContext(),
-                    status -> {
-                        try {
-                            TextToSpeech tts = ttsHolder[0];
-
-                            if (status == TextToSpeech.SUCCESS && tts != null) {
-                                int result = tts.setLanguage(new Locale("id", "ID"));
-
-                                if (result == TextToSpeech.LANG_MISSING_DATA
-                                        || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                                    result = tts.setLanguage(Locale.getDefault());
-                                }
-
-                                if (result != TextToSpeech.LANG_MISSING_DATA
-                                        && result != TextToSpeech.LANG_NOT_SUPPORTED) {
-                                    tts.setSpeechRate(0.95f);
-                                    tts.setPitch(1.0f);
-                                    tts.speak(
-                                            message,
-                                            TextToSpeech.QUEUE_FLUSH,
-                                            null,
-                                            "wz_notification"
-                                    );
-                                    new Handler(Looper.getMainLooper())
-                                            .postDelayed(tts::shutdown, 5000L);
-                                }
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    }
-            );
-        } catch (Exception ignored) {
-            // TTS tidak boleh membuat notifikasi gagal.
+    // Channel hanya perlu dibuat satu kali. createNotificationChannel() yang
+    // dipanggil ulang untuk channel yang sudah ada hanya membuang usaha, jadi
+    // di sini lebih dulu dicek apakah channel-nya sudah tersedia.
+    private void ensureNotificationChannel(NotificationManager manager) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            return;
         }
+
+        if (manager.getNotificationChannel(CHANNEL_ID) != null) {
+            return;
+        }
+
+        NotificationChannel channel = new NotificationChannel(
+                CHANNEL_ID,
+                "WZ MANAGE PRO",
+                NotificationManager.IMPORTANCE_HIGH
+        );
+        channel.setDescription("Notifikasi WZ MANAGE PRO");
+        channel.enableVibration(true);
+        channel.setVibrationPattern(new long[]{0, 500, 200, 500});
+        channel.setSound(
+                android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
+                new android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+        );
+        manager.createNotificationChannel(channel);
     }
 
     private void showNotification(String title, String body, String type, String reportId) {
@@ -103,24 +86,7 @@ public class WzFirebaseMessagingService extends FirebaseMessagingService {
             return;
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            NotificationChannel channel = new NotificationChannel(
-                    CHANNEL_ID,
-                    "WZ MANAGE PRO",
-                    NotificationManager.IMPORTANCE_HIGH
-            );
-            channel.setDescription("Notifikasi WZ MANAGE PRO");
-            channel.enableVibration(true);
-            channel.setVibrationPattern(new long[]{0, 500, 200, 500});
-            channel.setSound(
-                android.provider.Settings.System.DEFAULT_NOTIFICATION_URI,
-                new android.media.AudioAttributes.Builder()
-                    .setUsage(android.media.AudioAttributes.USAGE_NOTIFICATION)
-                    .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                    .build()
-            );
-            manager.createNotificationChannel(channel);
-        }
+        ensureNotificationChannel(manager);
 
         Intent intent = new Intent(this, MainActivity.class);
         intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
