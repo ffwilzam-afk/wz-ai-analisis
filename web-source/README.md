@@ -10,7 +10,7 @@ WZ MANAGE PRO menggunakan server/Neon PostgreSQL sebagai sumber data bisnis. Bro
 | `api/<domain>/**.js` | Shim 1 baris yang meneruskan ke `api/[...path].js` |
 | `lib/helpers.js` | Helper bersama: hash password, token, cookie, validasi transaksi/shift |
 | `lib/routes/*.js` | Modul rute per domain (`auth`, `push`, dan seterusnya) yang dipanggil handler catch-all |
-| `tests/` | Unit test helper + smoke test handler API (tanpa database) |
+| `tests/` | Unit test helper, smoke test handler API, dan audit UI di jsdom (tanpa database) |
 | `sw.js`, `manifest.json`, `icons/` | Dukungan PWA (cache hanya shell/static asset) |
 | `vercel.json` | Config Vercel (`/api/:path*` di-rewrite ke `api/[...path]`) |
 | `.vercelignore` | File yang tidak diunggah/disajikan Vercel (tes, dokumen, `.env`, file rahasia) |
@@ -84,6 +84,46 @@ Tiga lapis, dari paling umum ke paling khusus. Yang tidak diisi di lapis khusus 
 - Layanan yang hanya cocok lewat nama (mis. "Gundul") tetap dihitung, tetapi ditandai **belum diatur, dicocokkan dari nama** supaya jelas bonusnya berasal dari pencocokan cadangan, bukan dari pilihan Owner.
 - Form **Tambah/Ubah Karyawan** tidak lagi menampilkan blok "Aturan Bonus Upah" dengan angka hardcode. Aturan bonus hanya diatur di **Atur Gaji** (khusus karyawan) dan **Aturan Umum** (umum bisnis).
 - Tes: `tests/payroll.test.js` memuat `index.html` di jsdom dan memanggil engine aslinya, jadi regresi di sini tertangkap `npm test`.
+
+## Validasi laporan tutup shift (role karyawan)
+
+Aturan bentuk dan angka laporan tutup shift hidup di satu tempat: `normalizeShiftReport()` di `lib/helpers.js`. Endpoint `shift-report` (dipakai form karyawan) dan `sync-business` sama-sama memakainya, jadi data yang masuk database selalu bentuknya sama. Di sisi perangkat, pasangan statisnya adalah `readShiftReportForm()` di `index.html`; kedua jalur simpan -- lokal maupun online -- memakai fungsi itu, sehingga data salah ditolak di perangkat dengan pesan yang menyebut field-nya, bukanditeruskan ke server.
+
+**Angka turunan dihitung ulang, bukan dipercaya.** `totalPayment`, `expectedCash`, `cashDifference`, `serviceTotal`, `productTotal`, dan `totalOmzet` dihitung dari angka mentah form. Nilai yang dikirim klien tetap dibandingkan sebagai klaim, dan kalau beda lebih dari Rp1 laporan ditolak dengan pesan yang menyebut kedua angkanya. Sebelumnya angka turunan itu ditulis apa adanya dari body, sehingga laporan berisi Rp300.000 bisa menyimpan `totalOmzet` Rp999.999.999 -- angka yang justru dibaca Owner, mesin payroll, dan laporan pajak.
+
+Aturan yang ditegakkan:
+
+| Field | Aturan |
+| --- | --- |
+| `date` | Format `YYYY-MM-DD`, tanggal benar-benar ada di kalender, tidak di masa depan, maksimal 366 hari ke belakang |
+| `shiftType` | Harus salah satu dari `Full Shift`, `Pagi`, `Siang`, `Sore` |
+| `customers` | Bilangan bulat, tidak negatif, maksimal 100.000 |
+| `openingCash`, `cash`, `qris`, `cashExpense`, `physicalCash` | Angka rupiah bulat, tidak negatif |
+| `services[]` | Array; `qty` bilangan bulat > 0; `price` >= 0; `total` harus sama dengan `qty x price`; `serviceId` wajib ada; `payrollCategory` ikut disimpan sebagai snapshot |
+| `products[]` | Array; `name` wajib; `qty` bilangan bulat >= 0; `price` >= 0; `total` harus sama dengan `qty x price` |
+| `note` | Teks, maksimal 2.000 karakter |
+| selisih kasir | `physicalCash - (openingCash + cash - cashExpense)` harus Rp 0 (toleransi Rp1 untuk derau floating point) |
+| nama karyawan | Diambil dari data karyawan di server, bukan dari body klien |
+
+Pesan error juga diperbaiki. Sebelumnya nilai negatif pada kas awal atau pengeluaran kas lolos ke perhitungan dan dilaporkan sebagai "selisih kasir harus Rp 0" -- penyebabnya (tanda minus) tidak pernah disebut. Sekarang nilai kas dicek lebih dulu dan pesannya langsung menunjuk field-nya.
+
+Tes: `tests/shift-report-validation.test.js` (10 tes) mengirim 20 payload salah dan 12 isian form salah lewat jalur HTTP dan jsdom, lalu memastikan **tidak ada satu pun query INSERT yang terkirim** saat data ditolak. Dua tes terakhir mengunci bentuk kodenya (endpoint tidak boleh kembali menulis angka turunan dari body; kedua jalur simpan wajib lewat validasi bersama) supaya perbaikan ini tidak bisa hilang diam-diam.
+
+## Tampilan khusus Android: tabel jadi kartu
+
+Semua tabel punya `min-width:700px`. Di HP 360px itu **selalu** berakhir jadi geser-horizontal -- dan itu komplain yang paling sering masuk dari pengguna Android. Di bawah ambang lebar tertentu (600px di aplikasi, 650px di panel admin, mengikuti titik di mana layout masing-masing berubah) tiap baris tabel dirender sebagai kartu:
+
+- `wzApplyCardMode()` di `index.html` dan `admin.html` membaca nama kolom dari `<thead>` lalu ditempel ke setiap sel sebagai `data-wz-th`.
+- CSS menampilkannya lewat `content:attr(data-wz-th)`, jadi tiap sel jadi "**Total** · Rp50.000".
+- Label selalu ditempel; keputusan menampilkannya ada di CSS. Ini disengaja supaya perilakunya bisa diuji di jsdom tanpa meniru media query.
+- Baris rekap yang cuma punya satu sel ber-`colspan` (mis. baris total analitik, atau "Belum ada transaksi") ditandai `wz-card-summary` dan jadi blok catatan penuh lebar -- bukan kartu yang labelnya salah.
+- Fungsi ini jalan untuk **setiap** tabel, jadi tabel yang dibuat berikutnya ikut rapi tanpa perlu menambah kode. `MutationObserver` pada `#content`, `#dialog`, dan `#modalBody` menutup tabel baru yang masuk lewat render, dialog, dan panel admin.
+
+Yang sengaja tidak diubah: `min-width:700px` di `.table` tetap di luar media query, jadi tabel di laptop dan tablet **tidak berubah sama sekali**. Baris `onclick` dan tombol aksi tetap berfungsi, dan `filterTransactions()` tetap menyembunyikan baris lewat inline `display:none` (inline style menang atas aturan CSS).
+
+Sekalian di layar kecil: `.quick-grid` turun dari 5 ke 3 kolom, `.kpis` dirapatkan, `.section-head` jadi menumpuk dengan tombol selebar layar, dan `.detail-grid` jadi 2 kolom supaya halaman detail laporan shift tidak memanjang.
+
+Tes: `tests/responsive-tables.test.js` (8 tes) menjalankan `index.html` di jsdom dan memeriksa pelabelan kolom pada tabel transaksi, penanganan baris `colspan`, pemicu otomatis untuk tabel yang dibuat belakangan, tabel riwayat analitik, klik tombol Detail, filter pencarian, dan bentuk blok CSS-nya.
 
 ## ID karyawan lintas tenant
 - `wz_employees.id` adalah **PRIMARY KEY global**: satu ID hanya boleh dimiliki satu bisnis di seluruh database.

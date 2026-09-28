@@ -7,7 +7,7 @@ const {
   hashPassword, verifyPassword, token, tokenHash,
   defaultUsername, defaultPassword, normalizeBusinessId, safeServerError,
   xenditSafeName, cookie, send, body,
-  validMoney, validDate, validTransaction, validShift
+  validMoney, validDate, validTransaction, normalizeShiftReport
 } = require('../lib/helpers.js');
 
 // Modul rute per domain. Setiap modul menerima (ctx, req, res, path), mengirim
@@ -1708,7 +1708,15 @@ async function handler(req,res){
         if(shifts.some(r=>String(r.employeeId)!==String(u.employee_id)))return send(res,403,{ok:false,error:'Karyawan hanya boleh sinkronkan laporan shift miliknya.'});
       }
       if(txs.some(t=>!t.id||!t.employeeId||!validTransaction(t)))return send(res,400,{ok:false,error:'Data transaksi tidak valid.'});
-      if(shifts.some(r=>!r.id||!r.employeeId||!validShift(r)))return send(res,400,{ok:false,error:'Data laporan shift tidak valid.'});
+      // Validasi laporan shift memakai normalisasi yang sama dengan endpoint
+      // `shift-report`, jadi restore tidak bisa menyelundupkan laporan dengan
+      // angka turunan yang tidak cocok dengan isinya.
+      const cleanShifts=[];
+      for(const r of shifts){
+        const checked=normalizeShiftReport(r);
+        if(!checked.ok)return send(res,400,{ok:false,code:'SHIFT_REPORT_INVALID',error:'Data laporan shift tidak valid: '+checked.error});
+        cleanShifts.push(checked.report);
+      }
       const employeeIds=[...new Set([...txs.map(t=>t.employeeId),...shifts.map(r=>r.employeeId)].filter(Boolean).map(String))];
       if(employeeIds.length){
         const er=await getPool().query('SELECT id,active FROM wz_employees WHERE business_id=$2 AND id = ANY($1::text[])',[employeeIds,u.business_id]);
@@ -1722,13 +1730,13 @@ async function handler(req,res){
         for(const t of txs){
           await client.query(`INSERT INTO wz_transactions(id,date,customer_id,customer_name,service_id,service_name,service_price,employee_id,employee_name,total,payment,status,discount,business_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW()) ON CONFLICT(id) DO UPDATE SET date=EXCLUDED.date,customer_id=EXCLUDED.customer_id,customer_name=EXCLUDED.customer_name,service_id=EXCLUDED.service_id,service_name=EXCLUDED.service_name,service_price=EXCLUDED.service_price,employee_id=EXCLUDED.employee_id,employee_name=EXCLUDED.employee_name,total=EXCLUDED.total,payment=EXCLUDED.payment,status=EXCLUDED.status,discount=EXCLUDED.discount,updated_at=NOW() WHERE wz_transactions.business_id=EXCLUDED.business_id`,[t.id,t.date,t.customerId||null,t.customerName||null,t.serviceId||null,t.serviceName||null,Number(t.servicePrice||0),t.employeeId||null,t.employeeName||null,Number(t.total||0),t.payment||'Tunai',t.status||'SELESAI',Number(t.discount||0),u.business_id]);
         }
-        for(const r of shifts){
+        for(const r of cleanShifts){
           await client.query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22,NOW()) ON CONFLICT(id) DO UPDATE SET date=EXCLUDED.date,employee_id=EXCLUDED.employee_id,employee_name=EXCLUDED.employee_name,shift_type=EXCLUDED.shift_type,customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW() WHERE wz_shift_reports.business_id=EXCLUDED.business_id`,[r.id,r.date,r.employeeId||null,r.employeeName||null,r.shiftType||null,Number(r.customers||0),Number(r.openingCash||0),Number(r.cash||0),Number(r.qris||0),Number(r.cashExpense||0),Number(r.physicalCash||0),Number(r.totalPayment||0),Number(r.expectedCash||0),Number(r.cashDifference||0),Number(r.serviceTotal||0),Number(r.productTotal||0),Number(r.totalOmzet||0),JSON.stringify(r.services||[]),JSON.stringify(r.products||[]),r.note||null,r.savedAt||null,u.business_id]);
         }
         await client.query('COMMIT');
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
-      await Promise.all(shifts.map(shift=>sendShiftPushes({...shift,businessId:u.business_id},u.id).catch(()=>{})));
-      await Promise.all(shifts.map(shift=>sendFcmNotification({
+      await Promise.all(cleanShifts.map(shift=>sendShiftPushes({...shift,businessId:u.business_id},u.id).catch(()=>{})));
+      await Promise.all(cleanShifts.map(shift=>sendFcmNotification({
         businessId:u.business_id,
         senderId:u.id,
         title:'WZ MANAGE PRO',
@@ -1774,9 +1782,20 @@ async function handler(req,res){
           error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'
         });
       const r=await body(req);if(!r.id||!r.date||!r.employeeId)return send(res,400,{ok:false,error:'Data shift tidak lengkap.'});
+      if(u.role==='employee'&&String(r.employeeId)!==String(u.employee_id))return send(res,403,{ok:false,error:'Karyawan hanya boleh menyimpan shift miliknya.'});
+      const re=await employeeFor(r.employeeId,u.business_id);if(!re)return send(res,400,{ok:false,error:'Karyawan tidak terdaftar.'});if(re.active===false)return send(res,400,{ok:false,error:'Karyawan sudah nonaktif.'});
+      // Bentuk dan angka laporan divalidasi di satu tempat. Angka turunan
+      // (total pembayaran, kas akhir seharusnya, selisih kasir, total
+      // layanan/produk, omzet) dihitung ulang dari angka mentah, bukan
+      // memakai nilai yang dikirim klien -- sebelumnya angka turunan itu
+      // ditulis apa adanya, jadi laporan bisa menampilkan omzet yang
+      // tidak sesuai dengan isi baris layanannya.
+      const checked=normalizeShiftReport(r);
+      if(!checked.ok)return send(res,400,{ok:false,code:'SHIFT_REPORT_INVALID',error:checked.error});
+      const sr=checked.report;
       if(Number(r.serviceTotal||0)<=0)return send(res,400,{ok:false,error:'Laporan shift wajib memiliki minimal 1 layanan.'});
-      if(Number(r.totalPayment||0)<=0)return send(res,400,{ok:false,error:'Total pembayaran laporan shift harus lebih dari Rp0.'});if(u.role==='employee'&&String(r.employeeId)!==String(u.employee_id))return send(res,403,{ok:false,error:'Karyawan hanya boleh menyimpan shift miliknya.'});const re=await employeeFor(r.employeeId,u.business_id);if(!re)return send(res,400,{ok:false,error:'Karyawan tidak terdaftar.'});if(re.active===false)return send(res,400,{ok:false,error:'Karyawan sudah nonaktif.'});const cash=Number(r.cash||0),qris=Number(r.qris||0),opening=Number(r.openingCash||0),expense=Number(r.cashExpense||0),physical=Number(r.physicalCash||0);if([cash,qris,opening,expense,physical].some(n=>!validMoney(n)))return send(res,400,{ok:false,error:'Nilai kas shift tidak valid.'});const expected=opening+cash-expense,difference=physical-expected;if(Math.abs(difference)>0.001)return send(res,400,{ok:false,error:'Selisih kasir harus Rp 0.'});
-      await getPool().query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22) ON CONFLICT(id) DO UPDATE SET customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW() WHERE wz_shift_reports.business_id=EXCLUDED.business_id`,[r.id,r.date,r.employeeId,r.employeeName||u.name,r.shiftType||null,Number(r.customers||0),Number(r.openingCash||0),Number(r.cash||0),Number(r.qris||0),Number(r.cashExpense||0),Number(r.physicalCash||0),Number(r.totalPayment||0),Number(r.expectedCash||0),Number(r.cashDifference||0),Number(r.serviceTotal||0),Number(r.productTotal||0),Number(r.totalOmzet||0),JSON.stringify(r.services||[]),JSON.stringify(r.products||[]),r.note||null,r.savedAt||new Date().toISOString(),u.business_id]);
+      if(Number(r.totalPayment||0)<=0)return send(res,400,{ok:false,error:'Total pembayaran laporan shift harus lebih dari Rp0.'});
+      await getPool().query(`INSERT INTO wz_shift_reports(id,date,employee_id,employee_name,shift_type,customers,opening_cash,cash,qris,cash_expense,physical_cash,total_payment,expected_cash,cash_difference,service_total,product_total,total_omzet,services,products,note,saved_at,business_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,$19::jsonb,$20,$21,$22) ON CONFLICT(id) DO UPDATE SET customers=EXCLUDED.customers,opening_cash=EXCLUDED.opening_cash,cash=EXCLUDED.cash,qris=EXCLUDED.qris,cash_expense=EXCLUDED.cash_expense,physical_cash=EXCLUDED.physical_cash,total_payment=EXCLUDED.total_payment,expected_cash=EXCLUDED.expected_cash,cash_difference=EXCLUDED.cash_difference,service_total=EXCLUDED.service_total,product_total=EXCLUDED.product_total,total_omzet=EXCLUDED.total_omzet,services=EXCLUDED.services,products=EXCLUDED.products,note=EXCLUDED.note,saved_at=EXCLUDED.saved_at,updated_at=NOW() WHERE wz_shift_reports.business_id=EXCLUDED.business_id`,[sr.id,sr.date,sr.employeeId,re.name||u.name,sr.shiftType,sr.customers,sr.openingCash,sr.cash,sr.qris,sr.cashExpense,sr.physicalCash,sr.totalPayment,sr.expectedCash,sr.cashDifference,sr.serviceTotal,sr.productTotal,sr.totalOmzet,JSON.stringify(sr.services),JSON.stringify(sr.products),sr.note||null,sr.savedAt,u.business_id]);
       await getPool().query(
         `UPDATE wz_app_states
          SET data=jsonb_set(
@@ -1790,25 +1809,25 @@ async function handler(req,res){
         [
           u.business_id,
           JSON.stringify([{
-            id:`SHIFT_NOTIFY_${r.id}`,
-            date:r.date,
+            id:`SHIFT_NOTIFY_${sr.id}`,
+            date:sr.date,
             createdAt:new Date().toISOString(),
             title:'Laporan shift tersimpan',
-            message:`${r.employeeName||r.employeeId||u.name} menyimpan laporan shift ${r.date}`,
+            message:`${re.name||sr.employeeId||u.name} menyimpan laporan shift ${sr.date}`,
             read:false
           }])
         ]
       );
-      await sendShiftPushes({...r,businessId:u.business_id},u.id).catch(()=>{});
+      await sendShiftPushes({...sr,employeeName:re.name||u.name,businessId:u.business_id},u.id).catch(()=>{});
       await sendFcmNotification({
         businessId:u.business_id,
         senderId:u.id,
         title:'WZ MANAGE PRO',
-        body:`Laporan shift ${r.employeeName||r.employeeId||''} tersedia.`,
-        data:{type:'shift_report',reportId:r.id}
+        body:`Laporan shift ${re.name||sr.employeeId||''} tersedia.`,
+        data:{type:'shift_report',reportId:sr.id}
       }).catch(e=>{
       });
-      return send(res,200,{ok:true,id:r.id});
+      return send(res,200,{ok:true,id:sr.id});
     }
     if(path==='employees/me' && req.method==='GET'){
       const u=await authUser(req);

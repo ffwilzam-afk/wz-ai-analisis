@@ -1247,6 +1247,68 @@ button,input,select,textarea{max-width:100%}
     padding-bottom:82px;
   }
 }
+
+/* ===== TAMPILAN KHUSUS LAYAR KECIL (Android) =============================
+   Tabel berubah jadi kartu, dan grid dashboard dilonggarkan supaya tidak
+   berdesakan di HP 360px. Detail breakpoint ada di
+   tests/responsive-tables.test.js. */
+@media(max-width:600px){
+  .table-wrap{overflow:visible}
+  .table-wrap table{min-width:0;width:100%;display:block}
+  .table-wrap thead{display:none}
+  .table-wrap tbody{display:block}
+  /* Section .card membungkus tabel: di mode kartunya dilepas supaya
+     tidak jadi kartu di dalam kartu. */
+  .table-wrap.card{background:none;border:0;padding:0;box-shadow:none}
+  .table-wrap tbody tr{
+    display:block;background:#0b0e12;border:1px solid #232830;
+    border-radius:12px;margin:0 0 10px;padding:2px 12px;
+  }
+  .table-wrap tbody tr:last-child{margin-bottom:0}
+  .table-wrap tbody tr.wz-card-summary{
+    background:none;border:0;border-radius:0;padding:0;margin:0;
+  }
+  .table-wrap tbody tr.wz-card-summary td{
+    display:block;text-align:center;color:var(--muted);border-bottom:0;
+    padding:14px 0;font-size:12px;
+  }
+  .table-wrap tbody tr.wz-card-summary td::before{content:none}
+  .table-wrap tbody tr.wz-card-summary.historical-total{
+    background:#12161c;border:1px solid #232830;border-radius:10px;
+    margin-top:6px;padding:2px 12px;
+  }
+  .table-wrap tbody tr.wz-card-summary.historical-total td{
+    text-align:left;color:var(--text);font-weight:700;
+  }
+  .table-wrap td{
+    display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    padding:9px 0;border-bottom:1px solid #191d23;font-size:13px;text-align:right;
+  }
+  .table-wrap tbody tr td:last-child{border-bottom:0}
+  .table-wrap td::before{
+    content:attr(data-wz-th);flex:0 0 auto;max-width:46%;
+    color:var(--muted);font-size:10px;text-transform:uppercase;
+    letter-spacing:.08em;text-align:left;
+  }
+  /* Kolom yang headed-nya kosong (mis. tombol aksi) tidak diberi label. */
+  .table-wrap td:not([data-wz-th]){justify-content:flex-end}
+
+  .quick-grid{grid-template-columns:repeat(3,1fr)}
+  .quick{padding:12px 6px}
+  .kpis{grid-template-columns:repeat(2,1fr);gap:10px}
+  .kpi{padding:13px}
+  .kpi-value{font-size:20px}
+  .section-head{flex-direction:column;align-items:stretch;gap:12px}
+  .section-head>.btn{width:100%}
+  .detail-grid{grid-template-columns:repeat(2,1fr)}
+  .toolbar input,.toolbar select{min-width:0;flex:1 1 100%}
+}
+@media(max-width:380px){
+  .quick-grid{grid-template-columns:repeat(2,1fr)}
+  .detail-grid{grid-template-columns:1fr}
+  .kpi-value{font-size:18px}
+  .table-wrap tbody tr{padding:2px 10px}
+}
 </style>
 
 </head>
@@ -1971,6 +2033,47 @@ window.selectSubscriptionPlan=async function(plan,period){
   }
 };
 
+/* TABEL -> KARTU DI LAYAR KECIL
+   Tabel di aplikasi ini punya min-width:700px, jadi di HP 360px selalu
+   berakhir jadi geser-horizontal -- sumber komplain paling sering. Di bawah
+   ambang lebar tertentu tiap baris tabel berubah jadi kartu: nama kolom
+   diambil dari <thead> lalu ditempel ke sel sebagai data-wz-th, dan CSS
+   menampilkannya lewat content:attr(). Baris yang punya onclick tetap bisa
+   diketuk karena yang diubah hanya tampilannya, bukan strukturnya.
+
+   Berjalan otomatis untuk setiap tabel, jadi tabel yang dibuat berikutnya
+   ikut rapi tanpa perlu menambah kode lagi. */
+function wzApplyCardMode(root){
+  const scope=root||document;
+  scope.querySelectorAll('table').forEach(table=>{
+    const head=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach(row=>{
+      const cells=[...row.children].filter(cell=>cell.tagName==='TD');
+      // Baris rekap/total cuma punya satu sel ber-colspan. Itu bukan kartu
+      // data, melainkan blok catatan, jadi dibiarkan penuh lebar tanpa label.
+      const summary=cells.length===1&&Number(cells[0].getAttribute('colspan')||1)>1;
+      row.classList.toggle('wz-card-summary',summary);
+      if(summary){cells[0].removeAttribute('data-wz-th');return}
+      cells.forEach((cell,i)=>{
+        const label=head[i]||'';
+        if(label)cell.setAttribute('data-wz-th',label);
+        else cell.removeAttribute('data-wz-th');
+      });
+    });
+  });
+}
+function wzWatchCardMode(node){
+  if(!node||typeof MutationObserver==='undefined')return;
+  new MutationObserver(()=>wzApplyCardMode(node)).observe(node,{childList:true,subtree:true});
+}
+window.wzApplyCardMode=wzApplyCardMode;
+document.addEventListener('DOMContentLoaded',()=>{
+  wzWatchCardMode(document.getElementById('content'));
+  wzWatchCardMode(document.getElementById('dialog'));
+  wzWatchCardMode(document.getElementById('modalBody'));
+  wzApplyCardMode(document);
+});
+
 function render(){if(!currentUser)return;nav();updateBottomNav();updateTopbarBadges();let key=location.hash.slice(1)||'dashboard';if(!can(key))key='dashboard';if(location.hash.slice(1)!==key)history.replaceState(null,'','#'+key);document.querySelectorAll('[data-nav]').forEach(b=>b.classList.toggle('active',b.dataset.nav===key));document.getElementById('crumb').textContent=(menu.find(x=>x[0]===key)||menu[0])[2];if(key==='dashboard')dashboard(window.__dashboardBranchId||'ALL');else if(key==='transactions')transactions();else if(key==='shiftReports')shiftReports();else if(key==='employees')employees();else if(key==='customers')customers();else if(key==='services')services();else if(key==='finance')finance();else if(key==='reports')reports();else if(key==='operations')operations();else if(key==='analytics')analytics();else if(key==='notifications')notifications();else if(key==='branches')branches();else if(key==='profile')profile();else if(key==='settings')settings();else if(key==='payrollSettings')payrollSettingsPage();else if(key==='ownerForum')ownerForumPage();else if(key==='system')systemPage();else if(key==='subscription')subscriptionPage();else if(key==='auth')auth();else dashboard()}
 document.addEventListener('click',e=>{const b=e.target.closest('[data-nav]');if(b){go(b.dataset.nav);document.getElementById('sidebar').classList.remove('open')}});window.onhashchange=render;
 
@@ -2518,7 +2621,7 @@ function shiftReports(){
    ${existing?'':'<button class="btn small" onclick="addShiftProduct()">＋ Tambah Produk</button>'}
 
    <label style="display:grid;gap:6px;margin-top:12px;color:#b2b7bf;font-size:12px">Catatan shift (opsional)
-    <textarea id="srNote" rows="3" ${existing?'disabled':''}>${existing?.note||''}</textarea>
+    <textarea id="srNote" rows="3" maxlength="2000" placeholder="Maksimal 2000 karakter" ${existing?'disabled':''}>${existing?.note||''}</textarea>
    </label>
 
    <div class="card" style="margin-top:12px;background:#16130c;border-color:#4e3b17">
@@ -2556,6 +2659,181 @@ function addShiftProduct(){
  const wrap=document.getElementById('shiftProducts');
  if(wrap)wrap.insertAdjacentHTML('beforeend',productRowHTML({},wrap.children.length,false));
 }
+/* VALIDASI FORM LAPORAN TUTUP SHIFT (role karyawan)
+   Satu tempat untuk kedua jalur simpan (lokal dan online), supaya tidak ada
+   lagi laporan yang lolos ke server hanya karena salah ketik.
+
+   Aturan-aturunya cermin dari normalizeShiftReport() di lib/helpers.js. Kalau
+   di sini ditolak, server juga akan menolak -- bedanya, karyawan langsung
+   tahu field mana yang salah, bukan baru melihat "gagal disimpan" dari server.
+
+   Yang paling penting: angka turunan (total pembayaran, kas akhir seharusnya,
+   selisih kasir, total layanan/produk, omzet) dihitung di sini dari angka
+   mentah form. Sebelumnya omzet hanya penjumlahan berjalan dan angka turunan
+   lain dikirim apa adanya, sehingga layar bisa menampilkan angka yang
+   berbeda dari isi barisnya. */
+const SHIFT_FORM_TYPES=['Full Shift','Pagi','Siang','Sore'];
+const SHIFT_FORM_MAX_CUSTOMERS=100000;
+const SHIFT_FORM_MAX_NOTE=2000;
+const SHIFT_FORM_MAX_ROWS=200;
+const SHIFT_FORM_MAX_QTY=10000;
+
+function shiftFormText(value){
+  return String(value===null||value===undefined?'':value).trim();
+}
+function shiftFormNumber(value,label){
+  const text=shiftFormText(value);
+  if(text==='')return {ok:true,value:0};
+  if(!/^-?\d+(\.\d+)?$/.test(text))return {ok:false,error:label+' harus diisi angka saja (tanpa huruf, titik ribuan, atau koma).'};
+  const n=Number(text);
+  if(!Number.isFinite(n))return {ok:false,error:label+' harus diisi angka saja.'};
+  if(n<0)return {ok:false,error:label+' tidak boleh negatif. Hapus tanda minus.'};
+  if(!Number.isInteger(n))return {ok:false,error:label+' harus angka bulat, tanpa angka di belakang koma.'};
+  if(n>1e12)return {ok:false,error:label+' terlalu besar untuk satu shift.'};
+  return {ok:true,value:n};
+}
+function shiftFormDate(value){
+  const text=shiftFormText(value);
+  if(!text)return {ok:false,error:'Tanggal laporan shift belum diisi.'};
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(text))return {ok:false,error:'Tanggal laporan shift harus format YYYY-MM-DD.'};
+  const parts=text.split('-').map(Number);
+  const back=new Date(Date.UTC(parts[0],parts[1]-1,parts[2]));
+  if(back.getUTCFullYear()!==parts[0]||back.getUTCMonth()!==parts[1]-1||back.getUTCDate()!==parts[2])
+    return {ok:false,error:'Tanggal '+text+' tidak ada di kalender.'};
+  const now=new Date();
+  const today=Date.UTC(now.getFullYear(),now.getMonth(),now.getDate());
+  const day=Date.UTC(parts[0],parts[1]-1,parts[2]);
+  if(day>today+86400000)return {ok:false,error:'Tanggal laporan shift tidak boleh di masa depan.'};
+  if(day<today-366*86400000)return {ok:false,error:'Tanggal laporan shift terlalu lama. Maksimal 366 hari ke belakang.'};
+  return {ok:true,value:text};
+}
+function shiftFormLabel(text,max){
+  const t=shiftFormText(text);
+  if(!t)return 'tanpa nama';
+  return t.length>max?('"'+t.slice(0,20)+'..."'):('"'+t+'"');
+}
+
+// Membaca seluruh form laporan shift sekaligus: memvalidasi setiap field,
+// lalu mengembalikan payload yang sudah bersih. Hasil:
+// {ok:true, report:{...}} atau {ok:false, error:'pesan untuk karyawan'}.
+function readShiftReportForm(){
+  const fail=error=>({ok:false,error});
+  const get=id=>document.getElementById(id);
+
+  const date=shiftFormDate(get('srDate')?.value);
+  if(!date.ok)return fail(date.error);
+
+  const shiftType=shiftFormText(get('srShift')?.value);
+  if(!SHIFT_FORM_TYPES.includes(shiftType))return fail('Jenis shift belum dipilih dengan benar.');
+
+  const employees=db.employees||[];
+  const emp=employees.find(e=>e.id===currentUser?.employeeId)||employees.find(e=>e.name===currentUser?.name);
+  if(!emp)return fail('Akun ini belum terhubung ke data karyawan. Minta Owner/Test Hubungkan dulu di halaman Karyawan.');
+
+  const customers=shiftFormNumber(get('srCustomers')?.value,'Jumlah pelanggan');
+  if(!customers.ok)return fail(customers.error);
+  if(customers.value>SHIFT_FORM_MAX_CUSTOMERS)return fail('Jumlah pelanggan tidak wajar (maksimal '+SHIFT_FORM_MAX_CUSTOMERS+').');
+
+  // Angka kas dicek lebih dulu, sebelum selisih kasir. Sebelumnya nilai negatif
+  // lolos ke perhitungan selisih dan membuat karyawan mendapat pesan "selisih
+  // kasir harus Rp0", padahal penyebabnya tanda minus.
+  const cashFields=[['srOpening','Kas awal shift'],['srCash','Dibayar tunai'],['srQris','Dibayar QRIS'],['srExpense','Pengeluaran kas shift'],['srPhysical','Uang fisik akhir di kasir']];
+  const money={};
+  for(const [id,label] of cashFields){
+    const n=shiftFormNumber(get(id)?.value,label);
+    if(!n.ok)return fail(n.error);
+    money[id]=n.value;
+  }
+
+  const services=[];
+  const seenService=new Set();
+  for(const inp of document.querySelectorAll('.sr-service-qty')){
+    const serviceId=shiftFormText(inp.dataset.service);
+    if(!serviceId)return fail('Ada baris layanan tanpa ID layanan. Muat ulang halaman lalu coba lagi.');
+    if(seenService.has(serviceId))return fail('Layanan '+shiftFormLabel(inp.closest('.feature')?.querySelector('b')?.textContent,40)+' tercatat dua kali.');
+    seenService.add(serviceId);
+    const svc=(db.services||[]).find(s=>s.id===serviceId);
+    const name=svc?.name||shiftFormText(inp.closest('.feature')?.querySelector('b')?.textContent)||'Layanan';
+    const price=Number(inp.dataset.price||0);
+    if(!Number.isFinite(price)||price<0)return fail('Harga layanan '+shiftFormLabel(name,40)+' tidak valid.');
+    const qty=shiftFormNumber(inp.value,'Jumlah '+name);
+    if(!qty.ok)return fail(qty.error);
+    if(qty.value>SHIFT_FORM_MAX_QTY)return fail('Jumlah '+shiftFormLabel(name,40)+' melebihi batas '+SHIFT_FORM_MAX_QTY+' per shift.');
+    if(qty.value===0)continue;
+    services.push({
+      serviceId,
+      serviceName:name,
+      // Kategori gaji ikut dicatat sebagai snapshot saat pekerjaan itu
+      // dicatat, supaya bonus karyawan tidak ikut hilang kalau Owner
+      // menghapus layanannya dari master.
+      payrollCategory:svc?.payrollCategory||'',
+      qty:qty.value,
+      price,
+      total:Math.round(qty.value*price*100)/100
+    });
+    if(services.length>SHIFT_FORM_MAX_ROWS)return fail('Terlalu banyak baris layanan (maksimal '+SHIFT_FORM_MAX_ROWS+').');
+  }
+
+  const products=[];
+  for(const row of document.querySelectorAll('.shift-product')){
+    const name=shiftFormText(row.querySelector('.sr-product-name')?.value);
+    const qtyRaw=shiftFormText(row.querySelector('.sr-product-qty')?.value);
+    const priceRaw=shiftFormText(row.querySelector('.sr-product-price')?.value);
+    if(!name&&qtyRaw===''&&priceRaw==='')continue;
+    if(!name)return fail('Ada baris produk tanpa nama. Isi namanya, atau hapus baris tersebut.');
+    if(name.length>200)return fail('Nama produk '+shiftFormLabel(name,200)+' melebihi 200 karakter.');
+    const qty=shiftFormNumber(qtyRaw||'0','Jumlah produk '+shiftFormLabel(name,40));
+    if(!qty.ok)return fail(qty.error);
+    if(qty.value>SHIFT_FORM_MAX_QTY)return fail('Jumlah produk '+shiftFormLabel(name,40)+' melebihi batas '+SHIFT_FORM_MAX_QTY+' per shift.');
+    const price=shiftFormNumber(priceRaw||'0','Harga produk '+shiftFormLabel(name,40));
+    if(!price.ok)return fail(price.error);
+    products.push({name,qty:qty.value,price:price.value,total:Math.round(qty.value*price.value*100)/100});
+    if(products.length>SHIFT_FORM_MAX_ROWS)return fail('Terlalu banyak baris produk (maksimal '+SHIFT_FORM_MAX_ROWS+').');
+  }
+
+  const note=shiftFormText(get('srNote')?.value);
+  if(note.length>SHIFT_FORM_MAX_NOTE)return fail('Catatan shift terlalu panjang: '+note.length+' karakter, maksimal '+SHIFT_FORM_MAX_NOTE+'.');
+
+  const serviceTotal=Math.round(services.reduce((a,x)=>a+x.total,0)*100)/100;
+  const productTotal=Math.round(products.reduce((a,x)=>a+x.total,0)*100)/100;
+  const totalOmzet=Math.round((serviceTotal+productTotal)*100)/100;
+  const totalPayment=Math.round((money.srCash+money.srQris)*100)/100;
+  const expectedCash=Math.round((money.srOpening+money.srCash-money.srExpense)*100)/100;
+  const cashDifference=Math.round((money.srPhysical-expectedCash)*100)/100;
+
+  if(services.length===0||serviceTotal<=0)return fail('Isi minimal 1 layanan terlebih dahulu.');
+  if(totalPayment<=0)return fail('Total pembayaran harus lebih dari Rp0.');
+  if(Math.abs(cashDifference)>0.01)
+    return fail('Selisih kasir harus Rp0. Uang fisik akhir di kasir '+rupiah(money.srPhysical)+' belum sama dengan kas akhir seharusnya '+rupiah(expectedCash)+' (selisih '+rupiah(cashDifference)+').');
+
+  return {
+    ok:true,
+    report:{
+      id:window.__wzShiftStableId||('SHIFT'+Date.now()),
+      date:date.value,
+      employeeId:emp.id,
+      employeeName:emp.name,
+      shiftType,
+      customers:customers.value,
+      openingCash:money.srOpening,
+      cash:money.srCash,
+      qris:money.srQris,
+      cashExpense:money.srExpense,
+      physicalCash:money.srPhysical,
+      totalPayment,
+      expectedCash,
+      cashDifference,
+      serviceTotal,
+      productTotal,
+      totalOmzet,
+      services,
+      products,
+      note,
+      savedAt:new Date().toISOString()
+    }
+  };
+}
+
 function calcShiftReport(){
  const cash=Number(document.getElementById('srCash')?.value||0);
  const qris=Number(document.getElementById('srQris')?.value||0);
@@ -2588,74 +2866,16 @@ function calcShiftReport(){
  return {cash,qris,opening,expense,physical,totalPayment,expected,difference,serviceTotal,productTotal,omzet};
 }
 function saveShiftReport(){
- const calc=calcShiftReport();
-
- // VALIDASI WAJIB LAPORAN TUTUP SHIFT
- // Minimal harus ada 1 layanan dan omzet/pembayaran harus > 0.
- if(Number(calc.serviceTotal||0)<=0){
-   toast('Laporan belum bisa disimpan. Isi minimal 1 layanan terlebih dahulu.');
-   return;
- }
- if(Number(calc.totalPayment||0)<=0){
-   toast('Laporan belum bisa disimpan. Total pembayaran harus lebih dari Rp0.');
-   return;
- }
- if(Math.abs(calc.difference)>0.001){
-  alert('Laporan belum dapat disimpan karena masih ada selisih kasir. Pastikan Uang fisik akhir di kasir sesuai dengan Kas akhir seharusnya (selisih Rp 0).');
-  const dif=document.getElementById('srDifference');
-  if(dif) dif.scrollIntoView({behavior:'smooth',block:'center'});
-  return;
- }
- const emp=db.employees.find(e=>e.id===currentUser.employeeId)||db.employees.find(e=>e.name===currentUser.name)||db.employees.find(e=>e.id===document.getElementById('srEmployee').value);
- if(!emp)return alert('Karyawan tidak ditemukan.');
-
- const products=[...document.querySelectorAll('.shift-product')].map(row=>({
-  name:row.querySelector('.sr-product-name')?.value.trim()||'',
-  qty:Number(row.querySelector('.sr-product-qty')?.value||0),
-  price:Number(row.querySelector('.sr-product-price')?.value||0)
- })).filter(p=>p.name||p.qty||p.price);
- const services=[...document.querySelectorAll('.sr-service-qty')].map(inp=>{
-  const svc=(db.services||[]).find(s=>s.id===inp.dataset.service);
-  return {
-   serviceId:inp.dataset.service,
-   serviceName:svc?.name||inp.closest('.feature')?.querySelector('b')?.textContent?.trim()||'Layanan',
-   // Snapshot kategori saat pekerjaan itu dicatat. Kalau nanti Owner menghapus
-   // layanan ini dari master, bonus karyawan tidak ikut hilang.
-   payrollCategory:svc?.payrollCategory||'',
-   qty:Number(inp.value||0),
-   price:Number(inp.dataset.price||0)
-  };
- }).filter(x=>x.qty>0);
- const report={
-  id:window.__wzShiftStableId||('SHIFT'+Date.now()),
-  date:document.getElementById('srDate').value,
-  employeeId:emp.id,
-  employeeName:emp.name,
-  shiftType:document.getElementById('srShift').value,
-  customers:Number(document.getElementById('srCustomers').value||0),
-  openingCash:calc.opening,
-  cash:calc.cash,
-  qris:calc.qris,
-  cashExpense:calc.expense,
-  physicalCash:calc.physical,
-  totalPayment:calc.totalPayment,
-  expectedCash:calc.expected,
-  cashDifference:calc.difference,
-  services,
-  products,
-  serviceTotal:calc.serviceTotal,
-  productTotal:calc.productTotal,
-  totalOmzet:calc.omzet,
-  note:document.getElementById('srNote').value.trim(),
-  savedAt:new Date().toISOString()
- };
+ const built=readShiftReportForm();
+ if(!built.ok){toast(built.error);return}
+ const report=built.report;
+ const emp=(db.employees||[]).find(e=>e.id===report.employeeId);
  db.shiftReports=db.shiftReports||[];
  db.shiftReports.push(report);
  const notificationId='N'+Date.now();
- db.notifications.push({id:notificationId,date:dateNow(),title:'Laporan shift tersimpan',message:`${emp.name} menyimpan laporan shift ${report.date}`,read:false});
- save();render();toast(`Laporan dari ${emp.name} masuk.`,false,notificationId);
+ db.notifications.push({id:notificationId,date:report.date,title:'Laporan shift tersimpan',message:`${emp?.name||report.employeeName} menyimpan laporan shift ${report.date}`,read:false});
+ save();render();toast(`Laporan dari ${emp?.name||report.employeeName} masuk.`,false,notificationId);
 }
-
 
 /* PAYROLL ENGINE
    Aturan default (bisa diganti per bisnis, dan per karyawan):
@@ -5577,40 +5797,19 @@ window.voidTx=async function(id){
 
 const legacySaveShiftReport=window.saveShiftReport;
 window.saveShiftReport=async function(){
-  const c=typeof calcShiftReport==='function'?calcShiftReport():null;
-  if(c){
-    if(Number(c.serviceTotal||0)<=0){toast('Laporan belum bisa disimpan. Isi minimal 1 layanan terlebih dahulu.');return;}
-    if(Number(c.totalPayment||0)<=0){toast('Laporan belum bisa disimpan. Total pembayaran harus lebih dari Rp0.');return;}
-    if(Math.abs(Number(c.difference||0))>0.001){toast('Laporan belum bisa disimpan. Selisih kasir harus Rp0.');return;}
-  }
-  const emp=(db.employees||[]).find(e=>e.id===currentUser?.employeeId)|| (db.employees||[]).find(e=>e.name===currentUser?.name);
-  if(!emp)return alert('Karyawan tidak ditemukan.');
-  const products=[...document.querySelectorAll('.shift-product')].map(row=>({
-    name:row.querySelector('.sr-product-name')?.value.trim()||'',qty:Number(row.querySelector('.sr-product-qty')?.value||0),
-    price:Number(row.querySelector('.sr-product-price')?.value||0)
-  })).filter(x=>x.name||x.qty||x.price);
-  const services=[...document.querySelectorAll('.sr-service-qty')].map(inp=>({
-    serviceId:inp.dataset.service,serviceName:getService(inp.dataset.service)?.name||'Layanan',
-    qty:Number(inp.value||0),price:Number(inp.dataset.price||0)
-  })).filter(x=>x.qty>0);
-  const stableShiftId='SHIFT'+Date.now();
-  const payload={
-    id:stableShiftId,date:document.getElementById('srDate')?.value||dateNow(),
-    employeeId:emp.id,employeeName:emp.name,shiftType:document.getElementById('srShift')?.value||'Full Shift',
-    customers:Number(document.getElementById('srCustomers')?.value||0),openingCash:Number(document.getElementById('srOpening')?.value||0),
-    cash:Number(document.getElementById('srCash')?.value||0),qris:Number(document.getElementById('srQris')?.value||0),
-    cashExpense:Number(document.getElementById('srExpense')?.value||0),physicalCash:Number(document.getElementById('srPhysical')?.value||0),
-    totalPayment:c?.totalPayment||0,expectedCash:c?.expected||0,cashDifference:c?.difference||0,serviceTotal:c?.serviceTotal||0,
-    productTotal:c?.productTotal||0,totalOmzet:c?.omzet||0,services,products,
-    note:document.getElementById('srNote')?.value.trim()||'',savedAt:new Date().toISOString()
-  };
-  try{
-    await api('shift-report',{method:'POST',body:JSON.stringify(payload)});
-    await syncBusiness();
-    toast('Laporan tutup shift berhasil tersimpan online.');
-    if(typeof closeModal==='function')closeModal();
-  }catch(e){toast('Laporan shift gagal disimpan: '+e.message);}
-  void legacySaveShiftReport;
+ // Validasi yang sama dengan jalur lokal: data salah ditolak di perangkat,
+ // sebelum ada yang dikirim ke server.
+ const built=readShiftReportForm();
+ if(!built.ok){toast(built.error);return}
+ try{
+  await api('shift-report',{method:'POST',body:JSON.stringify(built.report)});
+  await syncBusiness();
+  render();
+  toast('Laporan tutup shift berhasil tersimpan online.');
+ }catch(e){
+  toast('Laporan shift gagal disimpan: '+e.message,true);
+ }
+ void legacySaveShiftReport;
 };
 
 async function markServerNotificationRead(id){

@@ -16,6 +16,38 @@
 .poll-foot{margin-top:7px;font-size:11px;color:var(--muted)}.chat-compose .btn{flex:0 0 auto;white-space:nowrap}
 @media(max-width:900px){.sidebar{width:205px;flex-basis:205px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.chat-layout{grid-template-columns:1fr}.conversation{max-height:260px}.chat-card{height:min(650px,calc(100vh - 300px))}}
 @media(max-width:650px){.shell{display:block}.sidebar{position:static;width:100%;height:auto;border-right:0;border-bottom:1px solid var(--line)}.nav{grid-template-columns:repeat(2,minmax(0,1fr))}.nav .section{grid-column:1/-1;padding:8px 4px 2px}.content{padding:14px}.topbar{padding:0 14px}.topbar h1{font-size:17px}.admin-pill{display:none}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.metric strong{font-size:20px}.section-head{display:block}.section-head .toolbar{margin-top:12px}}
+
+/* Tabel admin -> kartu di layar kecil. Ambang 650px sama dengan titik di
+   mana layout admin berubah dari sidebar ke atas. */
+@media(max-width:650px){
+  .table-wrap{overflow:visible}
+  .table-wrap table{min-width:0;width:100%;display:block}
+  .table-wrap thead{display:none}
+  .table-wrap tbody{display:block}
+  .table-wrap tbody tr{
+    display:block;background:#0c1015;border:1px solid #262e38;
+    border-radius:12px;margin:0 0 10px;padding:2px 12px;
+  }
+  .table-wrap tbody tr.wz-card-summary{
+    background:none;border:0;border-radius:0;padding:0;margin:0;
+  }
+  .table-wrap tbody tr.wz-card-summary td{
+    display:block;text-align:center;color:var(--muted);border-bottom:0;
+    padding:14px 0;font-size:12px;
+  }
+  .table-wrap tbody tr.wz-card-summary td::before{content:none}
+  .table-wrap td{
+    display:flex;align-items:baseline;justify-content:space-between;gap:14px;
+    padding:9px 0;border-bottom:1px solid #1a2028;font-size:13px;text-align:right;
+  }
+  .table-wrap tbody tr td:last-child{border-bottom:0}
+  .table-wrap td::before{
+    content:attr(data-wz-th);flex:0 0 auto;max-width:46%;
+    color:var(--muted);font-size:10px;text-transform:uppercase;
+    letter-spacing:.08em;text-align:left;
+  }
+  .table-wrap td:not([data-wz-th]){justify-content:flex-end}
+}
 </style>
 </head>
 <body>
@@ -44,6 +76,47 @@ function table(headers,rows){return `<div class="table-wrap"><table><thead><tr>$
 function badge(value){const v=String(value||'').toUpperCase();const cls=['ACTIVE','PAID','A','OK'].includes(v)?'ok':['TRIAL','PENDING'].includes(v)?'warn':'bad';return `<span class="badge ${cls}">${esc(v||'-')}</span>`}
 function pagination(data){return `<div class="toolbar" style="justify-content:flex-end"><span class="subtle">Halaman ${data.page} / ${data.pages||1} · ${data.total} data</span><button class="btn small" id="prevPage" ${data.page<=1?'disabled':''}>Sebelumnya</button><button class="btn small" id="nextPage" ${data.page>=data.pages?'disabled':''}>Berikutnya</button></div>`}
 function bindPagination(data){document.getElementById('prevPage')?.addEventListener('click',()=>{state.page--;loadView(state.view)});document.getElementById('nextPage')?.addEventListener('click',()=>{state.page++;loadView(state.view)})}
+/* TABEL -> KARTU DI LAYAR KECIL
+   Tabel di aplikasi ini punya min-width:700px, jadi di HP 360px selalu
+   berakhir jadi geser-horizontal -- sumber komplain paling sering. Di bawah
+   ambang lebar tertentu tiap baris tabel berubah jadi kartu: nama kolom
+   diambil dari <thead> lalu ditempel ke sel sebagai data-wz-th, dan CSS
+   menampilkannya lewat content:attr(). Baris yang punya onclick tetap bisa
+   diketuk karena yang diubah hanya tampilannya, bukan strukturnya.
+
+   Berjalan otomatis untuk setiap tabel, jadi tabel yang dibuat berikutnya
+   ikut rapi tanpa perlu menambah kode lagi. */
+function wzApplyCardMode(root){
+  const scope=root||document;
+  scope.querySelectorAll('table').forEach(table=>{
+    const head=[...table.querySelectorAll('thead th')].map(th=>th.textContent.trim());
+    table.querySelectorAll('tbody tr').forEach(row=>{
+      const cells=[...row.children].filter(cell=>cell.tagName==='TD');
+      // Baris rekap/total cuma punya satu sel ber-colspan. Itu bukan kartu
+      // data, melainkan blok catatan, jadi dibiarkan penuh lebar tanpa label.
+      const summary=cells.length===1&&Number(cells[0].getAttribute('colspan')||1)>1;
+      row.classList.toggle('wz-card-summary',summary);
+      if(summary){cells[0].removeAttribute('data-wz-th');return}
+      cells.forEach((cell,i)=>{
+        const label=head[i]||'';
+        if(label)cell.setAttribute('data-wz-th',label);
+        else cell.removeAttribute('data-wz-th');
+      });
+    });
+  });
+}
+function wzWatchCardMode(node){
+  if(!node||typeof MutationObserver==='undefined')return;
+  new MutationObserver(()=>wzApplyCardMode(node)).observe(node,{childList:true,subtree:true});
+}
+window.wzApplyCardMode=wzApplyCardMode;
+document.addEventListener('DOMContentLoaded',()=>{
+  wzWatchCardMode(document.getElementById('content'));
+  wzWatchCardMode(document.getElementById('dialog'));
+  wzWatchCardMode(document.getElementById('modalBody'));
+  wzApplyCardMode(document);
+});
+
 function viewShell(id,html){document.getElementById('content').innerHTML=`<section id="view-${id}" class="view active">${html}</section>`;document.querySelectorAll('.view').forEach(el=>el.classList.toggle('active',el.id===`view-${id}`))}
 async function loadView(view){if(!state.admin)return;document.getElementById('content').innerHTML='<div class="loading">Memuat data Admin...</div>';try{if(view==='dashboard')return await loadDashboard();if(view==='businesses')return await loadBusinesses();if(view==='users')return await loadUsers();if(view==='subscriptions')return await loadSubscriptions();if(view==='plans')return await loadPlans();if(view==='payments')return await loadPayments();if(view==='forum')return await loadForum();if(view==='notifications')return await loadNotifications();if(view==='audit')return await loadAudit();if(view==='settings')return await loadSettings()}catch(e){document.getElementById('content').innerHTML=`<section class="view active"><div class="card"><h3>Gagal memuat</h3><p>${esc(e&&e.message||e)}</p><button class="btn" onclick="loadView('${esc(view)}')">Coba lagi</button></div></section>`}}
 async function loadDashboard(){const r=await api('admin/dashboard'),c=r.counts||{};const metric=(label,value)=>`<div class="metric"><label>${label}</label><strong>${value}</strong></div>`;viewShell('dashboard',`<div class="section-head"><div><div class="brand">PLATFORM OVERVIEW</div><h2>Dashboard</h2><p>Data real-time dari seluruh tenant WZ Manage Pro.</p></div><button class="btn small" id="refreshDashboard">Refresh</button></div><div class="metrics">${metric('Total Business',c.businesses||0)}${metric('Business Aktif',c.active_businesses||0)}${metric('Trial',c.trial_businesses||0)}${metric('Expired',c.expired_businesses||0)}${metric('Owner',c.owners||0)}${metric('User Aktif',c.users||0)}${metric('Cabang',c.branches||0)}${metric('Karyawan',c.employees||0)}${metric('Subscription Aktif',c.active_subscriptions||0)}${metric('Akan Expired',c.expiring_subscriptions||0)}${metric('Subscription Expired',c.expired_subscriptions||0)}${metric('Pendapatan Subscription',rupiah(c.subscription_revenue||0))}${metric('Payment Pending',c.pending_payments||0)}${metric('Payment Berhasil',c.successful_payments||0)}${metric('Payment Gagal',c.failed_payments||0)}</div><div class="grid two" style="margin-top:14px"><section class="card"><h3>Pertumbuhan Tenant</h3>${barChart(r.growth||[],'month','count')}</section><section class="card"><h3>Paket Digunakan</h3>${barChart(r.plans||[],'plan','count')}</section></div><section class="card" style="margin-top:14px"><h3>Perhatian Admin</h3>${table(['Business','Paket','Status','Berakhir'],(r.attention||[]).map(x=>`<tr><td>${esc(x.name)}<br><small>${esc(x.id)}</small></td><td>${badge(x.plan)}</td><td>${badge(x.status)}</td><td>${date(x.currentPeriodEnd)}</td></tr>`))}</section>`);document.getElementById('refreshDashboard').onclick=loadDashboard}
