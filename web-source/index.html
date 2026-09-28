@@ -1250,6 +1250,21 @@ button,input,select,textarea{max-width:100%}
   .main{
     padding-bottom:82px;
   }
+
+  /* Tombol "Keluar" ada di dasar sidebar (menu geser dari tombol hamburger).
+     Bottom nav punya z-index 1200 dan menutup 68px paling bawah layar, jadi
+     sidebar diberi ruang bawah yang sama -- sebelumnya tombol keluar tertutup
+     bar ikon dan tidak bisa disentuh di Android. */
+  .sidebar{
+    padding-bottom:calc(68px + env(safe-area-inset-bottom));
+  }
+
+  /* Snackbar ikut tertutup bar ikon: naikkan ke atas bottom nav. */
+  .toast{
+    left:14px;
+    right:14px;
+    bottom:calc(68px + 14px + env(safe-area-inset-bottom));
+  }
 }
 
 /* ===== TAMPILAN KHUSUS LAYAR KECIL (Android) =============================
@@ -1502,6 +1517,15 @@ function defaultEmployeeUsername(name){return name.trim().toLowerCase().replace(
 function getSession(){return null}
 function login(ev){ev.preventDefault();return window.login?.(ev)}
 function logout(){return window.logout?.()};
+// Jalan kedua untuk keluar akun: halaman Profil. Tombol di sidebar bisa
+// tertutup bar ikon di Android, jadi halaman Profil selalu menyediakan tombol
+// keluar sendiri.
+async function requestLogout(){
+ if(!currentUser)return;
+ const ok=await konfirmasi('Anda akan keluar dari akun ini di perangkat ini. Data bisnis tetap tersimpan di server.',{judul:'Keluar Akun',okLabel:'KELUAR',danger:true});
+ if(ok)logout();
+}
+window.requestLogout=requestLogout;
 // Kumpulan data di db SELALU harus berupa array berisi objek. Data berasal
 // dari app-state di server, jadi bentuknya tidak sepenuhnya kita kendalikan:
 // state yang rusak (mis. services berupa string, customers berisi null, atau
@@ -3700,6 +3724,13 @@ function profile(){
    <button class="btn primary" type="button" onclick="editMyProfile()">Ubah Profil</button>
    <button class="btn" type="button" onclick="changeMyUsername()">Ubah Username</button>
    <button class="btn" type="button" onclick="changeMyPassword()">Ubah Password</button>
+  </div>
+ </section>
+ <section class="card section">
+  <h3>Sesi</h3>
+  <p class="muted">Keluar dari akun ini di perangkat ini. Data bisnis tetap tersimpan di server.</p>
+  <div class="actions" style="margin-top:10px">
+   <button class="btn danger" type="button" id="wzLogoutButton" onclick="requestLogout()">Keluar Akun</button>
   </div>
  </section>`;
 }

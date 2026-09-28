@@ -144,6 +144,17 @@ Yang sengaja tidak diubah: `min-width:700px` di `.table` tetap di luar media que
 
 Sekalian di layar kecil: `.quick-grid` turun dari 5 ke 3 kolom, `.kpis` dirapatkan, `.section-head` jadi menumpuk dengan tombol selebar layar, dan `.detail-grid` jadi 2 kolom supaya halaman detail laporan shift tidak memanjang.
 
+## Menu keluar akun di Android
+
+Keluar akun di HP tidak bisa disentuh: di bawah 600px navigasi pindah ke **bottom nav tetap** (`.wz-bottom-nav`, `position:fixed`, `z-index:1200`, tinggi `68px`), sementara tombol "Keluar" hanya ada di dasar sidebar yang `z-index:20`. Akibatnya 68px paling bawah sidebar tertutup bar ikon, dan karena menu geser itu tidak bisa digulir ke bawah, tombolnya benar-benar tidak terlihat.
+
+Dua perbaikan, tanpa menyentuh struktur bottom nav:
+
+- Sidebar dapat `padding-bottom:calc(68px + env(safe-area-inset-bottom))` di bawah 600px, jadi tombol keluar bisa digulir keluar dari bayangan bar ikon. Snackbar `.toast` (yang tadinya `bottom:18px`, juga tertutup bar ikon) dinaikkan ke `calc(68px + 14px + env(safe-area-inset-bottom))` dan dibuat selebar layar.
+- **Halaman Profil** sekarang punya kartu **Sesi** dengan tombol **Keluar Akun** (`#wzLogoutButton`). Jadi keluar akun tidak bergantung pada menu geser sama sekali. Tombol ini memanggil `requestLogout()`, yang konfirmasi dulu lewat `konfirmasi()` lalu menjalankan `logout()` seperti biasa -- jadi tidak ada alur keluar kedua yang bisa berbeda. Semua role (Owner, Manager, Karyawan) sudah punya akses halaman Profil.
+
+Tes: `tests/mobile-logout-access.test.js` (9 tes). jsdom tidak menghitung layout, jadi aturan CSS dibaca dari bentuk sumbernya -- tinggi bottom nav, `z-index`, dan nilai `padding-bottom` sidebar dibandingkan satu sama lain, sehingga mengubah tinggi bar ikon tanpa menyesuaikan ruang bawah akan gagal tes. Sisanya menjalankan `index.html` di jsdom: tombol Profil ada untuk tiga role, diklik -> dialog konfirmasi muncul -> "KELUAR" memanggil `logout()` tepat sekali, dan "BATAL" tidak mengeluarkan akun.
+
 Tes: `tests/responsive-tables.test.js` (8 tes) menjalankan `index.html` di jsdom dan memeriksa pelabelan kolom pada tabel transaksi, penanganan baris `colspan`, pemicu otomatis untuk tabel yang dibuat belakangan, tabel riwayat analitik, klik tombol Detail, filter pencarian, dan bentuk blok CSS-nya.
 
 ## ID karyawan lintas tenant
