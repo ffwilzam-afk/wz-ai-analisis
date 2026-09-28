@@ -157,6 +157,29 @@ Tes: `tests/mobile-logout-access.test.js` (9 tes). jsdom tidak menghitung layout
 
 Tes: `tests/responsive-tables.test.js` (8 tes) menjalankan `index.html` di jsdom dan memeriksa pelabelan kolom pada tabel transaksi, penanganan baris `colspan`, pemicu otomatis untuk tabel yang dibuat belakangan, tabel riwayat analitik, klik tombol Detail, filter pencarian, dan bentuk blok CSS-nya.
 
+## Grafik Layanan Terlaris & Top Barber (dashboard Owner)
+
+Dua kartu di **GRAFIK BISNIS** -- `GRAFIK LAYANAN TERLARIS` dan `GRAFIK TOP BARBER` -- sebelumnya hanya menghitung **bucket terakhir** dari rentang grafik, yang default-nya adalah **hari ini**:
+
+```js
+const selectedBucket=graphBuckets[graphBuckets.length-1];
+const selectedRows=feed.filter(x=>selectedBucket&&dashboardInRange(x.date,selectedBucket.start,selectedBucket.end));
+```
+
+Begitu tidak ada transaksi pada hari itu, keduanya menampilkan "Belum ada data." Padahal kartu omzet, pengeluaran, dan laba di sebelahnya tetap benar karena memakai seluruh rentang, jadi dashboard terlihat setengah mati. Keadaan "tidak ada transaksi hari ini" justru yang paling sering terjadi: aplikasi dibuka pagi, atau sudah lewat waktu tutup.
+
+Sekarang keduanya memakai **seluruh rentang yang dipilih** lewat `dashboardGraphRangeBounds()` / `dashboardGraphRangeLabel()` -- rentang yang sama dengan tiga grafik garis, jadi mengubah kolom Dari/Sampai langsung mengubah isi kedua kartu. Subtitle kartu ikut menyebut rentangnya, jadi tidak ada lagi angka yang tidak tahu periodenya.
+
+Perhitungan yang sebelumnya tertulis inline dipindah ke tiga helper supaya kartu grafik dan dialog detail memakai sumber angka yang sama:
+
+- `dashboardServiceCountMap(rows)` -- jumlah terjual per layanan dari POS **dan** laporan tutup shift.
+- `dashboardBarberAmountMap(rows)` -- omzet (`value`) dan jumlah layanan (`tx`) per karyawan. Field-nya `value`, bukan `amount`, dan `id` ikut dibawa: peta barber sempat memakai `amount` sementara kartu membaca `value`, dan hasilnya semua bar tampil "Rp 0".
+- `dashboardRangeBreakdown(...)` -- rincian per periode di dialog detail, jadi angka rentang penuh masih bisa ditelusuri per hari/minggu/bulan.
+
+Menekan sebuah bar membuka `dashboardGraphDetail('service'|'barber', ...)`. Kartu ranking mengirim **label rentang**, jadi detailnya memakai seluruh rentang dan menambahkan blok *Rincian per periode*. Tiga grafik garis tidak berubah sama sekali: titik masih membuka satu bucket.
+
+Tes: `tests/owner-dashboard-graphs.test.js` (8 tes) menjalankan dashboard di jsdom dengan data yang **sengaja tidak punya transaksi hari ini** -- itulah kondisi yang dulu tidak terlihat sama sekali. Tes memastikan kedua kartu terisi, urutan dan nilainya benar (4 trx Haircut, Rp 350.000 Budi), lebar bar proporsional, subtitle menyebut rentang, rentang tanpa transaksi tetap kosong, dialog rincian terbuka dengan rincian per periode, dan grafik garis tetap satu bucket. Satu penjaga statis menahan kartu ranking agar tidak kembali menghitung dari `graphBuckets[graphBuckets.length-1]`.
+
 ## ID karyawan lintas tenant
 - `wz_employees.id` adalah **PRIMARY KEY global**: satu ID hanya boleh dimiliki satu bisnis di seluruh database.
 - Klien menebak ID berurutan dari jumlah karyawannya sendiri (`E001`, `E002`, ...), jadi dua bisnis bisa sama-sama meminta `E001`. Sebelumnya itu jadi *no-op senyap* — `ON CONFLICT(id) DO UPDATE ... WHERE business_id=EXCLUDED.business_id` tidak menyentuh baris dan tidak memunculkan error, server tetap membalas `200 ok`, dan karyawannya hilang begitu layar disegarkan.

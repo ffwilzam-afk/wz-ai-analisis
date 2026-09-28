@@ -2223,6 +2223,61 @@ function dashboardGraphBuckets(period,feed){
  return out;
 }
 function dashboardInRange(date,start,end){return String(date||'')>=start&&String(date||'')<=end}
+// Rentang tanggal yang sama dipakai semua kartu grafik di dashboard.
+//
+// "Layanan Terlaris" dan "Top Barber" sebelumnya hanya menghitung bucket
+// TERAKHIR (default: hari ini), bukan seluruh rentang. Begitu tidak ada
+// transaksi pada hari itu -- keadaan yang paling sering terjadi, karena grafik
+// biasanya dibuka pagi atau setelah tutup -- kedua kartu itu kosong, padahal
+// kartu omzet, pengeluaran, dan laba tetap normal karena memakai rentang penuh.
+function dashboardGraphRangeBounds(){
+ const g=window.__dashboardGraphRange||{},from=String(g.from||''),to=String(g.to||'');
+ if(!from||!to)return null;
+ return from<=to?{start:from,end:to}:{start:to,end:from};
+}
+function dashboardDayLabel(iso){const d=dashboardDateObj(iso);return `${d.getUTCDate()} ${dashboardMonthName(d.getUTCMonth())}`}
+function dashboardGraphRangeLabel(){
+ const b=dashboardGraphRangeBounds();
+ if(!b)return 'Semua periode';
+ const from=dashboardDayLabel(b.start),to=dashboardDayLabel(b.end);
+ return from===to?from:`${from} – ${to}`;
+}
+// Jumlah terjual per layanan untuk sekumpulan baris feed (POS + tutup shift).
+function dashboardServiceCountMap(rows){
+ const map={};
+ rows.forEach(r=>{
+  if(r.source==='POS'){
+   const t=db.transactions.find(x=>x.id===r.id),n=getService(t?.serviceId)?.name||'Layanan';
+   map[n]=(map[n]||0)+1;
+  }else{
+   const rr=(db.shiftReports||[]).find(x=>x.id===r.id);
+   (rr?.services||[]).forEach(x=>{const n=x.serviceName||getService(x.serviceId)?.name||'Layanan';map[n]=(map[n]||0)+Number(x.qty||0)});
+  }
+ });
+ return map;
+}
+// Omzet (value) dan jumlah layanan (tx) per karyawan untuk sekumpulan baris feed.
+// Field-nya `value` bukan `amount` supaya kartu grafik dan dialog detail membaca
+// nama yang sama; `id` dipakai untuk membuka rincian.
+function dashboardBarberAmountMap(rows){
+ const map={};
+ rows.forEach(r=>{
+  const e=getEmployee(r.employeeId);if(!e)return;
+  if(!map[e.id])map[e.id]={id:e.id,name:e.name,value:0,tx:0};
+  map[e.id].value+=Number(r.amount||0);
+  if(r.source==='POS')map[e.id].tx++;
+  else{const rr=(db.shiftReports||[]).find(x=>x.id===r.id);map[e.id].tx+=(rr?.services||[]).reduce((s,x)=>s+Number(x.qty||0),0)}
+ });
+ return map;
+}
+// Rincian per periode di dialog detail, supaya angka rentang penuh bisa ditelusuri.
+function dashboardRangeBreakdown(buckets,rows,totalOf,format){
+ const lines=buckets.map(b=>{
+  const v=totalOf(rows.filter(x=>dashboardInRange(x.date,b.start,b.end)));
+  return v?`<div style="padding:7px 0;border-bottom:1px solid #20242b">${escapeHtml(String(b.label))}<b style="float:right">${format(v)}</b></div>`:'';
+ }).join('');
+ return `<div class="feature" style="margin-top:14px"><b>Rincian per periode</b>${lines||'<div class="empty">Belum ada data pada periode ini.</div>'}</div>`;
+}
 function dashboardPeriodValue(rows,start,end,field){
  return rows.filter(x=>dashboardInRange(x.date,start,end)).reduce((s,x)=>s+Number(x[field]||0),0);
 }
@@ -2237,7 +2292,12 @@ function dashboardExpenseRows(branchFilter){
 function dashboardGraphDetail(type,key,label){
  const selected=window.__dashboardBranchId||'ALL', branchFilter=selected==='ALL'?null:selected;
  const period=window.__dashboardGraphPeriod||'day', feed=branchBusinessFeed(branchFilter), buckets=dashboardGraphBuckets(period,feed);
- key=decodeURIComponent(key); label=decodeURIComponent(label); const bucket=(type==='service'||type==='barber') ? (buckets.find(b=>b.label===label)||buckets[buckets.length-1]) : (buckets.find(b=>b.key===key)||buckets.find(b=>b.label===label)||buckets[buckets.length-1]);
+ key=decodeURIComponent(key); label=decodeURIComponent(label);
+ // Kartu "Layanan Terlaris"/"Top Barber" mengirim label RENTANG (bukan nama
+ // bucket), jadi detailnya memakai seluruh rentang lalu dipecah per periode.
+ // Grafik garis tetap mengirim label bucket seperti sebelumnya.
+ const isRank=type==='service'||type==='barber', rangeBounds=dashboardGraphRangeBounds(), rangeMode=isRank&&!!rangeBounds&&label===dashboardGraphRangeLabel();
+ const bucket=rangeMode?{key:'__range__',label,start:rangeBounds.start,end:rangeBounds.end} : isRank ? (buckets.find(b=>b.label===label)||buckets[buckets.length-1]) : (buckets.find(b=>b.key===key)||buckets.find(b=>b.label===label)||buckets[buckets.length-1]);
  if(!bucket)return;
  const rows=feed.filter(x=>dashboardInRange(x.date,bucket.start,bucket.end));
  const expensesRows=dashboardExpenseRows(branchFilter).filter(x=>dashboardInRange(x.date,bucket.start,bucket.end));
@@ -2254,28 +2314,13 @@ function dashboardGraphDetail(type,key,label){
   title=`Detail Laba — ${bucket.label}`;
   body=`<div class="detail-grid">${box('Periode',bucket.label)}${box('Pendapatan',rupiah(revenueValue))}${box('Pengeluaran',rupiah(expenseValue))}${box('Laba',rupiah(revenueValue-expenseValue))}</div>`;
  }else if(type==='service'){
-  const map={};
-  rows.forEach(r=>{
-   if(r.source==='POS'){
-    const name=getService(r.id&&db.transactions.find(t=>t.id===r.id)?.serviceId)?.name||'Layanan';
-    map[name]=(map[name]||0)+1;
-   }else{
-    const original=(db.shiftReports||[]).find(x=>x.id===r.id);
-    (original?.services||[]).forEach(x=>{const name=x.serviceName||getService(x.serviceId)?.name||'Layanan';map[name]=(map[name]||0)+Number(x.qty||0)});
-   }
-  });
+  const map=dashboardServiceCountMap(rows);
   title=`Detail Layanan Terlaris — ${bucket.label}`;
-  body=`<div class="feature">${Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([n,c],i)=>`<div style="padding:8px 0;border-bottom:1px solid #20242b"><b>${i+1}. ${n}</b><span style="float:right">${c} trx</span></div>`).join('')||'<div class="empty">Belum ada layanan pada periode ini.</div>'}</div>`;
+  body=`<div class="feature">${Object.entries(map).sort((a,b)=>b[1]-a[1]).map(([n,c],i)=>`<div style="padding:8px 0;border-bottom:1px solid #20242b"><b>${i+1}. ${n}</b><span style="float:right">${c} trx</span></div>`).join('')||'<div class="empty">Belum ada layanan pada periode ini.</div>'}</div>`+(rangeMode?dashboardRangeBreakdown(buckets,rows,r=>Object.values(dashboardServiceCountMap(r)).reduce((s,n)=>s+n,0),v=>`${v} trx`):'');
  }else if(type==='barber'){
-  const map={};
-  rows.forEach(r=>{
-   const e=getEmployee(r.employeeId);if(!e)return;
-   if(!map[e.id])map[e.id]={name:e.name,amount:0,tx:0};
-   map[e.id].amount+=r.amount; if(r.source==='POS')map[e.id].tx++;
-   if(r.source==='TUTUP_SHIFT'){const original=(db.shiftReports||[]).find(x=>x.id===r.id);map[e.id].tx+=(original?.services||[]).reduce((s,x)=>s+Number(x.qty||0),0)}
-  });
+  const map=dashboardBarberAmountMap(rows);
   title=`Detail Top Barber — ${bucket.label}`;
-  body=`<div class="feature">${Object.values(map).sort((a,b)=>b.amount-a.amount).map((x,i)=>`<div style="padding:8px 0;border-bottom:1px solid #20242b"><b>${i+1}. ${escapeHtml(String(x.name))}</b><span style="float:right">${rupiah(x.amount)}</span><div class="subtle">${x.tx} layanan/transaksi</div></div>`).join('')||'<div class="empty">Belum ada data barber pada periode ini.</div>'}</div>`;
+  body=`<div class="feature">${Object.values(map).sort((a,b)=>b.value-a.value).map((x,i)=>`<div style="padding:8px 0;border-bottom:1px solid #20242b"><b>${i+1}. ${escapeHtml(String(x.name))}</b><span style="float:right">${rupiah(x.value)}</span><div class="subtle">${x.tx} layanan/transaksi</div></div>`).join('')||'<div class="empty">Belum ada data barber pada periode ini.</div>'}</div>`+(rangeMode?dashboardRangeBreakdown(buckets,rows,r=>Object.values(dashboardBarberAmountMap(r)).reduce((s,x)=>s+x.value,0),v=>rupiah(v)):'');
  }
  show(`<span class="gold-label">DETAIL GRAFIK</span><h2>${title}</h2>${body}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`);
 }
@@ -2354,22 +2399,13 @@ function dashboard(branchId){
  const graphRevenue=graphBuckets.map(b=>({...b,value:dashboardPeriodValue(feed,b.start,b.end,'amount')}));
  const graphExpenses=graphBuckets.map(b=>({...b,value:dashboardExpenseRows(branchFilter).filter(x=>dashboardInRange(x.date,b.start,b.end)).reduce((s,x)=>s+Number(x.amount||0),0)}));
  const graphProfit=graphRevenue.map((b,i)=>({...b,value:b.value-graphExpenses[i].value}));
- const selectedBucket=graphBuckets[graphBuckets.length-1];
- const selectedRows=feed.filter(x=>selectedBucket&&dashboardInRange(x.date,selectedBucket.start,selectedBucket.end));
- const svcMap={};
- selectedRows.forEach(r=>{
-  if(r.source==='POS'){
-   const t=db.transactions.find(x=>x.id===r.id),n=getService(t?.serviceId)?.name||'Layanan';
-   svcMap[n]=(svcMap[n]||0)+1;
-  }else{
-   const rr=(db.shiftReports||[]).find(x=>x.id===r.id);
-   (rr?.services||[]).forEach(x=>{const n=x.serviceName||getService(x.serviceId)?.name||'Layanan';svcMap[n]=(svcMap[n]||0)+Number(x.qty||0)});
-  }
- });
- const serviceGraph=Object.entries(svcMap).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count);
- const barberMap={};
- selectedRows.forEach(r=>{const e=getEmployee(r.employeeId);if(!e)return;if(!barberMap[e.id])barberMap[e.id]={id:e.id,name:e.name,value:0,tx:0};barberMap[e.id].value+=r.amount;if(r.source==='POS')barberMap[e.id].tx++;else{const rr=(db.shiftReports||[]).find(x=>x.id===r.id);barberMap[e.id].tx+=(rr?.services||[]).reduce((s,x)=>s+Number(x.qty||0),0)}});
- const barberGraph=Object.values(barberMap).sort((a,b)=>b.value-a.value);
+ // Dua kartu ini memakai SELURUH rentang yang dipilih, bukan hanya bucket
+ // terakhir, supaya tetap terisi pada hari tanpa transaksi.
+ const rangeBounds=dashboardGraphRangeBounds();
+ const rangeRows=rangeBounds?feed.filter(x=>dashboardInRange(x.date,rangeBounds.start,rangeBounds.end)):feed;
+ const rangeLabel=dashboardGraphRangeLabel();
+ const serviceGraph=Object.entries(dashboardServiceCountMap(rangeRows)).map(([name,count])=>({name,count})).sort((a,b)=>b.count-a.count);
+ const barberGraph=Object.values(dashboardBarberAmountMap(rangeRows)).sort((a,b)=>b.value-a.value);
  const maxRevenue=Math.max(1,...graphRevenue.map(x=>x.value)),maxExpense=Math.max(1,...graphExpenses.map(x=>x.value)),maxProfit=Math.max(1,...graphProfit.map(x=>Math.max(0,x.value))),maxService=Math.max(1,...serviceGraph.map(x=>x.count)),maxBarber=Math.max(1,...barberGraph.map(x=>x.value));
 
  const recent=db.transactions
@@ -2437,11 +2473,11 @@ function dashboard(branchId){
   <section class="card"><div class="panel-title"><div><h3>GRAFIK LABA</h3><span class="subtle">${graphPeriod==='day'?'7 hari':graphPeriod==='week'?'8 minggu':graphPeriod==='month'?'12 bulan':'tahun tersedia'} · hijau</span></div></div>
    ${ownerLineChart('profit',graphProfit,'green','Laba')}
   </section>
-  <section class="card"><div class="panel-title"><div><h3>GRAFIK LAYANAN TERLARIS</h3><span class="subtle">${selectedBucket?.label||''} · ungu · berdasarkan jumlah terjual</span></div></div>
-   ${ownerRankChart(serviceGraph.slice(0,8).map(x=>({name:x.name,value:x.count,id:x.name,type:'service',periodLabel:selectedBucket?.label||''})),'purple',v=>`${v} trx`)}
+  <section class="card"><div class="panel-title"><div><h3>GRAFIK LAYANAN TERLARIS</h3><span class="subtle">${rangeLabel} · ungu · berdasarkan jumlah terjual</span></div></div>
+   ${ownerRankChart(serviceGraph.slice(0,8).map(x=>({name:x.name,value:x.count,id:x.name,type:'service',periodLabel:rangeLabel})),'purple',v=>`${v} trx`)}
   </section>
-  <section class="card"><div class="panel-title"><div><h3>GRAFIK TOP BARBER</h3><span class="subtle">${selectedBucket?.label||''} · gold · berdasarkan omzet</span></div></div>
-   ${ownerRankChart(barberGraph.slice(0,8).map(x=>({name:x.name,value:x.value,id:x.id,type:'barber',periodLabel:selectedBucket?.label||''})),'gold',v=>rupiah(v))}
+  <section class="card"><div class="panel-title"><div><h3>GRAFIK TOP BARBER</h3><span class="subtle">${rangeLabel} · gold · berdasarkan omzet</span></div></div>
+   ${ownerRankChart(barberGraph.slice(0,8).map(x=>({name:x.name,value:x.value,id:x.id,type:'barber',periodLabel:rangeLabel})),'gold',v=>rupiah(v))}
   </section>
   <section class="card"><div class="panel-title"><h3>SUMBER DATA BISNIS</h3><span class="subtle">Database perangkat</span></div>
    <div class="detail-grid">${box('Total Pendapatan',rupiah(rev))}${box('Total Pengeluaran',rupiah(exp))}${box('Total Laba',rupiah(pro))}${box('Total Pelanggan',branchCustomers)}</div>
