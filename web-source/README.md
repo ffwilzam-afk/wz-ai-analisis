@@ -217,24 +217,40 @@ Buka Wali untuk teks yang memang harus bisa disalin: tambahkan kelas `wz-copyabl
 
 Tes: `tests/native-feel.test.js` (4 tes) memeriksa bentuk aturan CSS (termasuk urutan `none` sebelum `text`), keberadaan ketiga penjaga event, lalu menjalankan penjaga itu di jsdom: `contextmenu`/`dragstart`/`selectstart` pada teks biasa diblokir, sedangkan pada `input`, `textarea`, dan `.wz-copyable` tetap lolos.
 
-## Tanda loading: tombol yang sedang menjalankan perintah
+## Tanda loading: hanya di tombol yang sedang menjalankan perintah
 
 Audit tombol di `index.html` menunjukkan hampir tidak ada aksi yang memberi umpan balik. Indikator "Tersimpan online" di topbar justru disembunyikan di HP (kelas `.wz-top-hidden`), jadi di Android **tidak ada apa pun** yang memberi tahu pengguna bahwa tombolnya masih bekerja di server. Sebagian aksi sinkron (`saveService`, `saveExpense`, `saveSettings`, `saveCustomer`) bahkan langsung menutup dialog dan menampilkan toast sukses padahal tulisannya ke server masih berjalan di latar.
 
-Perbaikannya dua lapis, keduanya di `index.html`:
+Perbaikannya **hanya di tombol yang ditekan**:
 
-1. **Spinner pada tombol yang ditekan.** `window.fetch` dibungkus satu kali (`wzWatchRequests`) untuk menghitung permintaan yang sedang berjalan, lalu `wzInstallBusyFeedback()` membungkus daftar aksi di `WZ_BUSY_ACTIONS` (29 nama). Tombol yang ditekan dapat kelas `.wz-busy` (isi tombol diganti spinner), `aria-busy`, dan `disabled=true` supaya tidak bisa terkirim dua kali. Tombol baru dibuka setelah **tidak ada lagi permintaan yang menggantung**, bukan hanya setelah fungsi selesai.
-2. **Pil "Menyimpan..."** di atas navigasi bawah (`#wzNet`, `z-index:1300`) selama ada permintaan ke server, dengan nama aksinya ("Menyimpan transaksi..."). Ini juga menutupi simpan latar (auto-refresh 30 detik, FCM, `save()` yang dijadwalkan 250ms). Kalau permintaan terakhir gagal, pil tidak langsung hilang: ia bertahan 1,8 detik dalam warna merah bertuliskan "Gagal menyimpan. Periksa koneksi." supaya pengguna tidak mengira simpanannya berhasil.
+- `window.fetch` dibungkus satu kali (`wzWatchRequests`) hanya untuk **menghitung** permintaan yang sedang berjalan, lalu `wzInstallBusyFeedback()` membungkus daftar aksi di `WZ_BUSY_ACTIONS` (29 nama). Tombol yang ditekan dapat kelas `.wz-busy` (isi tombol diganti spinner), `aria-busy`, dan `disabled=true` supaya tidak bisa terkirim dua kali. Nama aksi dipasang sebagai `title` (tooltip di layar lebar) dan dikembalikan seperti semula setelah selesai.
+- Tombol baru dibuka setelah **tidak ada lagi permintaan yang menggantung**, bukan hanya setelah fungsinya selesai.
 
-Cara pasangnya disengaja **tanpa `data-busy` di HTML**: tombol yang diketuk dicatat listener capture (`wzRememberTap`, lalu dibersihkan di task berikutnya supaya pemanggilan dari timer tidak ikut memakai tombol lama), lalu pembungkus aksi memakainya. Jadi tombol yang dibuat belakangan di dalam dialog pun ikut dapat tanda tanpa disentuh.
+**Tanda di luar tombol SENGAJA tidak ada.** Percobaan pertama memakai pil "Menyimpan..." mengambang di tengah bawah, tapi simpan latar (auto-refresh 30 detik, FCM, `save()` 250ms) membuatnya **berkedip berulang** persis seperti yang dilaporkan, dan `aria-live` membuat pembaca layar mengulanginya terus. Pil itu dihapus; `tests/loading-feedback.test.js` mengunci ketiadaannya (`id="wzNet"`, `.wz-net`, `wzNetText`/`wzNetPaint`/`wzNetBegin`/`wzNetEnd`, dan `aria-live` tidak boleh muncul lagi).
+
+Cara pasangnya tanpa `data-busy` di HTML: tombol yang diketuk dicatat listener capture (`wzRememberTap`, lalu dibersihkan di task berikutnya supaya pemanggilan dari timer tidak ikut memakai tombol lama), lalu pembungkus aksi memakainya. Jadi tombol yang dibuat belakangan di dalam dialog pun ikut dapat tanda tanpa disentuh.
 
 Batas tunggu ada dua, supaya aplikasi tidak pernah terkunci: `WZ_BUSY_LIMITS.idle` (40 x 80ms) untuk permintaan yang masih menggantung setelah aksi selesai, dan `WZ_BUSY_LIMITS.hard` (20 detik) sebagai pagar pengaman terakhir kalau promise aksi tidak pernah selesai.
 
 Yang SENGAJA tidak diberi tanda: `login` dan `logout` (keduanya meneruskan ke `window.login`/`window.logout`, jadi dibungkus akan memanggil dirinya sendiri terus-menerus; keduanya sudah punya teks "MEMASUK..." sendiri), `submitRegisterBusiness` (sudah punya `setActionLoading`), tombol yang hanya membuka dialog atau menutup modal, `printTransactionReceipt` (dialog print Android), dan `requestNotificationPermission` (dialog izin browser).
 
-Tes: `tests/loading-feedback.test.js` (10 tes) menjalankan blok status proses dari `index.html` di jsdom dengan fetch yang dikendalikan penuh. Yang diuji: spinner + `disabled` + isi pil selama perintah berjalan, tombol terbuka lagi setelah gagal, aksi sinkron (`saveService`) juga dapat tanda dan menunggu permintaannya, pil muncul untuk simpan latar, dua permintaan dihitung dua-duanya, dan kedua batas tunggu melepas tombol. `login`/`logout` diuji tidak terbungkus.
+Tes: `tests/loading-feedback.test.js` (10 tes) menjalankan blok status proses dari `index.html` di jsdom dengan fetch yang dikendalikan penuh. Yang diuji: spinner + `disabled` + `aria-busy` selama perintah berjalan, tooltip label dikembalikan utuh, tombol terbuka lagi setelah gagal, aksi sinkron (`saveService`) juga dapat tanda dan menunggu permintaannya, permintaan latar dihitung tanpa memunculkan apa pun, dan kedua batas tunggu melepas tombol. `login`/`logout` diuji tidak terbungkus.
 
 Belum diterapkan di `admin.html` (panel admin) -- tombolnya masih seperti sebelumnya.
+
+## Toast "tersimpan" harus jujur (aksi sinkron)
+
+Enam aksi di `index.html` menutup dialog lalu langsung `toast('... tersimpan.')`, padahal `save()` baru menulis ke server di latar belakang: aksi tidak pernah menunggu, jadi toast sukses bisa muncul padahal datanya belum sampai. Di HP tidak ada apa pun yang memperlihatkan keadaan aslinya, jadi Owner bisa mengira pengaturannya sudah aman.
+
+`saveReportThenToast(promise, okMessage, failMessage)` menunda toast sampai `save()` menjawab. `save()` sudah mengembalikan `Promise<boolean>` (`true` = benar-benar tersimpan), jadi helper ini tinggal memakainya:
+
+- Gagal: `toast(failMessage + alasan, true)` -- alasannya diambil dari `lastSaveError` (konflik versi, langganan tidak aktif, state kebesaran), bukan tebakan "periksa koneksi". Pola ini sudah dipakai `setServicePayrollCategory()` dan sekarang disamakan untuk **tambah layanan, ubah layanan, pengeluaran, pengaturan, pelanggan, dan absensi**.
+- Sukses: toast seperti sebelumnya, hanya sekarang muncul setelah server mengonfirmasi.
+- **Role karyawan dikecualikan.** Mereka tidak memakai `app-state`, jadi `queueAppStateSave()` selalu mengembalikan `false` untuk mereka. Tanpa pengecualian ini, setiap absensi karyawan akan berbunyi "gagal". Jalur karyawan di `saveCustomer()` memang sudah `await` endpoint sendiri, jadi tidak memakai helper ini.
+
+Transaksi dan laporan shift **tidak** ikut memakai helper: keduanya sudah punya jalur async sendiri yang menunggu server, dan tidak lewat `save()`.
+
+Tes: `tests/save-failure-toast.test.js` (8 tes) menjalankan helper di jsdom dengan `toast` dan `currentUser` palsu: toast sukses ditunda sampai jawabannya datang, gagal memunculkan pesan + alasan, exception juga dilaporkan, role karyawan tetap melihat sukses, dan enam aksi di atas terkunci memakai helper (bukan toast langsung) sementara `saveTransaction`/`saveShiftReport` dikunci **tidak** memakainya.
 
 ## Menu geser menutup sendiri saat diketuk di luar
 

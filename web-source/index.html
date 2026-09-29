@@ -1358,9 +1358,12 @@ input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[cont
 @keyframes wzScrimIn{from{opacity:0}to{opacity:1}}
 
 /* Status perintah yang sedang jalan.
-   Di HP indikator "Tersimpan online" di topbar disembunyikan (kelas
-   .wz-top-hidden), jadi tanpa ini tidak ada apa pun yang memberi tahu
-   pengguna bahwa tombol yang ditekan masih bekerja di server. */
+   Hanya pada tombol yang ditekan: isinya diganti spinner dan tombolnya
+   dikunci sampai server selesai. Tanda di floating/overlay SENGAJA tidak
+   ada -- sebelumnya ada pil "Menyimpan..." di tengah bawah, tapi
+   permintaannya ikut muncul-riap dari simpan latar (auto-refresh, FCM,
+   save() 250ms) sehingga pilnya berkedip berulang dan terasa seperti
+   halaman web, bukan aplikasi. */
 .wz-busy{position:relative;pointer-events:none;color:transparent!important;text-shadow:none!important}
 .wz-busy>*{visibility:hidden}
 .wz-busy::before{
@@ -1368,22 +1371,7 @@ input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[cont
  border:2px solid #ffffff4d;border-top-color:#fff;border-radius:50%;animation:wzSpin .65s linear infinite
 }
 @keyframes wzSpin{to{transform:rotate(360deg)}}
-.wz-net{
- position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:1300;
- display:flex;align-items:center;gap:9px;max-width:calc(100% - 28px);
- padding:9px 15px;border-radius:99px;background:#12161cf2;border:1px solid #6d5a24;
- color:#e8e9eb;font-size:12px;box-shadow:var(--shadow);pointer-events:none
-}
-.wz-net[hidden]{display:none}
-.wz-net.err{border-color:#8a3b3b;color:#ffc9c9}
-.wz-net-spin{
- width:13px;height:13px;flex:none;border:2px solid #ffffff40;border-top-color:var(--gold2);
- border-radius:50%;animation:wzSpin .65s linear infinite
-}
-.wz-net.err .wz-net-spin{border-top-color:#ff9b9b}
-.wz-net-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-@media(max-width:800px){.wz-net{bottom:calc(68px + 14px + env(safe-area-inset-bottom))}}
-@media(prefers-reduced-motion:reduce){.wz-busy::before,.wz-net-spin{animation-duration:1.6s}}
+@media(prefers-reduced-motion:reduce){.wz-busy::before{animation-duration:1.6s}}
 </style>
 
 </head>
@@ -1445,7 +1433,6 @@ input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[cont
 
 <div class="modal" id="modal"><div class="dialog" id="dialog"></div></div>
 <div class="toast" id="toast"></div>
-<div class="wz-net" id="wzNet" hidden role="status" aria-live="polite"><i class="wz-net-spin"></i><span class="wz-net-text" id="wzNetText">Menyimpan...</span></div>
 
 <script>
 let currentUser=null;
@@ -1729,16 +1716,39 @@ function playNotificationSound(){
 // persistAppState() menuliskannya dari dalam IIFE bridge.
 let lastSaveError=null;
 
+/* Toast hasil simpan.
+   Aksi sinkron di bawah (ubah state di memori lalu `save()`) tidak
+   menunggu server, jadi toast "tersimpan"-nya muncul padahal belum
+   tentu sampai ke server -- persis yang tidak terlihat oleh pengguna
+   karena dialognya sudah tertutup. `save()` mengembalikan
+   Promise<boolean> (true = benar-benar tersimpan), jadi helper ini
+   menunda toast sampai jawabannya datang dan memberi tahu kalau gagal.
+   Transaksi dan laporan shift tidak lewat `save()`, jadi tidak
+   tersentuh helper ini. */
+function saveReportThenToast(promise,okMessage,failMessage){
+ const ownerSide=!!currentUser&&['owner','manager'].includes(currentUser.role);
+ if(!promise||typeof promise.then!=='function'){toast(okMessage);return promise}
+ promise.then(function(ok){
+  // Role karyawan tidak memakai app-state: `save()` selalu mengembalikan
+  // false untuk mereka, jadi tidak boleh dilaporkan sebagai gagal.
+  if(ok||!ownerSide){toast(okMessage);return}
+  toast(failMessage+' '+(lastSaveError?.message||'Coba lagi sebentar.'),true);
+ },function(e){
+  toast(failMessage+' '+(e&&e.message||'Coba lagi sebentar.'),true);
+ });
+ return promise;
+}
+
 /* ---------------------------------------------------------- status proses
-   Dua lapis umpan balik supaya jelas perintahnya sedang jalan, bukan
-   gagal diam-diam:
-   1. tombol yang ditekan diberi spinner (kelas .wz-busy) dan
-      dinonaktifkan, jadi tidak bisa terkirim dua kali;
-   2. pil "Menyimpan..." muncul selama ada permintaan ke server yang
-      belum selesai. Di HP indikator topbar disembunyikan, jadi tanpa
-      pil ini tidak ada tanda sama sekali.
-   Indikator lewat floating tidak diubah: transform-nya dipakai rules
-   z-index yang sudah ada, jadi tidak disentuh. */
+   Satu lapis umpan balik, dan hanya di tempat yang ditekan pengguna:
+   tombol yang sedang menjalankan perintah diberi spinner (kelas
+   .wz-busy) plus `disabled`, jadi jelas masih jalan dan tidak bisa
+   terkirim dua kali. Tombol baru dibuka setelah tidak ada lagi
+   permintaan ke server yang menggantung.
+   Tanda di luar tombol (mis. pil mengambang) SENGAJA tidak ada:
+   percobaan sebelumnya memunculkan pil "Menyimpan..." di tengah bawah,
+   tapi simpan latar (auto-refresh, FCM, save() 250ms) membuatnya
+   berkedip berulang dan membuat ini terasa seperti situs. */
 const wzTap={el:null};
 function wzRememberTap(node){
  wzTap.el=node?.closest?.('button,.btn,[role="button"],a')||null;
@@ -1751,47 +1761,21 @@ document.addEventListener('submit',function(e){
  wzRememberTap(e.submitter||e.target?.querySelector('button[type="submit"]'));
 },true);
 
-const wzNet={count:0,failedAt:0,label:'',holdUntil:0};
+const wzNet={count:0};
 window.wzNetStatus=wzNet;
-function wzNetPaint(){
- const el=document.getElementById('wzNet');
- if(!el)return;
- const holding=wzNet.holdUntil>Date.now();
- const text=document.getElementById('wzNetText');
- if(text)text.textContent=holding&&wzNet.count===0?'Gagal menyimpan. Periksa koneksi.':(wzNet.label||'Menyimpan...');
- el.hidden=wzNet.count<1&&!holding;
- el.classList.toggle('err',wzNet.failedAt>0&&Date.now()-wzNet.failedAt<6000);
-}
-function wzNetBegin(label){
- if(label)wzNet.label=label;
- wzNet.count++;
- wzNetPaint();
-}
-function wzNetEnd(ok){
- wzNet.count=Math.max(0,wzNet.count-1);
- if(!ok){
-  wzNet.failedAt=Date.now();
-  // Permintaan terakhir yang gagal tidak boleh langsung hilang: kalau
-  // pilnya lenyap begitu saja, pengguna mengira simpanannya berhasil.
-  if(wzNet.count===0){
-   wzNet.holdUntil=Date.now()+1800;
-   setTimeout(wzNetPaint,1900);
-  }
- }
- wzNetPaint();
-}
 /* Semua panggilan API melewati fetch, jadi satu titik ini cukup untuk
-   tahu ada pekerjaan yang sedang jalan, termasuk simpan state latar. */
+   tahu apakah masih ada pekerjaan yang belum selesai. Yang dihitung
+   hanya angkanya: tidak ada yang ditampilkan dari sini. */
 (function wzWatchRequests(){
  const plain=window.fetch;
  if(typeof plain!=='function'||plain.__wzWatched)return;
  const watched=function(input,init){
-  wzNetBegin();
+  wzNet.count++;
   return plain.call(window,input,init).then(function(res){
-   wzNetEnd(!(res&&res.ok===false));
+   wzNet.count=Math.max(0,wzNet.count-1);
    return res;
   },function(err){
-   wzNetEnd(false);
+   wzNet.count=Math.max(0,wzNet.count-1);
    throw err;
   });
  };
@@ -1804,11 +1788,13 @@ function wzSetBusy(el,on,label){
  if(on){
   if(el.__wzBusy)return;
   el.__wzBusy=true;
-  if(label){
-   wzNet.label=label;
-   wzNetPaint();
-  }
   el.setAttribute('aria-busy','true');
+  // Label hanya dipakai sebagai petunjuk tooltip di layar lebar; di HP
+  // yang terlihat tetap spinner di dalam tombol.
+  if(label){
+   if(el.getAttribute('title')!==null)el.dataset.wzBusyTitle=el.getAttribute('title');
+   el.setAttribute('title',label);
+  }
   el.classList.add('wz-busy');
   if('disabled' in el)el.disabled=true;
   return;
@@ -1817,6 +1803,12 @@ function wzSetBusy(el,on,label){
  el.__wzBusy=false;
  el.classList.remove('wz-busy');
  el.removeAttribute('aria-busy');
+ if(el.dataset.wzBusyTitle!==undefined){
+  el.setAttribute('title',el.dataset.wzBusyTitle);
+  delete el.dataset.wzBusyTitle;
+ }else{
+  el.removeAttribute('title');
+ }
  if('disabled' in el)el.disabled=false;
 }
 /* Batas menunggu. `hard` adalah pagar pengaman terakhir: kalau ada
@@ -1860,36 +1852,36 @@ function wzWithBusy(el,label,task){
    keduanya meneruskan ke window.login/window.logout, jadi dibungkus
    akan memanggil dirinya sendiri terus-menerus. */
 const WZ_BUSY_ACTIONS={
- saveTransaction:'Menyimpan transaksi...',
- voidTx:'Memproses void...',
- saveShiftReport:'Menyimpan laporan shift...',
- saveEmployee:'Menyimpan karyawan...',
- deleteEmployee:'Menghapus karyawan...',
- saveBranch:'Menyimpan cabang...',
- saveCustomer:'Menyimpan pelanggan...',
- saveExpense:'Menyimpan pengeluaran...',
- saveService:'Menyimpan layanan...',
- updateService:'Menyimpan layanan...',
- setServicePayrollCategory:'Menyimpan kategori gaji...',
- saveSettings:'Menyimpan pengaturan...',
- saveOwnerSettings:'Menyimpan pengaturan...',
- saveMyProfile:'Menyimpan profil...',
- saveMyUsername:'Menyimpan username...',
- saveMyPassword:'Menyimpan password...',
- saveEmployeePayroll:'Menyimpan pengaturan gaji...',
- resetEmployeePayroll:'Menghapus pengaturan gaji...',
- savePayrollSettings:'Menyimpan pengaturan gaji...',
- resetAll:'Menghapus data...',
- syncBusiness:'Menyinkronkan data...',
- exportBackup:'Menyiapkan backup...',
- importBackup:'Memulihkan backup...',
- ownerForumSend:'Mengirim pesan...',
- ownerForumReact:'Memasang reaksi...',
- ownerForumVotePoll:'Mengirim suara...',
- ownerForumSubmitPoll:'Mengirim polling...',
- ownerForumLoadOlder:'Memuat pesan lama...',
- ownerRefreshBusiness:'Memuat ulang data...',
- selectSubscriptionPlan:'Memproses...'
+ saveTransaction:'Menyimpan transaksi',
+ voidTx:'Memproses void',
+ saveShiftReport:'Menyimpan laporan shift',
+ saveEmployee:'Menyimpan karyawan',
+ deleteEmployee:'Menghapus karyawan',
+ saveBranch:'Menyimpan cabang',
+ saveCustomer:'Menyimpan pelanggan',
+ saveExpense:'Menyimpan pengeluaran',
+ saveService:'Menyimpan layanan',
+ updateService:'Menyimpan layanan',
+ setServicePayrollCategory:'Menyimpan kategori gaji',
+ saveSettings:'Menyimpan pengaturan',
+ saveOwnerSettings:'Menyimpan pengaturan',
+ saveMyProfile:'Menyimpan profil',
+ saveMyUsername:'Menyimpan username',
+ saveMyPassword:'Menyimpan password',
+ saveEmployeePayroll:'Menyimpan pengaturan gaji',
+ resetEmployeePayroll:'Menghapus pengaturan gaji',
+ savePayrollSettings:'Menyimpan pengaturan gaji',
+ resetAll:'Menghapus data',
+ syncBusiness:'Menyinkronkan data',
+ exportBackup:'Menyiapkan backup',
+ importBackup:'Memulihkan backup',
+ ownerForumSend:'Mengirim pesan',
+ ownerForumReact:'Memasang reaksi',
+ ownerForumVotePoll:'Mengirim suara',
+ ownerForumSubmitPoll:'Mengirim polling',
+ ownerForumLoadOlder:'Memuat pesan lama',
+ ownerRefreshBusiness:'Memuat ulang data',
+ selectSubscriptionPlan:'Memproses'
 };
 function wzInstallBusyFeedback(){
  Object.keys(WZ_BUSY_ACTIONS).forEach(function(name){
@@ -3780,7 +3772,10 @@ async function saveCustomer(){
     }catch(e){toast('Pelanggan gagal disimpan: '+e.message,true)}
     return;
   }
-  db.customers.push(c);save();closeModal();toast('Pelanggan ditambahkan.');render();
+  db.customers.push(c);
+  const done=save();
+  closeModal();render();
+  saveReportThenToast(done,'Pelanggan ditambahkan.','Pelanggan belum tersimpan.');
 }
 function customerDetail(id){const c=getCustomer(id);if(!c){toast('Pelanggan tidak ditemukan.',true);return}const tx=db.transactions.filter(t=>t.customerId===id);show(`<span class="gold-label">PELANGGAN</span><h2>${escapeHtml(String(c?.name||'-'))}</h2><div class="detail-grid">${box('Telepon',c?.phone||'-')}${box('Kunjungan',c?.visits||0)}${box('Total Nilai',rupiah(c?.total))}</div><h3 style="margin-top:18px">Riwayat</h3>${tx.map(txRow).join('')||'<div class="empty">Belum ada transaksi.</div>'}<div class="dialog-actions"><button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 
@@ -3797,22 +3792,26 @@ function openService(){show(`<span class="gold-label">LAYANAN</span><h2>Tambah L
 function saveService(){
   if(!['owner','manager'].includes(currentUser?.role))return toast('Hanya Owner/Manager yang dapat menambah layanan.',true);
   const s={id:'S'+String(db.services.length+1).padStart(3,'0'),name:document.getElementById('sName')?.value.trim()||'',category:document.getElementById('sCat')?.value.trim()||'Umum',payrollCategory:document.getElementById('sPayCat')?.value||'',price:Number(document.getElementById('sPrice')?.value)||0,duration:Number(document.getElementById('sDur')?.value)||45,active:true};
-  if(!s.name)return peringatan('Isi nama layanan');db.services.push(s);save();closeModal();toast('Layanan ditambahkan.');render();
+  if(!s.name)return peringatan('Isi nama layanan');
+  db.services.push(s);
+  const done=save();
+  closeModal();render();
+  saveReportThenToast(done,'Layanan ditambahkan.','Layanan belum tersimpan.');
 }
 function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Kategori Gaji<select id="esPayCat"><option value="">Tidak dihitung</option>${payrollCategoryOptions(s.payrollCategory||'')}</select></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
-function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return peringatan('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return peringatan('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return peringatan('Durasi layanan tidak valid.');s.name=name;s.category=category;s.payrollCategory=document.getElementById('esPayCat')?.value||'';s.price=price;s.duration=duration;s.active=esActive.checked;save();closeModal();toast('Layanan berhasil diperbarui.');render()}
+function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return peringatan('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return peringatan('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return peringatan('Durasi layanan tidak valid.');s.name=name;s.category=category;s.payrollCategory=document.getElementById('esPayCat')?.value||'';s.price=price;s.duration=duration;s.active=esActive.checked;const done=save();closeModal();render();saveReportThenToast(done,'Layanan berhasil diperbarui.','Perubahan layanan belum tersimpan.')}
 
 function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',rupiah(revenue()),'finance')}${kpi('💸','Pengeluaran',rupiah(expenses()),'finance')}${kpi('📈','Laba',rupiah(profit()),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(e.date||''))} · ${escapeHtml(String(e.category||''))} · ${escapeHtml(String(e.note||''))}</span><b>${rupiah(e.amount)}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
 function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('fCustomer');if(c)c.value='';},50)}
 function openExpense(){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat"></label><label>Nominal<input id="xAmount" type="number"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}
-function saveExpense(){if(!guard('finance'))return;const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:xDate.value,category:xCat.value||'Operasional',amount:Number(xAmount.value)||0,note:xNote.value||''};db.expenses.push(x);save();closeModal();toast('Pengeluaran tersimpan.');render()}
+function saveExpense(){if(!guard('finance'))return;const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:xDate.value,category:xCat.value||'Operasional',amount:Number(xAmount.value)||0,note:xNote.value||''};db.expenses.push(x);const done=save();closeModal();render();saveReportThenToast(done,'Pengeluaran tersimpan.','Pengeluaran belum tersimpan.')}
 
 function reports(){
  const u=ownerBusinessTotals(),feed=ownerBusinessFeed(),posCount=feed.filter(x=>x.source==='POS').length,shiftCount=feed.filter(x=>x.source==='TUTUP_SHIFT').length;
  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">REPORTS</span><h1>Laporan</h1><p>POS dan Laporan Tutup Shift menggunakan satu jalur data bisnis.</p></div></div><div class="grid">${quick('🧾','Laporan Transaksi',feed.length+' data','reports')}${quick('💰','Laporan Keuangan',rupiah(u.omzet)+' omzet','finance')}${quick('👥','Laporan Karyawan',db.employees.length+' karyawan','employees')}${quick('✂️','Laporan Operasional',db.attendance.length+' absensi · '+shiftCount+' tutup shift','operations')}</div><section class="card section"><h3>Ringkasan</h3><div class="detail-grid">${box('Omzet',rupiah(u.omzet))}${box('Pelanggan',u.pelanggan)}${box('Cash',rupiah(u.cash))}${box('QRIS',rupiah(u.qris))}${box('POS',posCount)}${box('Tutup Shift',shiftCount)}</div></section>`;
 }
 function exportCSV(type){let rows=[];if(type==='transactions'){rows=db.transactions.map(t=>[t.id,t.date,getCustomer(t.customerId)?.name||'',getService(t.serviceId)?.name||'',getEmployee(t.employeeId)?.name||'',t.total,t.payment,t.status]);rows.unshift(['ID','Tanggal','Pelanggan','Layanan','Barber','Total','Pembayaran','Status'])}else{rows=db.employees.map(e=>[e.id,e.name,e.role,e.target,e.commission]);rows.unshift(['ID','Nama','Role','Target','Komisi'])}const out=rows.map(row=>row.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join(String.fromCharCode(10));const blob=new Blob([out],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='wz-'+type+'.csv';a.click();URL.revokeObjectURL(a.href)}
-function attendance(emp,status){const today=dateNow();let a=db.attendance.find(x=>x.employeeId===emp&&x.date===today);if(!a){a={id:'A'+Date.now(),date:today,employeeId:emp,status,in:new Date().toTimeString().slice(0,5),out:''};db.attendance.push(a)}else{a.status=status}const e=getEmployee(emp);if(status==='Hadir'&&e)e.attendance=(e.attendance||0)+1;save();toast('Absensi diperbarui.');render()}
+function attendance(emp,status){const today=dateNow();let a=db.attendance.find(x=>x.employeeId===emp&&x.date===today);if(!a){a={id:'A'+Date.now(),date:today,employeeId:emp,status,in:new Date().toTimeString().slice(0,5),out:''};db.attendance.push(a)}else{a.status=status}const e=getEmployee(emp);if(status==='Hadir'&&e)e.attendance=(e.attendance||0)+1;const done=save();render();saveReportThenToast(done,'Absensi diperbarui.','Absensi belum tersimpan.')}
 
 function operations(){
  const today=dateNow();
@@ -4266,7 +4265,7 @@ async function payrollSettingsPage(){
 
 function settings(){if(!guard('settings'))return;const soundEnabled=db.profile.notificationSoundEnabled!==false;const notificationStatus='Notification' in window?(Notification.permission==='granted'?'Aktif':Notification.permission==='denied'?'Diblokir':'Belum diizinkan'):'Tidak didukung';document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SETTINGS</span><h1>Pengaturan</h1><p>Profil bisnis dan preferensi online.</p></div><button class="btn primary" onclick="saveSettings()">Simpan Perubahan</button></div><section class="card"><div class="form"><label>Nama Direktur<input id="pName" value="${escapeHtml(String(db.profile.name||''))}"></label><label>Jabatan<input id="pRole" value="${escapeHtml(String(db.profile.role||''))}"></label><label class="full">Brand<input id="pBrand" value="${escapeHtml(String(db.profile.brand||''))}"></label><label class="full">Fokus<input id="pFocus" value="${escapeHtml(String(db.profile.focus||''))}"></label><label class="full">Ukuran Kertas Struk (thermal)<select id="pReceiptPaper"><option value="80"${receiptPaperSpec().code==='80'?' selected':''}>80mm (struk standar)</option><option value="58"${receiptPaperSpec().code==='58'?' selected':''}>58mm (struk kecil)</option></select></label></div></section><section class="card section"><h3>Notifikasi Perangkat</h3><p class="muted">Status notifikasi Android: ${notificationStatus}</p><button class="btn small" onclick="requestNotificationPermission()">Aktifkan Notifikasi Android</button><label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input id="pNotificationSound" type="checkbox" ${soundEnabled?'checked':''}> Suara notifikasi</label><button class="btn small" style="margin-top:10px" onclick="testNotificationSound()">Uji Suara</button></section><section class="card section"><h3>Data</h3><div class="actions"><button class="btn" onclick="exportBackup()">Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore JSON</button><button class="btn danger" onclick="resetAll()">Reset Data Demo</button></div></section>`}
 function testNotificationSound(){const wasEnabled=db.profile.notificationSoundEnabled;db.profile.notificationSoundEnabled=true;playNotificationSound();db.profile.notificationSoundEnabled=wasEnabled;toast('Suara notifikasi diuji.',true);}
-function saveSettings(){if(!guard('settings'))return;const name=document.getElementById('pName'),role=document.getElementById('pRole'),brand=document.getElementById('pBrand'),focus=document.getElementById('pFocus');if(!name||!role||!brand||!focus)return;db.profile.name=name.value;db.profile.role=role.value;db.profile.brand=brand.value;db.profile.focus=focus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;db.profile.receiptPaper=document.getElementById('pReceiptPaper')?.value==='58'?'58':'80';window.__wzReceiptPaper=db.profile.receiptPaper;applyReceiptPaper();save();toast('Pengaturan disimpan.');render()}
+function saveSettings(){if(!guard('settings'))return;const name=document.getElementById('pName'),role=document.getElementById('pRole'),brand=document.getElementById('pBrand'),focus=document.getElementById('pFocus');if(!name||!role||!brand||!focus)return;db.profile.name=name.value;db.profile.role=role.value;db.profile.brand=brand.value;db.profile.focus=focus.value;db.profile.notificationSoundEnabled=document.getElementById('pNotificationSound')?.checked!==false;db.profile.receiptPaper=document.getElementById('pReceiptPaper')?.value==='58'?'58':'80';window.__wzReceiptPaper=db.profile.receiptPaper;applyReceiptPaper();const done=save();render();saveReportThenToast(done,'Pengaturan disimpan.','Pengaturan belum tersimpan.')}
 
 
 let modalHistoryState=false;
