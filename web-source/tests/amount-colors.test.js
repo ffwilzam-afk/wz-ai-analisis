@@ -70,6 +70,18 @@ function rgb(hex) {
   return [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
 }
 
+// Menyiapkan jendela jsdom berisi seluruh helper nominal: palet, money(),
+// pemetaan label, pemisah ribuan, serta box()/boxCard(). Semua helper
+// warna tinggal satu blok di index.html, jadi cukup dipotong sekali.
+function moneyWindow() {
+  const w = new JSDOM('<!doctype html><body></body>', { runScripts: 'dangerously' }).window;
+  w.escapeHtml = v => String(v);
+  w.eval(INDEX.slice(INDEX.indexOf('function rupiah(value){'), INDEX.indexOf('const MONEY_TONE_RULES=')));
+  w.eval(INDEX.slice(INDEX.indexOf('const MONEY_TONE_RULES='), INDEX.indexOf('function branchOfEmployee(')));
+  w.eval(functionBody('box') + '\n' + functionBody('boxCard'));
+  return w;
+}
+
 test('palet tepat empat aturan Owner, tidak ada warna liar', () => {
   const declared = [...PALETTE.matchAll(/--wz-([a-z]+):(#[0-9a-fA-F]{6})/g)].map(m => m[1]);
   assert.deepEqual(declared.sort(), ['cust', 'in', 'neg', 'out', 'profit']);
@@ -125,7 +137,6 @@ test('kelas lama halaman karyawan memakai palet yang sama', () => {
 
 test('warna label dipetakan ke aturan Owner dengan urutan benar', () => {
   const w = new JSDOM('<!doctype html><body></body>', { runScripts: 'dangerously' }).window;
-  w.escapeHtml = v => String(v);
   w.eval(INDEX.slice(INDEX.indexOf('const MONEY_TONE_RULES='), INDEX.indexOf('function isAmountLike(')));
   assert.equal(w.moneyTone('Omzet'), 'in');
   assert.equal(w.moneyTone('Total Pendapatan'), 'in');
@@ -145,11 +156,7 @@ test('warna label dipetakan ke aturan Owner dengan urutan benar', () => {
 });
 
 test('warna dari label hanya untuk angka, nama tidak ikut', () => {
-  const w = new JSDOM('<!doctype html><body></body>', { runScripts: 'dangerously' }).window;
-  w.escapeHtml = v => String(v);
-  w.eval(INDEX.slice(INDEX.indexOf('const MONEY_TONE_RULES='), INDEX.indexOf('function branchOfEmployee(')));
-  w.escapeHtml = v => String(v);
-  w.eval(functionBody('box') + '\n' + functionBody('boxCard'));
+  const w = moneyWindow();
   // Nilai angka tetap ikut warna.
   assert.equal(w.moneyToneFor('Omzet', 'Rp 1.500.000'), 'in');
   assert.equal(w.moneyToneFor('Pelanggan', 12), 'cust');
@@ -174,16 +181,13 @@ test('warna dari label hanya untuk angka, nama tidak ikut', () => {
 test('nilai berformat rupiah tetap bisa dibaca tandanya', () => {
   // Nilai dari box() sudah berupa "Rp -2.000". Kalau hanya Number() yang
   // dipakai, hasilnya NaN sehingga minus tidak pernah jadi merah.
-  const w = new JSDOM('<!doctype html><body></body>', { runScripts: 'dangerously' }).window;
-  w.eval(INDEX.slice(INDEX.indexOf('function moneyNumber('), INDEX.indexOf('function moneyToneFor(')));
+  const w = moneyWindow();
   assert.equal(w.moneyNumber('Rp -2.000'), -2000);
   assert.equal(w.moneyNumber(-2000), -2000);
   assert.equal(w.moneyNumber('Rp 0'), 0);
   assert.equal(w.moneyNumber('Rp 1.500.000'), 1500000);
   assert.equal(w.moneyNumber(''), 0, 'nilai kosong harus jadi nol, bukan NaN');
   // Dan kelasnya: minus merah, nol dan positif tebal tanpa warna.
-  w.escapeHtml = v => String(v);
-  w.eval(functionBody('moneyToneClass') + '\n' + functionBody('box'));
   assert.match(w.box('Selisih', 'Rp -2.000', 'neg'), /class="money-neg"/, 'minus tidak merah');
   assert.match(w.box('Selisih', 'Rp 0', 'neg'), /class="money-net"/, 'nol ikut merah');
   assert.match(w.box('Selisih', 'Rp 2.000', 'neg'), /class="money-net"/, 'positif ikut merah');
@@ -269,12 +273,16 @@ test('grafik omzet hijau, laba biru, pengeluaran merah', () => {
 
 test('box() dan boxCard() mewarnakan lewat kelas, bukan lewat HTML', () => {
   const boxBody = functionBody('box');
-  assert.match(boxBody, /escapeHtml\(String\(b/, 'nilai box harus tetap di-escape');
-  assert.match(boxBody, /moneyToneClass\(b,tone\|\|moneyToneFor\(a,b\)\)/,
-    'box tidak memasang kelas warna dari tone');
-  const cardBody = functionBody('boxCard');
-  assert.match(cardBody, /moneyToneClass\(b,tone\|\|moneyToneFor\(a,b\)\)/,
-    'boxCard tidak memasang kelas warna dari tone');
+  // Nilainya sudah boleh diubah formatnya (pemisah ribuan), tapi tetap
+  // harus di-escape: warna masuk lewat kelas, bukan lewat HTML.
+  assert.match(boxBody, /escapeHtml\(String\(value/, 'nilai box harus tetap di-escape');
+  // Peran efektif dihitung sekali lalu dipakai untuk format DAN warna,
+  // supaya warna dan angka tidak pernah berbeda.
+  for (const [fn, body] of [['box', boxBody], ['boxCard', functionBody('boxCard')]]) {
+    assert.match(body, /moneyToneFor\(a,b\)/, fn + ' tidak memakai peran dari label');
+    assert.match(body, /formatAmount\(b,role\)/, fn + ' tidak memformat nilainya');
+    assert.match(body, /moneyToneClass\(b,role\)/, fn + ' tidak memasang kelas warna dari tone');
+  }
   // Tidak boleh ada money() di dalam argumen box/boxCard: nilainya
   // di-escape, jadi HTML-nya akan tampil mentah sebagai teks.
   for (const fn of ['reports', 'operations', 'analytics', 'dashboard', 'shiftReportDetail']) {
@@ -289,6 +297,50 @@ test('gaji dan bonus di kartu karyawan tetap memakai peran biaya', () => {
   assert.match(body, /class="payroll-revenue"/, 'omzet karyawan tidak memakai peran pemasukan');
   assert.match(body, /class="payroll-wage"/, 'upah karyawan tidak memakai peran biaya');
   assert.match(body, /class="payroll-bonus"/, 'bonus karyawan tidak memakai peran biaya');
+});
+
+test('diagram bulat rekap statistik memakai palet yang sama dengan legenda', () => {
+  // Iris dan legenda harus dibaca dari variabel yang sama. Kalau warna
+  // diketik terpisah, satu bisa berubah dan yang lain tidak.
+  const donut = functionBody('analyticsDonut');
+  assert.match(donut, /colors=\['var\(--wz-cust\)','var\(--wz-in\)','var\(--wz-out\)','var\(--wz-profit\)'\]/,
+    'diagram bulat tidak memakai variabel palet');
+  assert.doesNotMatch(donut, /#[0-9a-fA-F]{6}/, 'diagram bulat masih memakai hex yang diketik manual');
+  // Urutannya harus sama dengan nilai yang dihitung: pelanggan, omzet,
+  // pengeluaran, laba -- sesuai urutan legenda.
+  assert.match(donut, /Math\.max\(0,metric\.pelanggan\).*Math\.abs\(metric\.omzet\).*Math\.abs\(metric\.pengeluaran\).*Math\.abs\(metric\.laba\)/,
+    'urutan nilai iris tidak sesuai legenda');
+  // Legenda di sebelahnya juga variabel, untuk peran yang sama.
+  const legend = functionBody('analyticsMetricBoxes');
+  for (const [tone, hex] of [['cust', 'eab308'], ['in', '22c55e'], ['out', 'ef4444'], ['profit', '3b82f6']]) {
+    assert.match(legend, new RegExp('background:var\\(--wz-' + tone + '\\)'),
+      'legenda ' + tone + ' tidak memakai variabel palet');
+    assert.equal(color(tone), '#' + hex, 'var(--wz-' + tone + ') tidak lagi warna yang ditentukan');
+  }
+});
+
+test('nominal uang diberi pemisah ribuan, jumlah tetap polos', () => {
+  // Angka mentah (1500000) dulu tampil tanpa pemisah ribuan, jadi sulit
+  // dibaca di layar HP. Kotak ringkasan sekarang memformat sendiri.
+  const w = moneyWindow();
+  // Nominal uang: dapat pemisah ribuan.
+  assert.equal(w.formatAmount(1500000, 'in'), 'Rp 1.500.000');
+  assert.equal(w.formatAmount(45000000, 'profit'), 'Rp 45.000.000');
+  assert.equal(w.formatAmount(300000, 'out'), 'Rp 300.000');
+  assert.equal(w.formatAmount(0, 'in'), 'Rp 0');
+  // Jumlah (transaksi, pelanggan, karyawan) bukan nominal: tetap polos.
+  assert.equal(w.formatAmount(30, 'cust'), 30);
+  assert.equal(w.formatAmount(4, 'cust'), 4);
+  assert.equal(w.formatAmount(12, ''), 12);
+  // Nilai yang sudah berformat tidak boleh diformat dua kali.
+  assert.equal(w.formatAmount('Rp 5.000', 'in'), 'Rp 5.000');
+  // Tidak boleh jadi "Rp NaN" kalau angkanya rusak.
+  assert.equal(w.formatAmount(NaN, 'in'), NaN);
+  // Dan kotak ringkasan benar-benar memakainya.
+  assert.match(w.box('Total Pendapatan', 45000000, 'in'), /Rp 45\.000\.000/, 'kotak tidak diformat');
+  assert.match(w.box('Total Pelanggan', 30), />30</, 'jumlah pelanggan ikut jadi rupiah');
+  assert.match(w.boxCard('Laba Bersih', 44700000, 'profit'), /Rp 44\.700\.000/, 'kartu tidak diformat');
+  w.close();
 });
 
 test('struk cetak tidak memakai kelas warna sama sekali', () => {
