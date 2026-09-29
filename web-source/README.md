@@ -252,6 +252,32 @@ Transaksi dan laporan shift **tidak** ikut memakai helper: keduanya sudah punya 
 
 Tes: `tests/save-failure-toast.test.js` (8 tes) menjalankan helper di jsdom dengan `toast` dan `currentUser` palsu: toast sukses ditunda sampai jawabannya datang, gagal memunculkan pesan + alasan, exception juga dilaporkan, role karyawan tetap melihat sukses, dan enam aksi di atas terkunci memakai helper (bukan toast langsung) sementara `saveTransaction`/`saveShiftReport` dikunci **tidak** memakainya.
 
+## Warna nominal per kategori (palet netral)
+
+Nominal di semua halaman diberi warna sesuai perannya, tapi **paletnya sengaja netral**: hanya lima peran yang berwarna, sisanya tetap warna teks biasa supaya layar tidak dipenuhi warna dan angka tetap mudah dibandingkan. Semuanya dipilih lembut, bukan neon, supaya nyambung dengan tema gelap-emas dan tetap terbaca di layar HP kecil.
+
+| Peran | Warna | Dipakai untuk |
+| --- | --- | --- |
+| `in` | hijau lembut | Omzet, Pendapatan, Total Pembayaran, QRIS/Cash |
+| `profit` | hijau terang + tebal | Laba (yang paling penting, jadi paling menonjol) |
+| `out` | merah lembut | Pengeluaran, Gaji/Upah, Total Pengeluaran |
+| `bonus` | emas | Bonus karyawan |
+| `neg` | merah + tebal | Angka minus saja: selisih kasir, laba negatif (positifnya tebal tanpa warna) |
+| `net` | tanpa warna, tebal | Angka netral yang mau ditebalkan saja |
+
+Semua warna disimpan sebagai variabel di blok `<style id="amount-colors">` beserta kelas `.money-*`. Kelas lama `.payroll-revenue` / `.payroll-wage` / `.payroll-bonus` (dipakai kartu Karyawan) **dipertahankan sebagai alias** ke palet yang sama, jadi ikut berubah tanpa harus menyentuh markahnya.
+
+Dua cara memasang warna, dan pilihannya disengaja:
+
+- `money(nilai, 'in')` -- untuk nilai yang masuk ke HTML mentah (KPI, insight, baris tabel, daftar nominal).
+- `box(label, nilai, 'in')` dan `boxCard(label, nilai, 'in')` -- untuk kotak ringkasan. Parameter `tone` baru. **Jangan** mengirim `money()` ke `box()`/`boxCard()`: keduanya meng-escape nilainya, jadi tag `<span>`-nya akan tampil sebagai teks mentah di layar. Tes ini mengunci aturan itu.
+
+Cakupan: Dashboard (omzet & laba hari ini, total pendapatan/pengeluaran/laba, insight), Keuangan, Laporan, Operasional, Analitik (Pendapatan/Pengeluaran/Laba Bersih), Tutup Shift (total pembayaran, omzet, selisih kasir), daftar gaji per karyawan, dan daftar pengeluaran terbaru. Yang sengaja **tidak** diberi warna: nilai per transaksi di daftar, harga per layanan di form, Cash/QRIS di ringkasan, margin, dan rata-rata -- semuanya detail, bukan hal yang perlu menonjol.
+
+**Struk cetak tetap hitam semua.** Printer thermal 1-bit tidak bisa mencetak warna, jadi `renderTransactionReceipt()` tidak boleh memakai kelas warna apa pun. Sebagai jaring pengaman, ada aturan yang memaksa semua `.money-*` dan `.payroll-*` di dalam `#wzReceipt` menjadi `color:#000!important`, dan aturan `@media print` yang sudah ada tetap berlaku.
+
+Tes: `tests/amount-colors.test.js` (9 tes) mengunci lima peran (tidak boleh ditambah warna liar), kontras WCAG minimal 4.5:1 tiap warna terhadap tiga latar gelap yang dipakai aplikasi, perilaku `money()` (tanpa tone tetap polos, `neg` membedakan minus dan nol), cakupan peran di tujuh halaman, aturan `box()`/`boxCard()`, dan dua lapis penjaga struk: pemeriksaan sumber `renderTransactionReceipt()` plus merender nota sungguhan lewat `saveTransaction()` lalu memastikan tidak ada satu pun kelas warna di dalam `#wzReceipt`.
+
 ## Menu geser menutup sendiri saat diketuk di luar
 
 Ikon garis tiga membuka sidebar, tapi di HP **mengetuk di luar menu tidak menutupnya** -- menu tetap menempel sampai ikon ditekan lagi. Penyebabnya `toggleMenu()` hanya membalik kelas `open`, sedangkan `closeMobileMenu()` sudah ada tapi tidak pernah dipanggil dari mana pun.

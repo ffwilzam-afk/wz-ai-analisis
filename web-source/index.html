@@ -295,7 +295,44 @@ button,input,select,textarea{max-width:100%}
 }
 
 </style>
-<style id="payroll-color-revision">.payroll-revenue{color:#9BE7A5!important}.payroll-wage{color:#FF6B6B!important}.payroll-bonus{color:#FF6B6B!important}</style>
+<style id="amount-colors">
+/* Warna nominal -- palet NETRAL.
+   Hanya lima peran yang diberi warna; sisanya tetap warna teks biasa
+   supaya layar tidak dipenuhi warna dan angka tetap mudah dibandingkan.
+   Pilihannya sengaja desaturasi supaya nyambung dengan tema gelap-emas
+   dan tetap terbaca di layar HP kecil.
+     in     -> omzet / pemasukan
+     profit -> laba (yang paling penting, jadi paling terang + tebal)
+     out    -> pengeluaran, gaji, upah (satu warna untuk semua biaya)
+     bonus  -> bonus (emas, cocok dengan aksen merek)
+     neg    -> angka minus: selisih kasir, laba negatif
+   Kontras tiap warna diuji >= 4.5:1 di tests/amount-colors.test.js.
+   Struk cetak SENGAJA tidak memakai kelas ini: printer thermal
+   1-bit tidak bisa mencetak warna, jadi nota tetap hitam semua. */
+:root{
+ --wz-in:#74c69d;
+ --wz-profit:#9fe3b9;
+ --wz-out:#e08b8b;
+ --wz-bonus:#e0b64a;
+ --wz-neg:#ef6666
+}
+.money-in{color:var(--wz-in)!important}
+.money-profit{color:var(--wz-profit)!important;font-weight:700}
+.money-out{color:var(--wz-out)!important}
+.money-bonus{color:var(--wz-bonus)!important}
+.money-neg{color:var(--wz-neg)!important;font-weight:700}
+.money-net{font-weight:700}
+/* Alias lama: dipakai kartu Karyawan. Dipakai ulang supaya ikut
+   palet baru tanpa harus menyentuh markahnya. */
+.payroll-revenue{color:var(--wz-in)!important}
+.payroll-wage{color:var(--wz-out)!important}
+.payroll-bonus{color:var(--wz-bonus)!important}
+/* Jaring pengaman: kalau kelas ini bocor ke struk, nota tercetak
+   berwarna dan jadi tidak terbaca. */
+#wzReceipt .money-in,#wzReceipt .money-profit,#wzReceipt .money-out,
+#wzReceipt .money-bonus,#wzReceipt .money-neg,#wzReceipt .money-net,
+#wzReceipt .payroll-revenue,#wzReceipt .payroll-wage,#wzReceipt .payroll-bonus{color:#000!important}
+</style>
 <style id="graph-range-ui">
 .graph-range-controls{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-top:12px;padding-top:12px;border-top:1px solid var(--line)}
 .graph-range-controls label{display:flex;flex-direction:column;gap:5px;min-width:145px}
@@ -1527,6 +1564,15 @@ function can(key){return !!currentUser&&Array.isArray(ACCESS[currentUser.role])&
 function guard(key){if(!currentUser){toast('Silakan login terlebih dahulu.',true);return false}if(!can(key)){toast('Akses menu tidak diizinkan untuk role ini.',true);return false}return true}
 function dateNow(){return new Date().toISOString().slice(0,10)}
 function rupiah(value){return 'Rp '+Number(value||0).toLocaleString('id-ID')}
+/* Nominal + warna perannya. Tanpa `tone` hasilnya persis seperti
+   `rupiah()` biasa, jadi angka yang tidak penting tetap netral.
+   `neg` untuk angka minus: positifnya jadi tebal tanpa warna. */
+function money(value,tone){
+ const text=rupiah(value);
+ if(!tone)return text;
+ if(tone==='neg')return Number(value||0)<0?`<span class="money-neg">${text}</span>`:`<span class="money-net">${text}</span>`;
+ return `<span class="money-${tone}">${text}</span>`;
+}
 function branchOfEmployee(employeeId){return (db.employees||[]).find(e=>String(e.id)===String(employeeId))?.branchId||null}
 function profit(){return revenue()-expenses()}
 
@@ -2667,11 +2713,11 @@ function dashboard(branchId){
  </div>
  <section class="card section" style="margin-bottom:14px"><div class="panel-title"><h3>PILIH CABANG</h3><span class="subtle">Data Dashboard mengikuti data server</span></div><select class="select" onchange="dashboard(this.value)"><option value="ALL" ${selected==='ALL'?'selected':''}>Semua Cabang</option>${db.branches.filter(b=>b.active!==false).map(b=>`<option value="${b.id}" ${selected===b.id?'selected':''}>${b.name}</option>`).join('')}</select></section>
  <section class="kpis">
-  <div class="kpi pro clickable" onclick="go('finance')"><div class="kpi-top"><span class="kpi-label">Omzet Hari Ini</span><span>💰</span></div><div class="kpi-value">${rupiah(todayRev)}</div><div class="kpi-change trend up">▲ Hari ini</div></div>
+  <div class="kpi pro clickable" onclick="go('finance')"><div class="kpi-top"><span class="kpi-label">Omzet Hari Ini</span><span>💰</span></div><div class="kpi-value">${money(todayRev,'in')}</div><div class="kpi-change trend up">▲ Hari ini</div></div>
   <div class="kpi pro clickable" onclick="go('customers')"><div class="kpi-top"><span class="kpi-label">Pelanggan Hari Ini</span><span>👥</span></div><div class="kpi-value">${todayTx.length+todayShifts.reduce((a,r)=>a+Number(r.customers||0),0)}</div><div class="kpi-change trend up">▲ Data realtime</div></div>
   <div class="kpi pro clickable" onclick="go('transactions')"><div class="kpi-top"><span class="kpi-label">Booking / Transaksi</span><span>🧾</span></div><div class="kpi-value">${queue}</div><div class="kpi-change trend up">▲ Selesai</div></div>
   <div class="kpi pro clickable" onclick="go('operations')"><div class="kpi-top"><span class="kpi-label">Barber Aktif</span><span>✂️</span></div><div class="kpi-value">${attended.length}/${active.length}</div><div class="kpi-change">● Status operasional</div></div>
-  <div class="kpi pro clickable" onclick="go('finance')"><div class="kpi-top"><span class="kpi-label">Laba Hari Ini</span><span>📈</span></div><div class="kpi-value">${rupiah(todayRev-todayExp)}</div><div class="kpi-change trend up">▲ Setelah pengeluaran</div></div>
+  <div class="kpi pro clickable" onclick="go('finance')"><div class="kpi-top"><span class="kpi-label">Laba Hari Ini</span><span>📈</span></div><div class="kpi-value">${money(todayRev-todayExp,'profit')}</div><div class="kpi-change trend up">▲ Setelah pengeluaran</div></div>
  </section>
  <div class="dashboard-grid">
   <section class="card"><div class="panel-title"><h3>STATUS OPERASIONAL SAAT INI — ${branchLabel}</h3><span class="pill green">● ONLINE</span></div>
@@ -2725,7 +2771,7 @@ function dashboard(branchId){
    ${ownerRankChart(barberGraph.slice(0,8).map(x=>({name:x.name,value:x.value,id:x.id,type:'barber',periodLabel:rangeLabel})),'gold',v=>rupiah(v))}
   </section>
   <section class="card"><div class="panel-title"><h3>SUMBER DATA BISNIS</h3><span class="subtle">Database perangkat</span></div>
-   <div class="detail-grid">${box('Total Pendapatan',rupiah(rev))}${box('Total Pengeluaran',rupiah(exp))}${box('Total Laba',rupiah(pro))}${box('Total Pelanggan',branchCustomers)}</div>
+   <div class="detail-grid">${box('Total Pendapatan',rev,'in')}${box('Total Pengeluaran',exp,'out')}${box('Total Laba',pro,'profit')}${box('Total Pelanggan',branchCustomers)}</div>
    <div class="insight">💡 <b>Insight:</b> ${rev>=exp?'Pendapatan saat ini lebih besar dari pengeluaran.':'Pengeluaran perlu dikendalikan agar laba meningkat.'}</div>
   </section>
  </div>
@@ -2743,7 +2789,7 @@ function dashboard(branchId){
  </div>
  <section class="section-head"><div><span class="gold-label">BUSINESS INTELLIGENCE</span><h2>Insight & Notifikasi</h2></div></section>
  <div class="dashboard-grid three">
-  <section class="card"><h3>💡 Insight Bisnis</h3><div class="insight">📊 Omzet keseluruhan <b>${rupiah(rev)}</b>.</div><div class="insight">✂️ Layanan teratas: <b>${serviceStats[0]?.name||'-'}</b>.</div><div class="insight">👥 Basis pelanggan: <b>${branchCustomers}</b> orang.</div><div class="insight">🎯 Target karyawan dapat dipantau dari menu KPI.</div><button class="btn" style="width:100%" onclick="go('analytics')">LIHAT SEMUA ANALISIS</button></section>
+  <section class="card"><h3>💡 Insight Bisnis</h3><div class="insight">📊 Omzet keseluruhan <b>${money(rev,'in')}</b>.</div><div class="insight">✂️ Layanan teratas: <b>${serviceStats[0]?.name||'-'}</b>.</div><div class="insight">👥 Basis pelanggan: <b>${branchCustomers}</b> orang.</div><div class="insight">🎯 Target karyawan dapat dipantau dari menu KPI.</div><button class="btn" style="width:100%" onclick="go('analytics')">LIHAT SEMUA ANALISIS</button></section>
   <section class="card"><h3>🔔 Pengingat & Notifikasi</h3><div class="insight">💾 Backup terakhir tersimpan lokal.</div><div class="insight">👥 ${active.length} karyawan terdaftar aktif.</div><div class="insight">🧾 ${feed.filter(x=>x.source==='POS').length} transaksi POS + ${feed.filter(x=>x.source==='TUTUP_SHIFT').length} tutup shift tersimpan.</div><div class="insight">📦 Gunakan Backup untuk mengamankan data.</div><button class="btn" style="width:100%" onclick="go('notifications')">LIHAT NOTIFIKASI</button></section>
   <section class="card"><h3>🎯 KPI & TARGET</h3><div class="value">${active.length?Math.round(active.reduce((a,e)=>a+Number(e.eval||0),0)/active.length):0}%</div><p class="subtle">Rata-rata evaluasi karyawan</p><div class="bar-track"><div class="bar-fill" style="width:${active.length?Math.min(100,active.reduce((a,e)=>a+Number(e.eval||0),0)/active.length):0}%"></div></div><button class="btn primary" style="width:100%;margin-top:14px" onclick="go('employees')">LIHAT DETAIL TARGET</button></section>
  </div>
@@ -2827,7 +2873,10 @@ function dashboardFilter(){
 render();
 function txDetail(id){const t=db.transactions.find(x=>x.id===id);if(!t){toast('Transaksi tidak ditemukan.',true);return}const c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);show(`<span class="gold-label">DETAIL TRANSAKSI</span><h2>${escapeHtml(String(t.id))}</h2><div class="detail-grid">${box('Tanggal',t.date)}${box('Pelanggan',c?.name||'-')}${box('Layanan',s?.name||'-')}${box('Barber',e?.name||'-')}${box('Pembayaran',t.payment)}${box('Total',rupiah(t.total))}</div><div class="dialog-actions">${t.status!=='VOID'?`<button class="btn danger" onclick="voidTx('${id}')">Void Transaksi</button>`:''}<button class="btn" onclick="closeModal()">Tutup</button></div>`)}
 async function voidTx(id){const t=db.transactions.find(x=>x.id===id);if(!t)return;if(await konfirmasi('Void transaksi ini? Status transaksi berubah menjadi VOID dan tidak bisa dihitung lagi ke omzet maupun gaji.',{judul:'Void Transaksi',okLabel:'VOID',danger:true})){t.status='VOID';save();closeModal();toast('Transaksi di-void.');render()}}
-function box(a,b){return `<div class="detail-box"><span class="label">${escapeHtml(String(a??''))}</span><strong>${escapeHtml(String(b??''))}</strong></div>`}
+// `tone` dipakai untuk warna nominal (lihat palet `amount-colors`).
+// Nilainya tetap di-escape: warna masuk lewat kelas, bukan lewat HTML,
+// jadi tidak ada jalan untuk menyuntik markup ke dalam nilai ini.
+function box(a,b,tone){return `<div class="detail-box"><span class="label">${escapeHtml(String(a??''))}</span><strong${tone?` class="money-${tone}"`:''}>${escapeHtml(String(b??''))}</strong></div>`}
 
 let pendingAndroidNotification=null;
 
@@ -2928,8 +2977,8 @@ function shiftReports(){
      <tbody>
       ${currentReports.map(r=>`<tr onclick="shiftReportDetail('${String(r.id).replace(/'/g,"\\'")}')" style="cursor:pointer">
        <td>${r.date||'-'}</td><td>${escapeHtml(String(r.employeeName||'-'))}</td><td>${escapeHtml(String(r.shiftType||'-'))}</td>
-       <td>${r.customers||0}</td><td>${rupiah(r.totalPayment||0)}</td><td>${rupiah(r.totalOmzet||0)}</td>
-       <td>${rupiah(r.cashDifference||0)}</td>
+       <td>${r.customers||0}</td><td>${money(r.totalPayment||0,'in')}</td><td>${money(r.totalOmzet||0,'in')}</td>
+       <td>${money(r.cashDifference||0,'neg')}</td>
       </tr>`).join('')||'<tr><td colspan="7" class="empty">Belum ada laporan shift.</td></tr>'}
      </tbody>
     </table>
@@ -2970,7 +3019,7 @@ function shiftReports(){
    <div class="card" style="margin-top:12px;background:#0b0e12">
     <div class="metricLine" style="display:flex;justify-content:space-between;padding:9px 0"><span class="muted">Total pembayaran</span><b id="srTotalPayment">${rupiah(existing?.totalPayment||0)}</b></div>
     <div class="metricLine" style="display:flex;justify-content:space-between;padding:9px 0"><span class="muted">Kas akhir seharusnya</span><b id="srExpectedCash">${rupiah(existing?.expectedCash||0)}</b></div>
-    <div class="metricLine" style="display:flex;justify-content:space-between;padding:9px 0"><span class="muted">Selisih kasir</span><b id="srDifference">${rupiah(existing?.cashDifference||0)}</b></div>
+    <div class="metricLine" style="display:flex;justify-content:space-between;padding:9px 0"><span class="muted">Selisih kasir</span><b id="srDifference">${money(existing?.cashDifference||0,'neg')}</b></div>
     <div class="subtle" style="margin-top:7px">Kas akhir seharusnya = Kas awal + Tunai − Pengeluaran kas. QRIS tidak masuk uang fisik kasir.</div>
    </div>
 
@@ -2997,7 +3046,7 @@ function shiftReports(){
    </label>
 
    <div class="card" style="margin-top:12px;background:#16130c;border-color:#4e3b17">
-    <b>Total omzet shift: <span id="srTotalOmzet">${rupiah(existing?.totalOmzet||0)}</span></b>
+    <b>Total omzet shift: <span id="srTotalOmzet">${money(existing?.totalOmzet||0,'in')}</span></b>
    </div>
 
    ${existing?'<div class="pill gold">Laporan shift sudah tersimpan.</div>':'<button type="button" id="saveShiftReportBtn" class="btn primary" style="margin-top:12px;width:100%" onclick="saveShiftReport()">Simpan Laporan Shift</button>'}
@@ -3667,7 +3716,7 @@ function payrollEmployeeListHtml(){
     }).length:0;
     return `<div class="feature" style="display:grid;grid-template-columns:1.2fr .9fr .9fr .8fr;gap:8px;align-items:center;padding:11px 0;border-bottom:1px solid #20242b">
       <div><b>${escapeHtml(String(e.name))}</b><div class="subtle">${escapeHtml(String(e.role))} · ${escapeHtml(String(e.id))}</div></div>
-      <div><span class="subtle">Gaji</span><br>${rupiah(pay?.baseSalary||0)}</div>
+      <div><span class="subtle">Gaji</span><br>${money(pay?.baseSalary||0,'out')}</div>
       <div><span class="subtle">Kategori terpakai</span><br>${PAYROLL_CATEGORIES.filter(c=>(payrollServiceGroups().groups[c.key]||[]).length).length} dari 5</div>
       <div style="display:flex;gap:6px;justify-content:flex-end">${own?'<span class="pill">Kustom</span>':''}${diff?`<span class="pill" title="Kategori dengan aturan berbeda dari umum">${diff} beda</span>`:''}<button class="btn small" onclick="openEmployeePayrollForm('${escapeHtml(String(e.id))}')">Atur</button></div>
     </div>`;
@@ -3801,14 +3850,14 @@ function saveService(){
 function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Kategori Gaji<select id="esPayCat"><option value="">Tidak dihitung</option>${payrollCategoryOptions(s.payrollCategory||'')}</select></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
 function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return peringatan('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return peringatan('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return peringatan('Durasi layanan tidak valid.');s.name=name;s.category=category;s.payrollCategory=document.getElementById('esPayCat')?.value||'';s.price=price;s.duration=duration;s.active=esActive.checked;const done=save();closeModal();render();saveReportThenToast(done,'Layanan berhasil diperbarui.','Perubahan layanan belum tersimpan.')}
 
-function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',rupiah(revenue()),'finance')}${kpi('💸','Pengeluaran',rupiah(expenses()),'finance')}${kpi('📈','Laba',rupiah(profit()),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(e.date||''))} · ${escapeHtml(String(e.category||''))} · ${escapeHtml(String(e.note||''))}</span><b>${rupiah(e.amount)}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
+function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',money(revenue(),'in'),'finance')}${kpi('💸','Pengeluaran',money(expenses(),'out'),'finance')}${kpi('📈','Laba',money(profit(),'profit'),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(e.date||''))} · ${escapeHtml(String(e.category||''))} · ${escapeHtml(String(e.note||''))}</span><b>${money(e.amount,'out')}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
 function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('fCustomer');if(c)c.value='';},50)}
 function openExpense(){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat"></label><label>Nominal<input id="xAmount" type="number"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}
 function saveExpense(){if(!guard('finance'))return;const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:xDate.value,category:xCat.value||'Operasional',amount:Number(xAmount.value)||0,note:xNote.value||''};db.expenses.push(x);const done=save();closeModal();render();saveReportThenToast(done,'Pengeluaran tersimpan.','Pengeluaran belum tersimpan.')}
 
 function reports(){
  const u=ownerBusinessTotals(),feed=ownerBusinessFeed(),posCount=feed.filter(x=>x.source==='POS').length,shiftCount=feed.filter(x=>x.source==='TUTUP_SHIFT').length;
- document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">REPORTS</span><h1>Laporan</h1><p>POS dan Laporan Tutup Shift menggunakan satu jalur data bisnis.</p></div></div><div class="grid">${quick('🧾','Laporan Transaksi',feed.length+' data','reports')}${quick('💰','Laporan Keuangan',rupiah(u.omzet)+' omzet','finance')}${quick('👥','Laporan Karyawan',db.employees.length+' karyawan','employees')}${quick('✂️','Laporan Operasional',db.attendance.length+' absensi · '+shiftCount+' tutup shift','operations')}</div><section class="card section"><h3>Ringkasan</h3><div class="detail-grid">${box('Omzet',rupiah(u.omzet))}${box('Pelanggan',u.pelanggan)}${box('Cash',rupiah(u.cash))}${box('QRIS',rupiah(u.qris))}${box('POS',posCount)}${box('Tutup Shift',shiftCount)}</div></section>`;
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">REPORTS</span><h1>Laporan</h1><p>POS dan Laporan Tutup Shift menggunakan satu jalur data bisnis.</p></div></div><div class="grid">${quick('🧾','Laporan Transaksi',feed.length+' data','reports')}${quick('💰','Laporan Keuangan',rupiah(u.omzet)+' omzet','finance')}${quick('👥','Laporan Karyawan',db.employees.length+' karyawan','employees')}${quick('✂️','Laporan Operasional',db.attendance.length+' absensi · '+shiftCount+' tutup shift','operations')}</div><section class="card section"><h3>Ringkasan</h3><div class="detail-grid">${box('Omzet',u.omzet,'in')}${box('Pelanggan',u.pelanggan)}${box('Cash',rupiah(u.cash))}${box('QRIS',rupiah(u.qris))}${box('POS',posCount)}${box('Tutup Shift',shiftCount)}</div></section>`;
 }
 function exportCSV(type){let rows=[];if(type==='transactions'){rows=db.transactions.map(t=>[t.id,t.date,getCustomer(t.customerId)?.name||'',getService(t.serviceId)?.name||'',getEmployee(t.employeeId)?.name||'',t.total,t.payment,t.status]);rows.unshift(['ID','Tanggal','Pelanggan','Layanan','Barber','Total','Pembayaran','Status'])}else{rows=db.employees.map(e=>[e.id,e.name,e.role,e.target,e.commission]);rows.unshift(['ID','Nama','Role','Target','Komisi'])}const out=rows.map(row=>row.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join(String.fromCharCode(10));const blob=new Blob([out],{type:'text/csv'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='wz-'+type+'.csv';a.click();URL.revokeObjectURL(a.href)}
 function attendance(emp,status){const today=dateNow();let a=db.attendance.find(x=>x.employeeId===emp&&x.date===today);if(!a){a={id:'A'+Date.now(),date:today,employeeId:emp,status,in:new Date().toTimeString().slice(0,5),out:''};db.attendance.push(a)}else{a.status=status}const e=getEmployee(emp);if(status==='Hadir'&&e)e.attendance=(e.attendance||0)+1;const done=save();render();saveReportThenToast(done,'Absensi diperbarui.','Absensi belum tersimpan.')}
@@ -3832,7 +3881,7 @@ function operations(){
  ${boxCard('Tutup Shift',shifts.length)}
  </div>
  <section class="card section"><h3>Ringkasan Hari Ini</h3>
- <div class="detail-grid">${box('Omzet',rupiah(omzet))}${box('Cash',rupiah(cash))}${box('QRIS',rupiah(qris))}${box('Pelanggan',customers)}</div></section>
+ <div class="detail-grid">${box('Omzet',omzet,'in')}${box('Cash',rupiah(cash))}${box('QRIS',rupiah(qris))}${box('Pelanggan',customers)}</div></section>
  <section class="card section"><h3>Laporan Tutup Shift Hari Ini</h3>
  ${shifts.length?shifts.map(r=>`<div class="schedule-item"><div><b>${r.employeeName||r.employeeId||'-'}</b><div class="subtle">${r.shiftType||'Shift'} · ${Number(r.customers||0)} pelanggan</div></div><strong>${rupiah(r.totalOmzet||0)}</strong></div>`).join(''):'<div class="empty">Belum ada laporan tutup shift hari ini.</div>'}
  </section>
@@ -3869,9 +3918,9 @@ function exportOwnerAnalytics(){
 }
 function analytics(){
  const range=analyticsRange(),from=document.getElementById('analyticsFrom')?.value||range.from,to=document.getElementById('analyticsTo')?.value||range.to,feed=ownerBusinessFeed().filter(x=>x.date>=from&&x.date<=to),revenueValue=feed.reduce((s,x)=>s+Number(x.amount||0),0),expenseValue=feed.reduce((s,x)=>s+Number(x.expense||0),0)+db.expenses.filter(x=>x.date>=from&&x.date<=to).reduce((s,x)=>s+Number(x.amount||0),0),serviceStats=analyticsServiceStats(from,to),employees=analyticsEmployeeStats(from,to),avg=feed.length?revenueValue/feed.length:0,chartItems=analyticsChartItems(from,to,feed),expenseItems=chartItems.map(x=>({...x,value:feed.filter(r=>r.date===x.key).reduce((s,r)=>s+Number(r.expense||0),0)+db.expenses.filter(r=>r.date===x.key).reduce((s,r)=>s+Number(r.amount||0),0)})),profitItems=chartItems.map((x,i)=>({...x,value:x.value-expenseItems[i].value}));
- document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">ANALYTICS</span><h1>Analisis Bisnis</h1><p>Panel statistik OWNER untuk membaca performa, tren, dan kesehatan bisnis.</p></div><button class="btn" onclick="exportOwnerAnalytics()">Download CSV</button></div><section class="card section"><div class="panel-title"><h3>Periode Analisis</h3><span class="subtle">${from} sampai ${to}</span></div><div class="form"><label>Dari<input id="analyticsFrom" type="date" value="${from}" onchange="analytics()"></label><label>Sampai<input id="analyticsTo" type="date" value="${to}" onchange="analytics()"></label></div></section><div class="grid">${boxCard('Pendapatan',rupiah(revenueValue))}${boxCard('Pengeluaran',rupiah(expenseValue))}${boxCard('Laba Bersih',rupiah(revenueValue-expenseValue))}${boxCard('Rata-rata Data',rupiah(avg))}</div><div class="dashboard-grid" style="margin-top:14px"><section class="card"><div class="panel-title"><h3>TREND PENDAPATAN</h3><span class="subtle">Klik titik untuk detail</span></div>${ownerLineChart('revenue',chartItems,'blue','Pendapatan')}</section><section class="card"><div class="panel-title"><h3>TREND LABA</h3><span class="subtle">Pendapatan dikurangi biaya</span></div>${ownerLineChart('profit',profitItems,'green','Laba Bersih')}</section></div><section class="card section"><h3>Performa Layanan</h3>${serviceStats.map(x=>`<div class="bar-row"><span>${escapeHtml(String(x.name))}</span><div class="bar"><i style="width:${serviceStats[0]?.rev?(x.rev/serviceStats[0].rev)*100:0}%"></i></div><span class="bar-num">${rupiah(x.rev)}</span></div>`).join('')||'<div class="empty">Belum ada data layanan.</div>'}</section><section class="card section"><h3>Top Karyawan</h3>${employees.slice(0,5).map((x,i)=>`<div class="schedule-item"><div><b>${i+1}. ${escapeHtml(String(x.name))}</b><div class="subtle">${x.tx} pelanggan/transaksi</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada data karyawan.</div>'}</section><section class="card section"><h3>Sumber Data</h3><div class="detail-grid">${box('POS',rupiah(feed.filter(x=>x.source==='POS').reduce((s,x)=>s+x.amount,0)))}${box('Tutup Shift',rupiah(feed.filter(x=>x.source==='TUTUP_SHIFT').reduce((s,x)=>s+x.amount,0)))}${box('Pelanggan',feed.reduce((s,x)=>s+Number(x.customers||0),0))}${box('Periode',`${from} - ${to}`)}</div></section>`;
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">ANALYTICS</span><h1>Analisis Bisnis</h1><p>Panel statistik OWNER untuk membaca performa, tren, dan kesehatan bisnis.</p></div><button class="btn" onclick="exportOwnerAnalytics()">Download CSV</button></div><section class="card section"><div class="panel-title"><h3>Periode Analisis</h3><span class="subtle">${from} sampai ${to}</span></div><div class="form"><label>Dari<input id="analyticsFrom" type="date" value="${from}" onchange="analytics()"></label><label>Sampai<input id="analyticsTo" type="date" value="${to}" onchange="analytics()"></label></div></section><div class="grid">${boxCard('Pendapatan',revenueValue,'in')}${boxCard('Pengeluaran',expenseValue,'out')}${boxCard('Laba Bersih',revenueValue-expenseValue,'profit')}${boxCard('Rata-rata Data',rupiah(avg))}</div><div class="dashboard-grid" style="margin-top:14px"><section class="card"><div class="panel-title"><h3>TREND PENDAPATAN</h3><span class="subtle">Klik titik untuk detail</span></div>${ownerLineChart('revenue',chartItems,'blue','Pendapatan')}</section><section class="card"><div class="panel-title"><h3>TREND LABA</h3><span class="subtle">Pendapatan dikurangi biaya</span></div>${ownerLineChart('profit',profitItems,'green','Laba Bersih')}</section></div><section class="card section"><h3>Performa Layanan</h3>${serviceStats.map(x=>`<div class="bar-row"><span>${escapeHtml(String(x.name))}</span><div class="bar"><i style="width:${serviceStats[0]?.rev?(x.rev/serviceStats[0].rev)*100:0}%"></i></div><span class="bar-num">${rupiah(x.rev)}</span></div>`).join('')||'<div class="empty">Belum ada data layanan.</div>'}</section><section class="card section"><h3>Top Karyawan</h3>${employees.slice(0,5).map((x,i)=>`<div class="schedule-item"><div><b>${i+1}. ${escapeHtml(String(x.name))}</b><div class="subtle">${x.tx} pelanggan/transaksi</div></div><strong>${rupiah(x.value)}</strong></div>`).join('')||'<div class="empty">Belum ada data karyawan.</div>'}</section><section class="card section"><h3>Sumber Data</h3><div class="detail-grid">${box('POS',rupiah(feed.filter(x=>x.source==='POS').reduce((s,x)=>s+x.amount,0)))}${box('Tutup Shift',rupiah(feed.filter(x=>x.source==='TUTUP_SHIFT').reduce((s,x)=>s+x.amount,0)))}${box('Pelanggan',feed.reduce((s,x)=>s+Number(x.customers||0),0))}${box('Periode',`${from} - ${to}`)}</div></section>`;
 }
-function boxCard(a,b){return `<div class="card"><div class="label">${a}</div><div class="value">${b}</div></div>`}
+function boxCard(a,b,tone){return `<div class="card"><div class="label">${a}</div><div class="value${tone?' money-'+tone:''}">${b}</div></div>`}
 
 const analyticsHistory={level:'years',year:null,month:null,day:null};
 function analyticsMetric(from,to){
