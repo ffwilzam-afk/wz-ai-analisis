@@ -252,31 +252,39 @@ Transaksi dan laporan shift **tidak** ikut memakai helper: keduanya sudah punya 
 
 Tes: `tests/save-failure-toast.test.js` (8 tes) menjalankan helper di jsdom dengan `toast` dan `currentUser` palsu: toast sukses ditunda sampai jawabannya datang, gagal memunculkan pesan + alasan, exception juga dilaporkan, role karyawan tetap melihat sukses, dan enam aksi di atas terkunci memakai helper (bukan toast langsung) sementara `saveTransaction`/`saveShiftReport` dikunci **tidak** memakainya.
 
-## Warna nominal per kategori (palet netral)
+## Warna nominal sesuai aturan Owner
 
-Nominal di semua halaman diberi warna sesuai perannya, tapi **paletnya sengaja netral**: hanya lima peran yang berwarna, sisanya tetap warna teks biasa supaya layar tidak dipenuhi warna dan angka tetap mudah dibandingkan. Semuanya dipilih lembut, bukan neon, supaya nyambung dengan tema gelap-emas dan tetap terbaca di layar HP kecil.
+Nominal di semua halaman diberi warna mengikuti empat aturan yang ditetapkan Owner:
 
 | Peran | Warna | Dipakai untuk |
 | --- | --- | --- |
-| `in` | hijau lembut | Omzet, Pendapatan, Total Pembayaran, QRIS/Cash |
-| `profit` | hijau terang + tebal | Laba (yang paling penting, jadi paling menonjol) |
-| `out` | merah lembut | Pengeluaran, Gaji/Upah, Total Pengeluaran |
-| `bonus` | emas | Bonus karyawan |
+| `in` | **hijau** `#22c55e` | Omzet, Pendapatan, Total Pembayaran, QRIS/Cash |
+| `profit` | **biru** `#3b82f6` | Laba, Laba Bersih |
+| `out` | **merah** `#ef4444` | Pengeluaran, Gaji, Upah, Bonus, Potongan |
+| `cust` | **kuning** `#eab308` | Pelanggan, Kunjungan, Transaksi |
 | `neg` | merah + tebal | Angka minus saja: selisih kasir, laba negatif (positifnya tebal tanpa warna) |
 | `net` | tanpa warna, tebal | Angka netral yang mau ditebalkan saja |
 
+Warna dipilih sebagai warna yang biasa dikenal, bukan nuansa redup, supaya "merah itu merah" dan "biru itu biru" tanpa perlu menebak. Peran `bonus` sengaja dihapus: bonus adalah bagian dari gaji, jadi warna biaya.
+
 Semua warna disimpan sebagai variabel di blok `<style id="amount-colors">` beserta kelas `.money-*`. Kelas lama `.payroll-revenue` / `.payroll-wage` / `.payroll-bonus` (dipakai kartu Karyawan) **dipertahankan sebagai alias** ke palet yang sama, jadi ikut berubah tanpa harus menyentuh markahnya.
+
+**Grafik juga ikut aturan yang sama.** Warna garis dan titik memakai variabel palet, bukan hex terpisah, dan pemakaiannya ditukar: grafik omzet hijau, grafik laba biru, grafik pengeluaran merah. Keterangan kecil di bawah judul grafik ikut ditukar supaya tidak berbohong.
 
 Dua cara memasang warna, dan pilihannya disengaja:
 
 - `money(nilai, 'in')` -- untuk nilai yang masuk ke HTML mentah (KPI, insight, baris tabel, daftar nominal).
-- `box(label, nilai, 'in')` dan `boxCard(label, nilai, 'in')` -- untuk kotak ringkasan. Parameter `tone` baru. **Jangan** mengirim `money()` ke `box()`/`boxCard()`: keduanya meng-escape nilainya, jadi tag `<span>`-nya akan tampil sebagai teks mentah di layar. Tes ini mengunci aturan itu.
+- `box(label, nilai, 'in')` dan `boxCard(label, nilai, 'in')` -- untuk kotak ringkasan. **Jangan** mengirim `money()` ke `box()`/`boxCard()`: keduanya meng-escape nilainya, jadi tag `<span>`-nya akan tampil sebagai teks mentah di layar.
 
-Cakupan: Dashboard (omzet & laba hari ini, total pendapatan/pengeluaran/laba, insight), Keuangan, Laporan, Operasional, Analitik (Pendapatan/Pengeluaran/Laba Bersih), Tutup Shift (total pembayaran, omzet, selisih kasir), daftar gaji per karyawan, dan daftar pengeluaran terbaru. Yang sengaja **tidak** diberi warna: nilai per transaksi di daftar, harga per layanan di form, Cash/QRIS di ringkasan, margin, dan rata-rata -- semuanya detail, bukan hal yang perlu menonjol.
+Warna juga bisa **terpasang otomatis dari labelnya** lewat `moneyToneFor(label, nilai)`, yang dipakai `box()` dan `boxCard()` kalau `tone` tidak diberikan. Ini membuat halaman baru ikut aturan tanpa harus mengingat setiap nominal. Satu jebakan yang dijaga: warna dari label **hanya berlaku untuk nilai angka** (`isAmountLike()`), jadi `box('Pelanggan','Andi')` tidak mewarnai nama orang.
+
+Nilai dari `box()` sudah berformat `Rp -2.000`, jadi `Number()` biasa tidak bisa dipakai untuk membaca tandanya (`NaN`). `moneyNumber()` yang dipakai untuk itu, dan tes mengunci perilakunya -- tanpa ini, selisih kasir minus tidak pernah jadi merah.
+
+Cakupan: Dashboard (omzet & laba hari ini, pelanggan, insight, filter tanggal), Transaksi (kolom total, baris, detail), Keuangan, Laporan, Operasional, Analitik (legenda, kartu, rekap historis, sumber angka, performa layanan, top karyawan), Tutup Shift (total pembayaran, omzet, pengeluaran kas, selisih kasir), Pelanggan (kunjungan, total nilai), Karyawan, Gaji, dan daftar pengeluaran terbaru. Yang sengaja **tidak** diberi warna: harga per layanan di form, margin, dan rata-rata -- semuanya detail, bukan hal yang perlu menonjol.
 
 **Struk cetak tetap hitam semua.** Printer thermal 1-bit tidak bisa mencetak warna, jadi `renderTransactionReceipt()` tidak boleh memakai kelas warna apa pun. Sebagai jaring pengaman, ada aturan yang memaksa semua `.money-*` dan `.payroll-*` di dalam `#wzReceipt` menjadi `color:#000!important`, dan aturan `@media print` yang sudah ada tetap berlaku.
 
-Tes: `tests/amount-colors.test.js` (9 tes) mengunci lima peran (tidak boleh ditambah warna liar), kontras WCAG minimal 4.5:1 tiap warna terhadap tiga latar gelap yang dipakai aplikasi, perilaku `money()` (tanpa tone tetap polos, `neg` membedakan minus dan nol), cakupan peran di tujuh halaman, aturan `box()`/`boxCard()`, dan dua lapis penjaga struk: pemeriksaan sumber `renderTransactionReceipt()` plus merender nota sungguhan lewat `saveTransaction()` lalu memastikan tidak ada satu pun kelas warna di dalam `#wzReceipt`.
+Tes: `tests/amount-colors.test.js` (15 tes) mengunci empat aturan Owner dan menolak warna liar, kontras WCAG minimal 4.5:1 tiap warna terhadap tiga latar gelap, pemetaan label ke peran dengan urutan benar ("Laba Bersih" harus biru, bukan hijau omzet), `moneyNumber()` untuk nilai berformat, perilaku `money()` (tanpa tone tetap polos, `neg` membedakan minus dan nol), cakupan peran di seluruh halaman, aturan `box()`/`boxCard()`, warna grafik, dan dua lapis penjaga struk: pemeriksaan sumber `renderTransactionReceipt()` plus merender nota sungguhan lewat `saveTransaction()` lalu memastikan tidak ada satu pun kelas warna di dalam `#wzReceipt`. Satu tes juga merender halaman Keuangan sungguhan di jsdom dan memastikan ketiga peran inti benar-benar muncul di DOM.
 
 ## Menu geser menutup sendiri saat diketuk di luar
 
