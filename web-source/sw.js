@@ -1,4 +1,4 @@
-const CACHE = 'wz-manage-pro-pwa-v12';
+const CACHE = 'wz-manage-pro-pwa-v13';
 const APP_SHELL = ['/', '/index.html', '/manifest.json', '/icons/icon-192.png', '/icons/icon-512.png', '/icons/app-logo.png'];
 const shownNotificationIds = new Set();
 

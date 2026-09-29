@@ -1332,6 +1332,21 @@ button,input,select,textarea{max-width:100%}
 /* Teks pesan pada dialog konfirmasi/peringatan. */
 .dialog-text{color:#c7ccd3;font-size:13px;line-height:1.7;overflow-wrap:anywhere}
 .dialog-text+.dialog-actions{margin-top:18px}
+
+/* NATIVE FEEL: tekan-tahan tidak menyeleksi teks.
+   APK Android memakai WebView, jadi tanpa aturan ini semua teks di layar
+   bisa disorot dan disalin sehingga aplikasi terasa seperti situs.
+   `user-select` bersifat diwarisi, jadi cukup dipasang pada container
+   aplikasi; kolom isian dikembalikan ke `text` di bawah supaya tetap
+   bisa diedit dan disalin seperti aplikasi biasa. */
+html,body,#wzStartupLoading,.login-screen,#mainApp,.wz-bottom-nav,.modal,.toast{
+ -webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;
+ -webkit-touch-callout:none;-webkit-tap-highlight-color:transparent
+}
+input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"],.wz-copyable{
+ -webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text;
+ -webkit-touch-callout:default
+}
 </style>
 
 </head>
@@ -6157,6 +6172,26 @@ window.WZOnlineFcm={
   setTimeout(trySync,10000);
 })();
 
+</script>
+<script>
+/* NATIVE FEEL: tekan-tahan pada teks biasa tidak memunculkan sorotan,
+   salin, atau menu konteks. Kolom isian dikecualikan supaya masih bisa
+   diedit dan disalin. Penjaga ini ditulis setelah script utama karena
+   `tests/ui-audit.test.js` menghitung urutan script dari <script> pertama
+   sampai IIFE bridge. */
+(function(){
+  var SELECTABLE='input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[contenteditable="plaintext-only"],.wz-copyable';
+  function isSelectable(node){
+    if(!node||!node.closest) return false;
+    return !!node.closest(SELECTABLE);
+  }
+  function block(event){
+    if(!isSelectable(event.target)) event.preventDefault();
+  }
+  ['contextmenu','dragstart','selectstart'].forEach(function(type){
+    document.addEventListener(type,block,false);
+  });
+})();
 </script>
 <script>
 if ('serviceWorker' in navigator) {

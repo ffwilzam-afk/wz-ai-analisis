@@ -204,6 +204,19 @@ Yang sengaja tidak diubah: `min-width:700px` di `.table` tetap di luar media que
 
 Sekalian di layar kecil: `.quick-grid` turun dari 5 ke 3 kolom, `.kpis` dirapatkan, `.section-head` jadi menumpuk dengan tombol selebar layar, dan `.detail-grid` jadi 2 kolom supaya halaman detail laporan shift tidak memanjang.
 
+## Teks tidak bisa diseleksi: kesan aplikasi native
+
+APK Android memuat halaman ini di WebView, jadi tanpa penanganan tambahan perilakunya persis seperti situs: **tekan-tahan pada teks menyorot kata, memunculkan "Salin"**, dan teks bisa diseret. Itulah keluhan yang bikin aplikasi terasa seperti website.
+
+Dua lapis, keduanya di `index.html` dan tidak menyentuh layout, z-index, atau logika bisnis:
+
+- **CSS**: `user-select:none` + `-webkit-touch-callout:none` dipasang pada container aplikasi -- `html,body`, splash, layar login, `#mainApp`, `.wz-bottom-nav`, `.modal`, dan `.toast`. Sifatnya diwarisi, jadi semua teks turunan ikut tidak bisa diseleksi tanpa perlu menulis aturan per elemen. Kolom isian (`input`, `textarea`, `select`, `option`, `contenteditable`) dikembalikan ke `user-select:text` di aturan berikutnya, jadi form tetap normal dipakai.
+- **JS**: penjaga `contextmenu`, `dragstart`, dan `selectstart` dipanggil dengan `preventDefault()` kecuali target-nya kolom isian. Lapis ini wajib karena WebView Android masih menyorot teks walau `user-select` sudah `none`.
+
+Buka Wali untuk teks yang memang harus bisa disalin: tambahkan kelas `wz-copyable` pada elemennya (dipakai di CSS dan di penjaga JS). Kalau ini nanti diubah, `user-select:none` **harus** tetap diwarisi ke bawah dan kolom isian harus tetap dikecualikan -- jangan dipasang per-elemen satu-satu.
+
+Tes: `tests/native-feel.test.js` (4 tes) memeriksa bentuk aturan CSS (termasuk urutan `none` sebelum `text`), keberadaan ketiga penjaga event, lalu menjalankan penjaga itu di jsdom: `contextmenu`/`dragstart`/`selectstart` pada teks biasa diblokir, sedangkan pada `input`, `textarea`, dan `.wz-copyable` tetap lolos.
+
 ## Menu keluar akun di Android
 
 Keluar akun di HP tidak bisa disentuh: di bawah 600px navigasi pindah ke **bottom nav tetap** (`.wz-bottom-nav`, `position:fixed`, `z-index:1200`, tinggi `68px`), sementara tombol "Keluar" hanya ada di dasar sidebar yang `z-index:20`. Akibatnya 68px paling bawah sidebar tertutup bar ikon, dan karena menu geser itu tidak bisa digulir ke bawah, tombolnya benar-benar tidak terlihat.
