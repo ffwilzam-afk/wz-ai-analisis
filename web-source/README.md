@@ -130,6 +130,45 @@ Jalur ini tidak menyentuh data lain: karyawan, cabang, pelanggan, layanan, penge
 
 Tes: `tests/reset-shift-period.test.js` (10 tes) memanggil handler sungguhan dengan pool palsu yang mencatat SQL-nya, lalu memastikan batas tanggal benar-benar ikut terkirim, empat bentuk periode tidak valid ditolak tanpa `DELETE` apa pun, dan bentuk kode sisi UI terkunci.
 
+## Notifikasi & chat: hanya sejak akun dibuat
+
+Notifikasi bisnis dan Obrolan Owner dimiliki oleh **bisnis**, tapi setiap akun hanya boleh melihat apa yang terjadi **sejak akun itu dibuat**. Batasnya adalah `wz_users.created_at`.
+
+Gejalanya sebelum diperbaiki: akun baru yang ditambahkan ke bisnis yang sudah lama langsung melihat seluruh riwayat notifikasi bisnis sebagai belum dibaca (badge langsung penuh), ditambah seluruh chat Owner dari tenant lain. Semuanya terjadi sebelum akunnya ada, jadi bukan miliknya.
+
+Perbaikannya:
+
+- `authUser()` sekarang juga mengambil `u.created_at AS "createdAt"`, jadi batasnya tersedia di setiap rute.
+- `filterSinceAccount(list, since)` di `api/[...path].js` menyaring notifikasi memakai `createdAt` (dibuat server) atau, kalau tidak ada, `date` (dibuat perangkat, `YYYY-MM-DD`). Notifikasi tanpa keduanya dibiarkan, supaya tidak ada notifikasi sah yang ikut hilang.
+- Saringan yang sama dipakai di tiga tempat: `GET /api/business`, `GET /api/app-state`, dan balasan `POST /api/notifications/read`. Yang terakhir penting karena "tandai dibaca" mengembalikan daftar penuh -- tanpa saringan, menekan tombol itu akan memunculkan kembali notifikasi lama.
+- Chat Owner memakai batas waktu yang sama di SQL: `AND ($4::timestamptz IS NULL OR m.created_at>=$4)` untuk `owner-forum/messages`, dan `$3` untuk hitungan unread di `owner-forum/read`. Karena forum bersifat lintas tenant, tanpa batas ini akun baru melihat seluruh riwayat obrolan.
+- Akun tanpa `createdAt` tidak disaring apa pun -- lebih baik menampilkan terlalu banyak daripada menyembunyikan notifikasi milik akun sendiri.
+
+Data lama tidak dihapus dari database. Notifikasi tetap tersimpan di `wz_app_states`, hanya tidak dikirim ke akun yang belum berhak melihatnya.
+
+## Pengaturan gaji tidak ikut di app-state
+
+Bug: "Simpan pengaturan gaji tidak benar-benar berhasil tersimpan." Nilai yang baru disimpan Owner **berubah sendiri** di layar.
+
+Akar masalahnya bukan di endpoint `payroll/settings` -- permintaan simpannya benar dan database juga benar. Yang salah adalah `payrollSettings` ikut di dalam `appStateSnapshot()`, jadi ia ikut dikirim ke `app-state` bersama blob state bisnis lainnya. Akibatnya:
+
+1. `queueAppStateSave()` menulis ulang salinan gaji ke `wz_app_states`.
+2. Auto-refresh 30 detik kemudian memanggil `hydrateAppState()`, yang menimpa `db.payrollSettings` dengan salinan basi itu.
+3. Layar menampilkan angka lama, dan perubahan Owner berikutnya ditulis berdasarkan angka yang sudah salah.
+
+Akar masalah yang sama berlaku untuk pengaturan khusus karyawan (`db.payrollSettings.employees`).
+
+Perbaikannya: `payrollSettings` dikeluarkan dari snapshot dan diabaikan saat load.
+
+- `NON_BUSINESS_KEYS` di `index.html` bertambah `payrollSettings`, jadi `appStateSnapshot()` tidak pernah memuatnya.
+- `hydrateAppState()` menghapus `payrollSettings` dari state server sebelum `Object.assign`, sehingga blob lama yang sudah terlanjur menyimpan gaji tidak bisa menimpa nilai yang benar.
+- `stripAppStatePayroll()` di server membersihkan `payrollSettings` saat `GET /api/app-state`, dan `app-state` `PUT` menghapus key itu dari body yang ditulis -- termasuk dari klien versi lama yang masih mengirimkannya. `Object.assign` tidak bisa dipakai untuk ini karena tidak pernah menghapus key, hanya menimpa.
+- `refreshAppData()` kini menyinkronkan ulang `payroll/settings` dan `payroll/employee` untuk Owner/Manager supaya perubahan dari perangkat lain langsung terlihat.
+
+Sumber kebenaran pengaturan gaji tetap hanya dua tabel: `wz_payroll_settings` (umum) dan `wz_employee_payroll` (per karyawan), keduanya hanya diubah lewat endpoint `payroll/*`. Aturan perhitungan gaji tidak disentuh sama sekali.
+
+Tes: `tests/account-scope-and-payroll.test.js` (12 tes) menjalankan handler sungguhan dengan pool palsu untuk memastikan batas notifikasi bekerja di ketiga endpoint dan `payrollSettings` benar-benar hilang dari blob yang ditulis, lalu menjalankan aplikasi penuh di jsdom untuk memastikan nilai gaji yang disimpan tetap utuh setelah auto-refresh.
+
 ## Dialog aplikasi (confirm/alert bawaan membocorkan URL)
 
 `confirm` dan `alert` bawaan browser, saat dipanggil dari dalam WebView Android, memunculkan **dialog sistem** yang judulnya diambil dari halaman yang sedang dimuat. Karena judul halaman kosong, WebView memakai alamatnya -- sehingga `wz-ai-analisis-rust.vercel.app` ikut terbaca. Symptom-nya: menghapus karyawan memunculkan dialog bertuliskan alamat web view. `MainActivity` memasang `WebChromeClient` kosong, jadi tidak ada yang WattsApp itu.

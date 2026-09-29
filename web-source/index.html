@@ -5144,8 +5144,12 @@ async function api(path,options={}){
 window.api=api;
 window.WZOnlineEmployee={api};
 
+// payrollSettings sengaja TIDAK ikut snapshot: sumbernya hanya endpoint
+// payroll/settings dan payroll/employee. Begitu ikut di sini, autosave
+// menuliskan salinan basi dan auto-refresh 30 detik memuatnya kembali,
+// sehingga angka yang baru disimpan Owner berubah sendiri di layar.
 const NON_BUSINESS_KEYS=new Set([
-  'transactions','shiftReports','employees','notifications','__onlineStateLoaded','__onlineStateSaving',
+  'transactions','shiftReports','employees','notifications','payrollSettings','__onlineStateLoaded','__onlineStateSaving',
 ]);
 
 function resetTenantState(){
@@ -5222,8 +5226,12 @@ async function hydrateAppState(){
     const state=(r?.data&&typeof r.data==='object'&&!Array.isArray(r.data))?r.data:{};
     const hasState=Object.keys(state).length>0;
     if(hasState){
-      const serverNotifications=Array.isArray(state.notifications)?state.notifications:null;
-      Object.assign(db,normalizeDbState(state));
+      // Jangan pernah biarkan app-state menimpa pengaturan gaji: blob itu
+      // tidak punya salary yang valid. Diperoleh dari payroll/* saja.
+      const clean={...state};
+      delete clean.payrollSettings;
+      const serverNotifications=Array.isArray(clean.notifications)?clean.notifications:null;
+      Object.assign(db,normalizeDbState(clean));
       if(serverNotifications)applyServerNotifications(serverNotifications);
       const serverSeen=Date.parse((db.profile||{}).ownerForumSeenAt||'')||0;
       if(wzForumSeenAt>serverSeen){
@@ -6086,6 +6094,13 @@ async function refreshAppData(){
     if(!bridge)return false;
     await bridge.hydrate();
     await bridge.business();
+    // Pengaturan gaji ikut disegarkan di sini. Kalau tidak, perubahan gaji
+    // yang dibuat di perangkat lain baru terlihat setelah aplikasi dibuka
+    // ulang, dan angka di layar terlihat "tidak benar-benar tersimpan".
+    if(currentUser && ['owner','manager'].includes(currentUser.role)){
+      await window.WZOnlinePayroll?.settings?.();
+      await window.WZOnlinePayroll?.employee?.();
+    }
     wzBackgroundRender();
     return true;
   }catch(e){

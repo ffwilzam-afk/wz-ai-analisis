@@ -653,7 +653,7 @@ async function authUser(req){
   const cookie=String(req.headers.cookie||'');
   const m=cookie.match(/(?:^|;\s*)wz_session=([^;]+)/); if(!m)return null;
   const p=getPool();
-  const r=await p.query(`SELECT u.id,u.username,u.role,u.name,u.employee_id,u.business_id,e.branch_id FROM wz_sessions s JOIN wz_users u ON u.id=s.user_id LEFT JOIN wz_employees e ON e.id=u.employee_id AND e.business_id=u.business_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND u.active=true`,[tokenHash(decodeURIComponent(m[1]))]);
+  const r=await p.query(`SELECT u.id,u.username,u.role,u.name,u.employee_id,u.business_id,u.created_at AS "createdAt",e.branch_id FROM wz_sessions s JOIN wz_users u ON u.id=s.user_id LEFT JOIN wz_employees e ON e.id=u.employee_id AND e.business_id=u.business_id WHERE s.token_hash=$1 AND s.expires_at>NOW() AND u.active=true`,[tokenHash(decodeURIComponent(m[1]))]);
   return r.rows[0]||null;
 }
 async function xenditRequest(path,payload){
@@ -737,6 +737,48 @@ function mergeNotificationsMonotonic(current,incoming){
     merged.push(prev.readAt||prev.read?{...prev,read:true}:prev);
   }
   return merged;
+}
+
+// Notifikasi dan chat Owner milik BISNIS, tapi setiap akun hanya boleh
+// melihat apa yang terjadi sejak akun itu dibuat. Tanpa penyaring ini, akun
+// baru yang ditambahkan ke bisnis lama langsung mendapat seluruh riwayat
+// notifikasi bisnis sebagai belum dibaca, dan seluruh chat Owner dari tenant
+// lain -- semuanya bukan miliknya.
+//
+// Notifikasi selalu punya `createdAt` (dibuat server) atau setidaknya `date`
+// (dibuat perangkat, format YYYY-MM-DD). Item tanpa keduanya dibiarkan,
+// supaya tidak ada notifikasi sah yang ikut hilang.
+function filterSinceAccount(list,since){
+  if(!Array.isArray(list))return[];
+  const limit=since instanceof Date?since.getTime():Date.parse(String(since??''));
+  if(!Number.isFinite(limit))return list.filter(x=>x&&typeof x==='object');
+  return list.filter(item=>{
+    if(!item||typeof item!=='object')return false;
+    const created=Date.parse(String(item.createdAt??''));
+    if(Number.isFinite(created))return created>=limit;
+    const day=String(item.date??'');
+    if(/^\d{4}-\d{2}-\d{2}$/.test(day)){
+      const at=Date.parse(day+'T00:00:00.000Z');
+      if(Number.isFinite(at))return at>=limit;
+    }
+    return true;
+  });
+}
+
+// app-state tidak pernah jadi sumber pengaturan gaji. Pengaturan umum dan per
+// karyawan hidup di wz_payroll_settings dan wz_employee_payroll, dan hanya
+// endpoint payroll/* yang boleh mengubahnya.
+//
+// Dulu payrollSettings ikut di dalam blob app-state. Akibatnya setiap
+// autosave 250ms menulis ulang salinan basi, lalu auto-refresh 30 detik
+// memuatnya kembali lewat hydrate() dan menimpa nilai yang baru saja disimpan
+// Owner. Di layar angkanya berubah sendiri tepat setelah menekan Simpan.
+function stripAppStatePayroll(data){
+  if(!data||typeof data!=='object'||Array.isArray(data))return data;
+  if(!('payrollSettings' in data))return data;
+  const copy={...data};
+  delete copy.payrollSettings;
+  return copy;
 }
 
 async function getSubscriptionAccess(businessId){
@@ -1354,7 +1396,9 @@ async function handler(req,res){
         transactions:tx.rows,
         shiftReports:sh.rows,
         branches:branches.rows,
-        notifications:['owner','manager'].includes(u.role)?notifications:[]
+        notifications:['owner','manager'].includes(u.role)
+          ? filterSinceAccount(notifications,u.createdAt)
+          : []
       });
     }
 
@@ -1554,7 +1598,10 @@ async function handler(req,res){
         await c.query('COMMIT');
         return send(res,200,{
           ok:true,
-          notifications,
+          // Balasan disaring dengan batas yang sama seperti saat load, supaya
+          // "tandai dibaca" tidak memunculkan kembali notifikasi lama milik
+          // bisnis yang ada sebelum akun ini dibuat.
+          notifications:filterSinceAccount(notifications,u.createdAt),
           updatedAt:saved.rows[0]?.updatedAt||null
         });
       }catch(e){
@@ -1566,11 +1613,12 @@ async function handler(req,res){
     if(path==='app-state' && req.method==='GET'){
       const u=await authUser(req);if(!u)return send(res,401,{ok:false,error:'Belum login.'});
       const r=await getPool().query('SELECT data,updated_at AS "updatedAt" FROM wz_app_states WHERE business_id=$1',[u.business_id]);
-      let data=r.rowCount?r.rows[0].data:{};
+      let data=stripAppStatePayroll(r.rowCount?r.rows[0].data:{});
       if(u.role==='employee'){
         // Employee tidak menerima notifikasi bisnis dari server.
         data={customers:Array.isArray(data?.customers)?data.customers:[],services:Array.isArray(data?.services)?data.services:[],branches:Array.isArray(data?.branches)?data.branches:[]};
       }else if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Akses ditolak.'});
+      else data={...data,notifications:filterSinceAccount(data?.notifications,u.createdAt)};
       return send(res,200,{ok:true,data,updatedAt:r.rowCount?r.rows[0].updatedAt:null});
     }
     if(path==='app-state' && req.method==='PUT'){
@@ -1610,6 +1658,14 @@ async function handler(req,res){
         currentData.notifications,
         Object.prototype.hasOwnProperty.call(data,'notifications')?data.notifications:undefined
       );
+      // Buang payrollSettings dari blob ini, termasuk kalau klien masih
+      // mengirimkannya (versi lama). Satu-satunya sumber kebenaran pengaturan
+      // gaji adalah wz_payroll_settings / wz_employee_payroll.
+      //
+      // `delete` wajib langsung: Object.assign tidak pernah menghapus key,
+      // hanya menimpa key yang ada di sumber -- dan sumber hasil strip sudah
+      // tidak punya payrollSettings.
+      if(Object.prototype.hasOwnProperty.call(data,'payrollSettings'))delete data.payrollSettings;
       const mergedData={
         ...data,
         ...(mergedNotifications!==undefined?{notifications:mergedNotifications}:{})

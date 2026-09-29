@@ -166,8 +166,9 @@ async function ownerForumRoutes(ctx,req,res,path){
          WHERE m.deleted_at IS NULL
            AND (m.sender_user_id IS NOT NULL OR m.sender_admin_id IS NOT NULL)
            AND COALESCE(m.sender_user_id,m.sender_admin_id)<>$1
-           AND ($2::timestamptz IS NULL OR m.created_at>$2)`,
-        [user.id,lastReadAt]
+           AND ($2::timestamptz IS NULL OR m.created_at>$2)
+           AND ($3::timestamptz IS NULL OR m.created_at>=$3)`,
+        [user.id,lastReadAt,user.createdAt||null]
       );
       return send(res,200,{ok:true,lastReadAt,unread:u.rows[0].count}),true;
     }
@@ -202,8 +203,9 @@ async function ownerForumRoutes(ctx,req,res,path){
         `${OWNER_FORUM_SELECT}
          AND ($1::bigint IS NULL OR m.id<$1)
          AND ($2='' OR m.message ILIKE '%'||$2||'%' OR COALESCE(u.name,'') ILIKE '%'||$2||'%')
+         AND ($4::timestamptz IS NULL OR m.created_at>=$4)
          ORDER BY m.id DESC LIMIT $3`,
-        [before,search,limit+1]
+        [before,search,limit+1,user.createdAt||null]
       );
       const hasMore=r.rows.length>limit;
       const rows=(hasMore?r.rows.slice(0,limit):r.rows).reverse();
