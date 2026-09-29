@@ -217,6 +217,20 @@ Buka Wali untuk teks yang memang harus bisa disalin: tambahkan kelas `wz-copyabl
 
 Tes: `tests/native-feel.test.js` (4 tes) memeriksa bentuk aturan CSS (termasuk urutan `none` sebelum `text`), keberadaan ketiga penjaga event, lalu menjalankan penjaga itu di jsdom: `contextmenu`/`dragstart`/`selectstart` pada teks biasa diblokir, sedangkan pada `input`, `textarea`, dan `.wz-copyable` tetap lolos.
 
+## Menu geser menutup sendiri saat diketuk di luar
+
+Ikon garis tiga membuka sidebar, tapi di HP **mengetuk di luar menu tidak menutupnya** -- menu tetap menempel sampai ikon ditekan lagi. Penyebabnya `toggleMenu()` hanya membalik kelas `open`, sedangkan `closeMobileMenu()` sudah ada tapi tidak pernah dipanggil dari mana pun.
+
+- **Penedup layar** `#wzScrim` (`position:fixed`, `inset:0`, `z-index:19`) muncul bersama menu. Angkanya disengaja: di atas konten (`topbar` 10) tapi di bawah sidebar (20) dan modal (300), jadi area yang ditutup penedup selalu bagian layar di luar menu.
+- **Listener klik fase capture** `sidebarDismiss` pada `document`. Ketukan di luar sidebar dan di luar tombol hamburger menutup menu **tanpa membatalkan ketukan itu sendiri**, jadi ketukan tetap sampai ke halaman atau bottom nav di bawahnya. Ketukan di dalam sidebar tidak menutup apa-apa.
+- **Escape** menutup menu, untuk pemakaian di laptop dan keyboard.
+- **`go()`** menutup menu setiap pindah halaman, jadi memilih menu di sidebar tidak meninggalkan sidebar terbuka.
+- Tombol hamburger memakai `aria-expanded` + `aria-controls="sidebar"`, jadi status terbuka-tertutup terbaca pembaca layar.
+
+Yang tidak berubah: lebar sidebar 252px, posisinya `fixed`, dan `padding-bottom:calc(68px + env(safe-area-inset-bottom))` di bawah 600px (lihat bagian Menu keluar akun di Android). Bottom nav tetap `z-index:1200` di atas sidebar seperti sebelumnya.
+
+Tes: `tests/sidebar-outside-close.test.js` (9 tes) memeriksa bentuk CSS penedup (z-index di antara sidebar dan modal, benar-benar menutup layar), listener capture, Escape, dan `go()`; lalu menjalankan fungsi yang sama di jsdom untuk mengukur perilakunya -- ketukan luar menutup tanpa membatalkan ketukan, ketukan dalam tidak menutup, hamburger masih bisa menutup.
+
 ## Menu keluar akun di Android
 
 Keluar akun di HP tidak bisa disentuh: di bawah 600px navigasi pindah ke **bottom nav tetap** (`.wz-bottom-nav`, `position:fixed`, `z-index:1200`, tinggi `68px`), sementara tombol "Keluar" hanya ada di dasar sidebar yang `z-index:20`. Akibatnya 68px paling bawah sidebar tertutup bar ikon, dan karena menu geser itu tidak bisa digulir ke bawah, tombolnya benar-benar tidak terlihat.

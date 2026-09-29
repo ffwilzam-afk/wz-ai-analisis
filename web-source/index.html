@@ -1347,6 +1347,15 @@ input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[cont
  -webkit-user-select:text;-moz-user-select:text;-ms-user-select:text;user-select:text;
  -webkit-touch-callout:default
 }
+
+/* Menu geser di HP: layar di luar menu diberi penedup (scrim) supaya
+   mengetuk di luar jelas menutup menu, bukan seperti perilaku halaman web.
+   z-index 19: di atas konten (topbar 10, main), di bawah sidebar (20)
+   dan di bawah modal (300). */
+.wz-scrim{display:none;position:fixed;inset:0;background:#000000a8;z-index:19}
+.wz-scrim.on{display:block}
+@media(max-width:800px){.wz-scrim.on{animation:wzScrimIn .15s ease-out}}
+@keyframes wzScrimIn{from{opacity:0}to{opacity:1}}
 </style>
 
 </head>
@@ -1369,9 +1378,10 @@ input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[cont
  <div class="brand"><div class="logo">WZ</div><div class="brand-title">BARBERSHOP PRO</div><div class="brand-sub">MANAGEMENT SYSTEM</div><span class="offline">ONLINE PREMIUM</span></div>
  <div class="nav" id="nav"></div>
 </aside>
+<div class="wz-scrim" id="wzScrim" aria-hidden="true"></div>
 <main class="main">
  <header class="topbar">
-  <div class="top-left"><button class="hamb" onclick="toggleMenu()" aria-label="Menu"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div><strong>WZ MANAGE PRO</strong><div class="crumb" id="crumb">Dashboard</div></div></div>
+  <div class="top-left"><button class="hamb" onclick="toggleMenu()" aria-label="Menu" aria-expanded="false" aria-controls="sidebar"><svg class="wz-gold-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><div><strong>WZ MANAGE PRO</strong><div class="crumb" id="crumb">Dashboard</div></div></div>
   <div class="top-actions">
    <span class="user-badge wz-top-hidden" id="roleBadge"></span>
    <span class="save-state wz-top-hidden" id="saveState">● Online</span>
@@ -1505,15 +1515,35 @@ function branchOfEmployee(employeeId){return (db.employees||[]).find(e=>String(e
 function profit(){return revenue()-expenses()}
 
 
+function sidebarIsOpen(){return !!document.getElementById('sidebar')?.classList.contains('open')}
+function closeSidebar(){
+ document.getElementById('sidebar')?.classList.remove('open');
+ document.getElementById('wzScrim')?.classList.remove('on');
+ document.querySelector('.hamb')?.setAttribute('aria-expanded','false');
+}
 function toggleMenu(){
  const sidebar=document.getElementById('sidebar');
  if(!sidebar)return;
- sidebar.classList.toggle('open');
+ const open=sidebar.classList.toggle('open');
+ document.getElementById('wzScrim')?.classList.toggle('on',open);
+ document.querySelector('.hamb')?.setAttribute('aria-expanded',open?'true':'false');
 }
 function closeMobileMenu(){
- const sidebar=document.getElementById('sidebar');
- if(window.innerWidth<=800) sidebar?.classList.remove('open');
+ if(window.innerWidth<=800) closeSidebar();
 }
+/* Menutup menu dari luar, seperti drawer pada aplikasi biasa.
+   Ditangkap di fase capture supaya menu hilang sebelum halaman di
+   bawahnya digerakkan, tanpa membatalkan ketukan itu sendiri. */
+function sidebarDismiss(event){
+ if(!sidebarIsOpen())return;
+ const node=event.target;
+ if(node?.closest?.('#sidebar')||node?.closest?.('.hamb'))return;
+ closeSidebar();
+}
+document.addEventListener('click',sidebarDismiss,true);
+document.addEventListener('keydown',function(event){
+ if(event.key==='Escape'||event.key==='Esc')closeSidebar();
+});
 
 function getAccounts(){return AUTH_DEFAULTS.slice()}
 function saveAccounts(){return true}
@@ -1892,7 +1922,7 @@ function updateTopbarBadges(){
 function nav(){const allowed=menu.filter(m=>can(m[0]));const groups=[['Utama',['dashboard','transactions','shiftReports','employees','customers']],['Bisnis',['services','finance','reports','operations','analytics']],['Sistem',['notifications','branches','profile','settings','payrollSettings','ownerForum','system','subscription','auth','cs']]];document.getElementById('nav').innerHTML=groups.map(g=>{const items=allowed.filter(m=>g[1].includes(m[0]));return items.length?'<div class="nav-group">'+g[0]+'</div>'+items.map(m=>navBtn(m)).join(''):''}).join('')+'<div style="padding:14px 8px;border-top:1px solid var(--line);margin-top:12px"><span class="user-badge">'+escapeHtml(String(currentUser.name||''))+'</span><button class="btn small" style="width:100%;margin-top:10px" onclick="logout()">Keluar</button></div>'}
 function openCS(){const u=currentUser||{};const msg=`Halo CS WZ MANAGE PRO, saya membutuhkan bantuan.%0A%0ABisnis: ${encodeURIComponent(u.businessName||u.businessId||'-')}%0ACabang: ${encodeURIComponent(u.branchName||u.branchId||'-')}%0AAkun: ${encodeURIComponent(u.name||u.username||'-')}%0ARole: ${encodeURIComponent(u.role||'-')}%0A%0AMasalah:%20`;window.open('https://wa.me/6287777527161?text='+msg,'_blank')}
 function navBtn(m){if(m[0]==='cs')return `<button id="nav-cs" onclick="openCS()">💬 Bantuan & CS</button>`;const unread=m[0]==='notifications'?(db.notifications||[]).filter(x=>!x.read).length:0;return `<button id="nav-${m[0]}" data-nav="${m[0]}">${m[1]} ${m[2]}${unread?` <span class="pill red" style="font-size:10px;padding:2px 6px">${unread}</span>`:''}</button>`}
-function go(key){if(!guard(key))return;location.hash=key;render()}
+function go(key){if(!guard(key))return;closeSidebar();location.hash=key;render()}
 async function subscriptionPage(){
   const app=document.getElementById('content');
   const key=subscriptionCacheKey();
