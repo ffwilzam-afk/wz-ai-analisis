@@ -47,7 +47,7 @@ Environment:
 Buat key VAPID dengan `npx web-push generate-vapid-keys`.
 
 ## Endpoint API utama
-`ready` · `auth/register` · `auth/login` · `auth/me` · `auth/logout` · `business` · `branches` (GET/POST/PUT/DELETE) · `employees` (GET/POST/PUT/DELETE) · `employees/me` · `transaction` · `transaction/void` · `shift-report` · `app-state` (GET/PUT) · `profile` · `password` · `reset-business` · `sync-business` · `payroll/settings` · `payroll/employee` (GET/POST/DELETE) · `notifications/read` · `push/subscribe` · `push/unsubscribe` · `push/fcm-token` · `push/vapid-public-key` · `owner-forum/messages` · `owner-forum/reactions` · `owner-forum/read` (GET+POST) · `owner-forum/polls` · `owner-forum/polls/vote` · `subscription` · `subscription/order` · `subscription/webhook`
+`ready` · `auth/register` · `auth/login` · `auth/me` · `auth/logout` · `business` · `branches` (GET/POST/PUT/DELETE) · `employees` (GET/POST/PUT/DELETE) · `employees/me` · `transaction` · `transaction/void` · `shift-report` · `app-state` (GET/PUT) · `profile` · `password` · `reset-business` (opsional `from`/`to` untuk hapus per periode) · `sync-business` · `payroll/settings` · `payroll/employee` (GET/POST/DELETE) · `notifications/read` · `push/subscribe` · `push/unsubscribe` · `push/fcm-token` · `push/vapid-public-key` · `owner-forum/messages` · `owner-forum/reactions` · `owner-forum/read` (GET+POST) · `owner-forum/polls` · `owner-forum/polls/vote` · `subscription` · `subscription/order` · `subscription/webhook`
 
 ## Akun & registrasi
 Tidak ada akun seed di kode. Akun owner dibuat lewat `POST /api/auth/register` (nama bisnis, nama owner, nama cabang, username, password), dan akun karyawan dibuat oleh owner/manager dari halaman Karyawan. Daftar akun lama (`owner/owner123`, dst.) sudah tidak berlaku sejak skema multi-tenant.
@@ -108,6 +108,27 @@ Aturan yang ditegakkan:
 Pesan error juga diperbaiki. Sebelumnya nilai negatif pada kas awal atau pengeluaran kas lolos ke perhitungan dan dilaporkan sebagai "selisih kasir harus Rp 0" -- penyebabnya (tanda minus) tidak pernah disebut. Sekarang nilai kas dicek lebih dulu dan pesannya langsung menunjuk field-nya.
 
 Tes: `tests/shift-report-validation.test.js` (10 tes) mengirim 20 payload salah dan 12 isian form salah lewat jalur HTTP dan jsdom, lalu memastikan **tidak ada satu pun query INSERT yang terkirim** saat data ditolak. Dua tes terakhir mengunci bentuk kodenya (endpoint tidak boleh kembali menulis angka turunan dari body; kedua jalur simpan wajib lewat validasi bersama) supaya perbaikan ini tidak bisa hilang diam-diam.
+
+## Reset laporan tutup shift per periode
+
+Menu **Sistem & Data -> Reset Laporan Tutup Shift** (Khusus Manager/Owner) punya dua pilihan:
+
+- **Semua periode** -- perilaku lama: hapus seluruh transaksi dan seluruh laporan tutup shift.
+- **Pilih periode (tanggal)** -- hanya data pada rentang `Dari` sampai `Sampai` yang dihapus.
+
+Kolom `Dari` dan `Sampai` terkunci sampai mode periode dipilih. Begitu dipilih, `Dari` terisi otomatis dengan tanggal data paling lama yang ada dan `Sampai` dengan hari ini, dan teks ringkasan selalu menyebut berapa transaksi serta berapa laporan tutup shift yang akan hilang -- jadi angka yang terlihat sebelum menekan tombol bukan lagi tebakan. Mengubah tanggal langsung memperbarui ringkasan.
+
+Perjalanan datanya:
+
+- `shiftResetPeriod()` membaca form dan menolak rentang yang tidak lengkap atau terbalik sebelum ada request apa pun.
+- `window.WZOnlineBusiness.reset({from, to})` mengirim body JSON hanya kalau kedua tanggalnya valid. Tanpa `from`/`to`, body kosong -- jadi reset penuh tetap bekerja seperti sebelumnya.
+- Endpoint `POST /api/reset-business` memvalidasi ulang di server: salah satu tanggal kosong, format di luar `YYYY-MM-DD`, tanggal yang tidak ada di kalender, atau tanggal awal melewati tanggal akhir semuanya ditolak dengan `400 RESET_PERIOD_INVALID` dan **tidak ada satu pun `DELETE` yang terkirim**. Perhatikan bahwa hanya satu tanggal yang dikirim tidak dianggap "hapus semua" -- requestnya ditolak.
+- Komponen `date` di `wz_transactions` dan `wz_shift_reports` bertipe `DATE`, jadi batas periode ditulis `date >= $2::date AND date <= $3::date` supaya tidak bergantung pada tipe parameter.
+- State lokal disaring dengan rentang yang sama, jadi layar tidak sempat menampilkan data yang sudah dihapus. Baris di luar periode tetap utuh di perangkat maupun di server.
+
+Jalur ini tidak menyentuh data lain: karyawan, cabang, pelanggan, layanan, pengeluaran, absensi, pengaturan, dan langganan tidak ikut terhapus.
+
+Tes: `tests/reset-shift-period.test.js` (10 tes) memanggil handler sungguhan dengan pool palsu yang mencatat SQL-nya, lalu memastikan batas tanggal benar-benar ikut terkirim, empat bentuk periode tidak valid ditolak tanpa `DELETE` apa pun, dan bentuk kode sisi UI terkunci.
 
 ## Dialog aplikasi (confirm/alert bawaan membocorkan URL)
 

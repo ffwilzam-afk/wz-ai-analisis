@@ -4032,18 +4032,66 @@ function closeModal(){
 }
 window.addEventListener('popstate',()=>{const modal=document.getElementById('modal');if(modal?.classList.contains('open')){modal.classList.remove('open');modalHistoryState=false;if(typeof resolveSubscriptionConfirm==='function')resolveSubscriptionConfirm(false);if(typeof wzResolveDialog==='function')wzResolveDialog(false)}});
 
+// Form reset hanya boleh mengirim periode kalau dua tanggalnya benar-benar
+// terisi dan urutannya masuk akal, supaya tidak ada keadaan setengah di server.
+function shiftResetPeriod(){
+ if(!guard('system'))return null;
+ const mode=document.getElementById('resetPeriodMode')?.value||'all';
+ if(mode!=='custom')return{all:true,from:'',to:''};
+ const from=String(document.getElementById('resetPeriodFrom')?.value||'');
+ const to=String(document.getElementById('resetPeriodTo')?.value||'');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(from)||!/^\d{4}-\d{2}-\d{2}$/.test(to))return{error:'Isi tanggal awal dan tanggal akhir periode.'};
+ if(from>to)return{error:'Tanggal awal tidak boleh melewati tanggal akhir.'};
+ return{all:false,from,to};
+}
+function shiftTestResetScope(){
+ const period=shiftResetPeriod();
+ if(!period||period.error)return null;
+ const inRange=d=>{const s=String(d||'');return period.all||(s>=period.from&&s<=period.to)};
+ return{
+  period,
+  transactions:(db.transactions||[]).filter(x=>inRange(x?.date)).length,
+  shiftReports:(db.shiftReports||[]).filter(x=>inRange(x?.date)).length
+ };
+}
+function shiftTestResetPeriodLabel(period){
+ return period.all?'seluruh periode':`periode ${period.from} sampai ${period.to}`;
+}
+function shiftTestResetPeriodChange(){
+ const mode=document.getElementById('resetPeriodMode')?.value||'all';
+ const fromInput=document.getElementById('resetPeriodFrom');
+ const toInput=document.getElementById('resetPeriodTo');
+ const info=document.getElementById('resetPeriodInfo');
+ if(!fromInput||!toInput)return;
+ const custom=mode==='custom';
+ fromInput.disabled=!custom;
+ toInput.disabled=!custom;
+ if(custom){
+  // Default sederhana: mulai dari data paling lama yang ada dan selesai hari
+  // ini, jadi layar langsung menampilkan angka yang akan dihapus.
+  if(!fromInput.value){
+   const dates=[...(db.transactions||[]),...(db.shiftReports||[])].map(x=>String(x?.date||'')).filter(d=>/^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+   fromInput.value=dates[0]||'';
+  }
+  if(!toInput.value)toInput.value=dateNow();
+ }
+ if(!info)return;
+ const scope=shiftTestResetScope();
+ if(!scope){info.textContent='Isi tanggal awal dan tanggal akhir periode untuk melihat jumlah data yang akan dihapus.';return}
+ info.textContent=`${custom?'Akan dihapus pada periode':'Akan dihapus untuk'} ${shiftTestResetPeriodLabel(scope.period)}: ${scope.transactions} transaksi dan ${scope.shiftReports} laporan tutup shift.`;
+}
 async function shiftTestReset(){
  if(!guard('system'))return;
- const txCount=(db.transactions||[]).length;
- const shiftCount=(db.shiftReports||[]).length;
-  const total=txCount+shiftCount;
- if(!await konfirmasi(`Hapus seluruh data transaksi (${txCount}) dan seluruh laporan tutup shift (${shiftCount})? Data karyawan, cabang, pelanggan, layanan, pengeluaran, dan pengaturan lain TIDAK akan dihapus.`,{judul:'Hapus Semua Data',okLabel:'HAPUS SEMUA',danger:true}))return;
+ const scope=shiftTestResetScope();
+ if(!scope){peringatan('Pilih tanggal awal dan tanggal akhir periode dengan benar.');shiftTestResetPeriodChange();return}
+ if(!await konfirmasi(`Hapus data transaksi (${scope.transactions}) dan laporan tutup shift (${scope.shiftReports}) pada ${shiftTestResetPeriodLabel(scope.period)}? Data karyawan, cabang, pelanggan, layanan, pengeluaran, dan pengaturan lain TIDAK akan dihapus.`,{judul:scope.period.all?'Hapus Semua Data':'Hapus Periode',okLabel:scope.period.all?'HAPUS SEMUA':'HAPUS PERIODE',danger:true}))return;
  if(typeof window.WZOnlineBusiness?.reset!=='function'){peringatan('Reset online belum siap. Pastikan koneksi ke server tersedia.');return;}
+ const payload=scope.period.all?{}:{from:scope.period.from,to:scope.period.to};
  let result;
- try{result=await window.WZOnlineBusiness.reset()}catch(e){peringatan('Reset online gagal: '+(e.message||e));return}
+ try{result=await window.WZOnlineBusiness.reset(payload)}catch(e){peringatan('Reset online gagal: '+(e.message||e));return}
  if(!result)return;
  closeModal();
- toast(`Berhasil menghapus ${result.transactions} transaksi dan ${result.shiftReports} laporan tutup shift.`);
+ toast(`Berhasil menghapus ${result.transactions} transaksi dan ${result.shiftReports} laporan tutup shift${result.period?' ('+result.period.from+' sampai '+result.period.to+')':''}.`);
  render();
 }
 
@@ -4984,7 +5032,7 @@ async function ownerForumSendSticker(stickerId){
   }
 }
 
-function systemPage(){if(!guard('system'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SYSTEM & DATA</span><h1>Sistem & Data</h1><p>Perawatan data online dan informasi sistem.</p></div></div><div class="grid">${boxCard('Transaksi',db.transactions.length)}${boxCard('Karyawan',db.employees.length)}${boxCard('Pelanggan',db.customers.length)}${boxCard('Layanan',db.services.length)}${boxCard('Pengeluaran',db.expenses.length)}${boxCard('Absensi',db.attendance.length)}</div><section class="card section"><h3>Backup & Restore</h3><p class="muted">Backup disimpan sebagai JSON dan dapat dipindahkan ke perangkat lain.</p><div class="actions"><button class="btn primary" onclick="exportBackup()">Download Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore Backup</button></div></section><section id="shift-test-reset-card" class="card section" style="margin-top:16px"><span class="gold-label">TESTING</span><h3 style="margin-top:8px">Reset Laporan Tutup Shift</h3><p class="muted">Khusus Manager/Owner. Hapus seluruh data transaksi dan seluruh laporan tutup shift untuk memulai pengujian dari kondisi kosong.</p><button type="button" id="resetShiftTestingBtn" class="btn">Hapus Semua Transaksi & Laporan Tutup Shift</button></section>`}
+function systemPage(){if(!guard('system'))return;document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">SYSTEM & DATA</span><h1>Sistem & Data</h1><p>Perawatan data online dan informasi sistem.</p></div></div><div class="grid">${boxCard('Transaksi',db.transactions.length)}${boxCard('Karyawan',db.employees.length)}${boxCard('Pelanggan',db.customers.length)}${boxCard('Layanan',db.services.length)}${boxCard('Pengeluaran',db.expenses.length)}${boxCard('Absensi',db.attendance.length)}</div><section class="card section"><h3>Backup & Restore</h3><p class="muted">Backup disimpan sebagai JSON dan dapat dipindahkan ke perangkat lain.</p><div class="actions"><button class="btn primary" onclick="exportBackup()">Download Backup JSON</button><button class="btn" onclick="document.getElementById('importFile').click()">Restore Backup</button></div></section><section id="shift-test-reset-card" class="card section" style="margin-top:16px"><span class="gold-label">TESTING</span><h3 style="margin-top:8px">Reset Laporan Tutup Shift</h3><p class="muted">Khusus Manager/Owner. Hapus data transaksi dan laporan tutup shift, seluruhnya atau hanya pada periode yang dipilih.</p><div class="form"><label>Periode hapus<select id="resetPeriodMode" onchange="shiftTestResetPeriodChange()"><option value="all">Semua periode</option><option value="custom">Pilih periode (tanggal)</option></select></label><label>Dari<input id="resetPeriodFrom" type="date" onchange="shiftTestResetPeriodChange()" disabled></label><label>Sampai<input id="resetPeriodTo" type="date" onchange="shiftTestResetPeriodChange()" disabled></label></div><p id="resetPeriodInfo" class="muted" style="margin-top:10px"></p><div class="actions" style="margin-top:12px"><button type="button" id="resetShiftTestingBtn" class="btn danger">Hapus Transaksi & Laporan Tutup Shift</button></div></section>`;shiftTestResetPeriodChange()}
 
 document.addEventListener('click',function(e){
  const btn=e.target.closest('#resetShiftTestingBtn');
@@ -5349,7 +5397,19 @@ async function syncBusiness(){
     return false;
   }
 }
-window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[],reset:async function(){const result=await api('reset-business',{method:'POST'});db.transactions=[];db.shiftReports=[];return result;}};
+window.WZOnlineBusiness={sync:syncBusiness,lastConflicts:[],reset:async function(options={}){
+  // Tanpa from/to: hapus semua (perilaku lama). Dengan from/to: hapus hanya
+  // baris pada periode itu. Server yang menentukan hasil akhir, tapi state
+  // lokal langsung ikut disaring supaya layar tidak sempat menampilkan data
+  // yang sudah dihapus.
+  const from=String(options?.from||''),to=String(options?.to||'');
+  const period=/^\d{4}-\d{2}-\d{2}$/.test(from)&&/^\d{4}-\d{2}-\d{2}$/.test(to)&&from<=to?{from,to}:null;
+  const result=await api('reset-business',period?{method:'POST',body:JSON.stringify(period)}:{method:'POST'});
+  const inRange=d=>{const s=String(d||'');return !period||(s>=period.from&&s<=period.to)};
+  db.transactions=(db.transactions||[]).filter(x=>!inRange(x?.date));
+  db.shiftReports=(db.shiftReports||[]).filter(x=>!inRange(x?.date));
+  return result;
+}};
 // Dipakai auto-refresh di luar IIFE ini (lihat refreshAppData).
 window.WZOnlineSync={hydrate:hydrateAppState,business:syncBusiness,employees:syncEmployeesFromServer,reset:resetTenantState};
 // Fungsi berikut dipanggil dari atribut onclick di HTML, jadi harus global.

@@ -1683,13 +1683,32 @@ async function handler(req,res){
       if(!['owner','manager'].includes(u.role))return send(res,403,{ok:false,error:'Hanya Owner/Manager yang dapat mereset data bisnis.'});
       const access=await getSubscriptionAccess(u.business_id);
       if(access.isReadOnly)return send(res,403,{ok:false,code:'SUBSCRIPTION_REQUIRED',error:'Subscription bisnis sudah tidak aktif. Silakan pilih paket untuk melanjutkan.'});
+      // Periode opsional. Tanpa from/to (atau keduanya kosong) tetap seperti
+      // dulu: hapus semua transaksi dan semua laporan tutup shift. Kalau hanya
+      // satu tanggal yang dikirim, request ditolak, supaya tanggal kosong tidak
+      // pernah dibaca sebagai "hapus semua".
+      const b=await body(req);
+      const from=String(b.from===undefined||b.from===null?'':b.from).trim();
+      const to=String(b.to===undefined||b.to===null?'':b.to).trim();
+      if((from==='')!==(to===''))return send(res,400,{ok:false,code:'RESET_PERIOD_INVALID',error:'Tanggal awal dan tanggal akhir periode harus diisi dua-duanya.'});
+      let period=null;
+      if(from!==''){
+        if(!validDate(from)||!validDate(to))return send(res,400,{ok:false,code:'RESET_PERIOD_INVALID',error:'Tanggal periode harus format YYYY-MM-DD.'});
+        if(from>to)return send(res,400,{ok:false,code:'RESET_PERIOD_INVALID',error:'Tanggal awal periode tidak boleh melewati tanggal akhir.'});
+        period={from,to};
+      }
       const client=await getPool().connect();
       try{
         await client.query('BEGIN');
-        const tx=await client.query('DELETE FROM wz_transactions WHERE business_id=$1 RETURNING id',[u.business_id]);
-        const shifts=await client.query('DELETE FROM wz_shift_reports WHERE business_id=$1 RETURNING id',[u.business_id]);
+        // Kolom date di wz_transactions dan wz_shift_reports bertipe DATE, jadi
+        // batas periode dikunci dengan ::date supaya perbandingan tidak
+        // bergantung pada tipe parameter.
+        const dateFilter=period?' AND date >= $2::date AND date <= $3::date':'';
+        const params=period?[u.business_id,period.from,period.to]:[u.business_id];
+        const tx=await client.query('DELETE FROM wz_transactions WHERE business_id=$1'+dateFilter+' RETURNING id',params);
+        const shifts=await client.query('DELETE FROM wz_shift_reports WHERE business_id=$1'+dateFilter+' RETURNING id',params);
         await client.query('COMMIT');
-        return send(res,200,{ok:true,transactions:tx.rowCount,shiftReports:shifts.rowCount,total:tx.rowCount+shifts.rowCount});
+        return send(res,200,{ok:true,transactions:tx.rowCount,shiftReports:shifts.rowCount,total:tx.rowCount+shifts.rowCount,period});
       }catch(e){await client.query('ROLLBACK');throw e}finally{client.release()}
     }
     if(path==='sync-business' && req.method==='POST'){
