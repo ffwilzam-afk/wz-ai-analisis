@@ -217,6 +217,25 @@ Buka Wali untuk teks yang memang harus bisa disalin: tambahkan kelas `wz-copyabl
 
 Tes: `tests/native-feel.test.js` (4 tes) memeriksa bentuk aturan CSS (termasuk urutan `none` sebelum `text`), keberadaan ketiga penjaga event, lalu menjalankan penjaga itu di jsdom: `contextmenu`/`dragstart`/`selectstart` pada teks biasa diblokir, sedangkan pada `input`, `textarea`, dan `.wz-copyable` tetap lolos.
 
+## Tanda loading: tombol yang sedang menjalankan perintah
+
+Audit tombol di `index.html` menunjukkan hampir tidak ada aksi yang memberi umpan balik. Indikator "Tersimpan online" di topbar justru disembunyikan di HP (kelas `.wz-top-hidden`), jadi di Android **tidak ada apa pun** yang memberi tahu pengguna bahwa tombolnya masih bekerja di server. Sebagian aksi sinkron (`saveService`, `saveExpense`, `saveSettings`, `saveCustomer`) bahkan langsung menutup dialog dan menampilkan toast sukses padahal tulisannya ke server masih berjalan di latar.
+
+Perbaikannya dua lapis, keduanya di `index.html`:
+
+1. **Spinner pada tombol yang ditekan.** `window.fetch` dibungkus satu kali (`wzWatchRequests`) untuk menghitung permintaan yang sedang berjalan, lalu `wzInstallBusyFeedback()` membungkus daftar aksi di `WZ_BUSY_ACTIONS` (29 nama). Tombol yang ditekan dapat kelas `.wz-busy` (isi tombol diganti spinner), `aria-busy`, dan `disabled=true` supaya tidak bisa terkirim dua kali. Tombol baru dibuka setelah **tidak ada lagi permintaan yang menggantung**, bukan hanya setelah fungsi selesai.
+2. **Pil "Menyimpan..."** di atas navigasi bawah (`#wzNet`, `z-index:1300`) selama ada permintaan ke server, dengan nama aksinya ("Menyimpan transaksi..."). Ini juga menutupi simpan latar (auto-refresh 30 detik, FCM, `save()` yang dijadwalkan 250ms). Kalau permintaan terakhir gagal, pil tidak langsung hilang: ia bertahan 1,8 detik dalam warna merah bertuliskan "Gagal menyimpan. Periksa koneksi." supaya pengguna tidak mengira simpanannya berhasil.
+
+Cara pasangnya disengaja **tanpa `data-busy` di HTML**: tombol yang diketuk dicatat listener capture (`wzRememberTap`, lalu dibersihkan di task berikutnya supaya pemanggilan dari timer tidak ikut memakai tombol lama), lalu pembungkus aksi memakainya. Jadi tombol yang dibuat belakangan di dalam dialog pun ikut dapat tanda tanpa disentuh.
+
+Batas tunggu ada dua, supaya aplikasi tidak pernah terkunci: `WZ_BUSY_LIMITS.idle` (40 x 80ms) untuk permintaan yang masih menggantung setelah aksi selesai, dan `WZ_BUSY_LIMITS.hard` (20 detik) sebagai pagar pengaman terakhir kalau promise aksi tidak pernah selesai.
+
+Yang SENGAJA tidak diberi tanda: `login` dan `logout` (keduanya meneruskan ke `window.login`/`window.logout`, jadi dibungkus akan memanggil dirinya sendiri terus-menerus; keduanya sudah punya teks "MEMASUK..." sendiri), `submitRegisterBusiness` (sudah punya `setActionLoading`), tombol yang hanya membuka dialog atau menutup modal, `printTransactionReceipt` (dialog print Android), dan `requestNotificationPermission` (dialog izin browser).
+
+Tes: `tests/loading-feedback.test.js` (10 tes) menjalankan blok status proses dari `index.html` di jsdom dengan fetch yang dikendalikan penuh. Yang diuji: spinner + `disabled` + isi pil selama perintah berjalan, tombol terbuka lagi setelah gagal, aksi sinkron (`saveService`) juga dapat tanda dan menunggu permintaannya, pil muncul untuk simpan latar, dua permintaan dihitung dua-duanya, dan kedua batas tunggu melepas tombol. `login`/`logout` diuji tidak terbungkus.
+
+Belum diterapkan di `admin.html` (panel admin) -- tombolnya masih seperti sebelumnya.
+
 ## Menu geser menutup sendiri saat diketuk di luar
 
 Ikon garis tiga membuka sidebar, tapi di HP **mengetuk di luar menu tidak menutupnya** -- menu tetap menempel sampai ikon ditekan lagi. Penyebabnya `toggleMenu()` hanya membalik kelas `open`, sedangkan `closeMobileMenu()` sudah ada tapi tidak pernah dipanggil dari mana pun.

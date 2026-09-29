@@ -1356,6 +1356,34 @@ input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[cont
 .wz-scrim.on{display:block}
 @media(max-width:800px){.wz-scrim.on{animation:wzScrimIn .15s ease-out}}
 @keyframes wzScrimIn{from{opacity:0}to{opacity:1}}
+
+/* Status perintah yang sedang jalan.
+   Di HP indikator "Tersimpan online" di topbar disembunyikan (kelas
+   .wz-top-hidden), jadi tanpa ini tidak ada apa pun yang memberi tahu
+   pengguna bahwa tombol yang ditekan masih bekerja di server. */
+.wz-busy{position:relative;pointer-events:none;color:transparent!important;text-shadow:none!important}
+.wz-busy>*{visibility:hidden}
+.wz-busy::before{
+ content:"";position:absolute;left:50%;top:50%;width:15px;height:15px;margin:-8px 0 0 -8px;
+ border:2px solid #ffffff4d;border-top-color:#fff;border-radius:50%;animation:wzSpin .65s linear infinite
+}
+@keyframes wzSpin{to{transform:rotate(360deg)}}
+.wz-net{
+ position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:1300;
+ display:flex;align-items:center;gap:9px;max-width:calc(100% - 28px);
+ padding:9px 15px;border-radius:99px;background:#12161cf2;border:1px solid #6d5a24;
+ color:#e8e9eb;font-size:12px;box-shadow:var(--shadow);pointer-events:none
+}
+.wz-net[hidden]{display:none}
+.wz-net.err{border-color:#8a3b3b;color:#ffc9c9}
+.wz-net-spin{
+ width:13px;height:13px;flex:none;border:2px solid #ffffff40;border-top-color:var(--gold2);
+ border-radius:50%;animation:wzSpin .65s linear infinite
+}
+.wz-net.err .wz-net-spin{border-top-color:#ff9b9b}
+.wz-net-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media(max-width:800px){.wz-net{bottom:calc(68px + 14px + env(safe-area-inset-bottom))}}
+@media(prefers-reduced-motion:reduce){.wz-busy::before,.wz-net-spin{animation-duration:1.6s}}
 </style>
 
 </head>
@@ -1417,6 +1445,7 @@ input,textarea,select,option,[contenteditable=""],[contenteditable="true"],[cont
 
 <div class="modal" id="modal"><div class="dialog" id="dialog"></div></div>
 <div class="toast" id="toast"></div>
+<div class="wz-net" id="wzNet" hidden role="status" aria-live="polite"><i class="wz-net-spin"></i><span class="wz-net-text" id="wzNetText">Menyimpan...</span></div>
 
 <script>
 let currentUser=null;
@@ -1699,6 +1728,185 @@ function playNotificationSound(){
 // karena setServicePayrollCategory() membacanya dari sana, sedangkan
 // persistAppState() menuliskannya dari dalam IIFE bridge.
 let lastSaveError=null;
+
+/* ---------------------------------------------------------- status proses
+   Dua lapis umpan balik supaya jelas perintahnya sedang jalan, bukan
+   gagal diam-diam:
+   1. tombol yang ditekan diberi spinner (kelas .wz-busy) dan
+      dinonaktifkan, jadi tidak bisa terkirim dua kali;
+   2. pil "Menyimpan..." muncul selama ada permintaan ke server yang
+      belum selesai. Di HP indikator topbar disembunyikan, jadi tanpa
+      pil ini tidak ada tanda sama sekali.
+   Indikator lewat floating tidak diubah: transform-nya dipakai rules
+   z-index yang sudah ada, jadi tidak disentuh. */
+const wzTap={el:null};
+function wzRememberTap(node){
+ wzTap.el=node?.closest?.('button,.btn,[role="button"],a')||null;
+ // Dibersihkan di task berikutnya supaya pemanggilan dari timer atau
+ // auto-refresh tidak ikut memakai tombol ketukan terakhir.
+ setTimeout(function(){wzTap.el=null},0);
+}
+document.addEventListener('click',function(e){wzRememberTap(e.target)},true);
+document.addEventListener('submit',function(e){
+ wzRememberTap(e.submitter||e.target?.querySelector('button[type="submit"]'));
+},true);
+
+const wzNet={count:0,failedAt:0,label:'',holdUntil:0};
+window.wzNetStatus=wzNet;
+function wzNetPaint(){
+ const el=document.getElementById('wzNet');
+ if(!el)return;
+ const holding=wzNet.holdUntil>Date.now();
+ const text=document.getElementById('wzNetText');
+ if(text)text.textContent=holding&&wzNet.count===0?'Gagal menyimpan. Periksa koneksi.':(wzNet.label||'Menyimpan...');
+ el.hidden=wzNet.count<1&&!holding;
+ el.classList.toggle('err',wzNet.failedAt>0&&Date.now()-wzNet.failedAt<6000);
+}
+function wzNetBegin(label){
+ if(label)wzNet.label=label;
+ wzNet.count++;
+ wzNetPaint();
+}
+function wzNetEnd(ok){
+ wzNet.count=Math.max(0,wzNet.count-1);
+ if(!ok){
+  wzNet.failedAt=Date.now();
+  // Permintaan terakhir yang gagal tidak boleh langsung hilang: kalau
+  // pilnya lenyap begitu saja, pengguna mengira simpanannya berhasil.
+  if(wzNet.count===0){
+   wzNet.holdUntil=Date.now()+1800;
+   setTimeout(wzNetPaint,1900);
+  }
+ }
+ wzNetPaint();
+}
+/* Semua panggilan API melewati fetch, jadi satu titik ini cukup untuk
+   tahu ada pekerjaan yang sedang jalan, termasuk simpan state latar. */
+(function wzWatchRequests(){
+ const plain=window.fetch;
+ if(typeof plain!=='function'||plain.__wzWatched)return;
+ const watched=function(input,init){
+  wzNetBegin();
+  return plain.call(window,input,init).then(function(res){
+   wzNetEnd(!(res&&res.ok===false));
+   return res;
+  },function(err){
+   wzNetEnd(false);
+   throw err;
+  });
+ };
+ watched.__wzWatched=true;
+ window.fetch=watched;
+})();
+
+function wzSetBusy(el,on,label){
+ if(!el)return;
+ if(on){
+  if(el.__wzBusy)return;
+  el.__wzBusy=true;
+  if(label){
+   wzNet.label=label;
+   wzNetPaint();
+  }
+  el.setAttribute('aria-busy','true');
+  el.classList.add('wz-busy');
+  if('disabled' in el)el.disabled=true;
+  return;
+ }
+ if(!el.__wzBusy)return;
+ el.__wzBusy=false;
+ el.classList.remove('wz-busy');
+ el.removeAttribute('aria-busy');
+ if('disabled' in el)el.disabled=false;
+}
+/* Batas menunggu. `hard` adalah pagar pengaman terakhir: kalau ada
+   perintah yang promise-nya tidak pernah selesai, tombol tetap dibuka
+   supaya aplikasi tidak terkunci selamanya. */
+const WZ_BUSY_LIMITS={idle:40,hard:20000};
+window.wzBusyLimits=WZ_BUSY_LIMITS;
+function wzWithBusy(el,label,task){
+ if(!el)return task();
+ wzSetBusy(el,true,label);
+ let cleared=false;
+ let cap=0;
+ function clear(){
+  if(cleared)return;
+  cleared=true;
+  clearTimeout(cap);
+  wzSetBusy(el,false);
+ }
+ cap=setTimeout(clear,WZ_BUSY_LIMITS.hard);
+ /* Tunggu sampai tidak ada permintaan yang masih menggantung, supaya
+   tombol tidak langsung hidup lagi padahal server belum selesai. */
+ function clearWhenIdle(attempt){
+  if(cleared)return;
+  if(wzNet.count===0||attempt>WZ_BUSY_LIMITS.idle){clear();return}
+  setTimeout(function(){clearWhenIdle(attempt+1)},80);
+ }
+ let result;
+ try{result=task()}catch(e){clear();throw e}
+ if(result&&typeof result.then==='function'){
+  return result.then(function(v){clearWhenIdle(0);return v},function(e){clear();throw e});
+ }
+ // Aksi sinkron (hanya mengubah state di memori lalu mengirim ke server lewat
+ // save()) tidak mengembalikan promise, jadi tunggu satu tick supaya
+ // permintaan yang baru dikirim sempat terhitung.
+ setTimeout(function(){clearWhenIdle(0)},120);
+ return result;
+}
+/* Daftar aksi yang menyentuh server. Dipasang otomatis ke funsinya,
+   jadi tombol yang baru dibuat pun ikut dapat tanda tanpa menulis
+   data-busy di mana pun. `login` dan `logout` SENGAJA tidak ada di sini:
+   keduanya meneruskan ke window.login/window.logout, jadi dibungkus
+   akan memanggil dirinya sendiri terus-menerus. */
+const WZ_BUSY_ACTIONS={
+ saveTransaction:'Menyimpan transaksi...',
+ voidTx:'Memproses void...',
+ saveShiftReport:'Menyimpan laporan shift...',
+ saveEmployee:'Menyimpan karyawan...',
+ deleteEmployee:'Menghapus karyawan...',
+ saveBranch:'Menyimpan cabang...',
+ saveCustomer:'Menyimpan pelanggan...',
+ saveExpense:'Menyimpan pengeluaran...',
+ saveService:'Menyimpan layanan...',
+ updateService:'Menyimpan layanan...',
+ setServicePayrollCategory:'Menyimpan kategori gaji...',
+ saveSettings:'Menyimpan pengaturan...',
+ saveOwnerSettings:'Menyimpan pengaturan...',
+ saveMyProfile:'Menyimpan profil...',
+ saveMyUsername:'Menyimpan username...',
+ saveMyPassword:'Menyimpan password...',
+ saveEmployeePayroll:'Menyimpan pengaturan gaji...',
+ resetEmployeePayroll:'Menghapus pengaturan gaji...',
+ savePayrollSettings:'Menyimpan pengaturan gaji...',
+ resetAll:'Menghapus data...',
+ syncBusiness:'Menyinkronkan data...',
+ exportBackup:'Menyiapkan backup...',
+ importBackup:'Memulihkan backup...',
+ ownerForumSend:'Mengirim pesan...',
+ ownerForumReact:'Memasang reaksi...',
+ ownerForumVotePoll:'Mengirim suara...',
+ ownerForumSubmitPoll:'Mengirim polling...',
+ ownerForumLoadOlder:'Memuat pesan lama...',
+ ownerRefreshBusiness:'Memuat ulang data...',
+ selectSubscriptionPlan:'Memproses...'
+};
+function wzInstallBusyFeedback(){
+ Object.keys(WZ_BUSY_ACTIONS).forEach(function(name){
+  const fn=window[name];
+  if(typeof fn!=='function'||fn.__wzBusyWrapped)return;
+  const wrapped=function(){
+   const el=wzTap.el;
+   const ctx=this,args=arguments;
+   // Sudah berputar atau tidak ada tombol yang ditekan: jalankan apa
+   // adanya supaya tidak ada aksi yang hilang.
+   if(!el||el.__wzBusy)return fn.apply(ctx,args);
+   return wzWithBusy(el,WZ_BUSY_ACTIONS[name],function(){return fn.apply(ctx,args)});
+  };
+  wrapped.__wzBusyWrapped=true;
+  window[name]=wrapped;
+ });
+}
 function save(){
   // Nilai balik: Promise<boolean> yang true kalau benar-benar tersimpan ke
   // server. Pemanggil boleh mengabaikannya, tapi boleh juga mengecek hasilnya.
@@ -5147,6 +5355,7 @@ const baseRender=render;
 render=function(){baseRender();ownerSettingsPanel();wzFormBaseline=wzFormSignature()};
 currentUser=null
 render();
+wzInstallBusyFeedback();
 </script>
 
 
