@@ -466,6 +466,13 @@ test('halaman yang dirender nyata memakai kelas warna sesuai aturan', async () =
   }
 });
 
+// Memuat aturan nama pengeluaran (EXPENSE_NAME_KEYS + expenseName) ke jendela
+// jsdom. Dipakai semua tes yang memanggil expenseEntries().
+function evalExpenseName(w) {
+  w.eval(INDEX.slice(INDEX.indexOf('const EXPENSE_NAME_KEYS='),
+    INDEX.indexOf('function expenseEntries(')));
+}
+
 /* ---------------------------------------------------- detail pengeluaran
    Owner meminta data pengeluaran di menu Keuangan bisa diketuk dan
    memunculkan detailnya. Yang dikunci di sini: baris benar-benar bisa
@@ -503,6 +510,7 @@ test('dialog detail pengeluaran menyaring per periode dan menjumlahkan total', (
   try {
     w.escapeHtml = v => String(v);
     w.eval(INDEX.slice(INDEX.indexOf('function rupiah(value){'), INDEX.indexOf('const MONEY_TONE_RULES=')));
+    evalExpenseName(w);
     for (const fn of ['expenseEntries', 'expenseRowHtml', 'expensePeriodRange',
       'expenseDetailFiltered', 'filterExpenseDetail']) {
       w.eval(functionBody(fn));
@@ -577,6 +585,7 @@ test('total daftar pengeluaran sama dengan angka di kartu Pengeluaran', () => {
   const w = new JSDOM('<!doctype html><body></body>', { runScripts: 'dangerously' }).window;
   try {
     w.escapeHtml = v => String(v);
+    evalExpenseName(w);
     for (const fn of ['ownerBusinessFeed', 'ownerBusinessTotals', 'revenue', 'expenses',
       'profit', 'expenseEntries']) {
       w.eval(functionBody(fn));
@@ -619,6 +628,7 @@ test('setiap baris pengeluaran menampilkan namanya', () => {
   try {
     w.escapeHtml = v => String(v);
     w.eval(INDEX.slice(INDEX.indexOf('function rupiah(value){'), INDEX.indexOf('const MONEY_TONE_RULES=')));
+    evalExpenseName(w);
     for (const fn of ['expenseEntries', 'expenseRowHtml']) w.eval(functionBody(fn));
     w.db = {
       expenses: [
@@ -627,6 +637,10 @@ test('setiap baris pengeluaran menampilkan namanya', () => {
         { id: 'P2', date: '2026-09-02', category: 'Kebersihan', amount: 50000, note: 'sabun' },
         // Tanpa name dan tanpa catatan: kategori jadi nama terakhir.
         { id: 'P3', date: '2026-09-03', category: 'Lain-lain', amount: 20000, note: '' },
+        // Nama yang sudah ada di server dengan kunci lain wajib ikut terbaca.
+        { id: 'P4', date: '2026-09-05', nama: 'Gaji barber', category: 'Gaji', amount: 300000 },
+        { id: 'P5', date: '2026-09-06', title: 'Beli gunting', category: 'Peralatan', amount: 150000 },
+        { id: 'P6', date: '2026-09-07', uraian: 'Sabun dan handuk', category: 'Bahan', amount: 40000 },
       ],
       shiftReports: [
         { id: 'R1', date: '2026-09-04', employeeName: 'Andi', shiftType: 'Pagi', cashExpense: 25000 },
@@ -634,19 +648,26 @@ test('setiap baris pengeluaran menampilkan namanya', () => {
     };
 
     const rows = w.expenseEntries();
-    assert.deepEqual(rows.map(r => r.name),
-      ['Pengeluaran Kas Shift', 'Lain-lain', 'sabun', 'Bayar listrik'],
-      'nama pengeluaran tidak diisi dengan benar');
+    assert.deepEqual(rows.map(r => r.name), [
+      'Sabun dan handuk', 'Beli gunting', 'Gaji barber',
+      'Pengeluaran Kas Shift', 'Lain-lain', 'sabun', 'Bayar listrik',
+    ], 'nama pengeluaran tidak diisi dengan benar');
 
     const html = rows.map(w.expenseRowHtml).join('');
-    for (const name of ['Bayar listrik', 'sabun', 'Lain-lain', 'Pengeluaran Kas Shift']) {
+    for (const name of ['Bayar listrik', 'sabun', 'Lain-lain', 'Pengeluaran Kas Shift',
+      'Gaji barber', 'Beli gunting', 'Sabun dan handuk']) {
       assert.ok(html.includes('<b>' + name + '</b>'), 'nama "' + name + '" tidak tampil di baris');
     }
     // Nama yang diambil dari catatan tidak boleh tampil dua kali.
-    const satu = w.expenseRowHtml(rows[2]);
-    assert.equal((satu.match(/sabun/g) || []).length, 1, 'catatan diulang sebagai baris kedua');
+    const fromNote = rows.find(r => r.name === 'sabun');
+    assert.equal((w.expenseRowHtml(fromNote).match(/sabun/g) || []).length, 1,
+      'catatan diulang sebagai baris kedua');
     // Catatan yang berbeda tetap tampil sebagai keterangan tambahan.
-    assert.ok(w.expenseRowHtml(rows[3]).includes('PLN'), 'catatan yang berbeda ikut hilang');
+    assert.ok(w.expenseRowHtml(rows.find(r => r.name === 'Bayar listrik')).includes('PLN'),
+      'catatan yang berbeda ikut hilang');
+    // Kategori yang sama dengan nama tidak diulang.
+    const sama = w.expenseRowHtml(rows.find(r => r.name === 'Lain-lain'));
+    assert.equal((sama.match(/Lain-lain/g) || []).length, 1, 'kategori diulang sebagai nama');
   } finally {
     w.close();
   }

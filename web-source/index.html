@@ -3924,13 +3924,25 @@ function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return p
    keduanya. Akibatnya kartu bisa menampilkan Rp 300.000 sementara daftar
    dan dialog detail berkata "Belum ada pengeluaran" -- datanya ada di
    server, tapi tidak pernah dimuat ke layar. */
+/* Nama pengeluaran bisa tersimpan dengan kunci yang berbeda-beda. Data
+   lama hanya punya `category`/`note`, sementara blob app-state di server
+   bisa memakai `name`, `nama`, `title`, `judul`, atau `uraian` tergantung
+   dari mana baris itu dibuat. Semua kunci itu dibaca supaya nama yang
+   SUDAH ADA di server tidak hilang hanya karena kuncinya berbeda. */
+const EXPENSE_NAME_KEYS=['name','nama','title','judul','label','uraian','description','desc'];
+function expenseName(e){
+ for(const key of EXPENSE_NAME_KEYS){
+  const value=String((e&&e[key])??'').trim();
+  if(value)return value;
+ }
+ // Cadangan terakhir: catatan, lalu kategori, supaya tidak pernah ada
+ // baris pengeluaran tanpa keterangan.
+ return String((e&&e.note)??'').trim()||String((e&&e.category)??'').trim()||'Pengeluaran';
+}
 function expenseEntries(){
  const manual=(db.expenses||[]).map(e=>{
   const category=String(e.category||'Operasional'),note=String(e.note||'');
-  // Nama adalah hal pertama yang dibaca Owner. Data lama belum punya
-  // `name`, jadi pakai catatan lalu kategori supaya tidak pernah ada
-  // baris pengeluaran tanpa keterangan.
-  const name=String(e.name||'').trim()||note.trim()||category;
+  const name=expenseName(e);
   return {id:'EXP:'+String(e.id||''),date:String(e.date||'').slice(0,10),name,category,note,amount:Number(e.amount||0),source:'MANUAL'};
  });
  // Laporan shift tanpa pengeluaran kas tidak perlu jadi baris kosong.
@@ -3943,12 +3955,12 @@ function expenseEntries(){
  return manual.concat(shift).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
 }
 function expenseRowHtml(e){
- const date=String(e.date||'');
- const meta=[date,e.category].filter(Boolean).map(v=>escapeHtml(String(v))).join(' · ');
- // Catatan disembunyikan kalau namanya memang diambil dari catatan itu,
- // supaya teks yang sama tidak muncul dua kali.
- const note=e.note&&e.note!==e.name?'<span class="subtle">'+escapeHtml(String(e.note))+'</span>':'';
- return `<div class="expense-row" role="button" tabindex="0" onclick="openExpense('${date}','${date}')"><div class="expense-main"><b>${escapeHtml(String(e.name||'Pengeluaran'))}</b><span class="subtle">${meta}</span>${note}</div><b>${money(e.amount,'out')}</b></div>`;
+ const date=String(e.date||''),name=String(e.name||'Pengeluaran');
+ // Kategori dan catatan disembunyikan kalau isinya sama dengan nama,
+ // supaya teks yang sama tidak muncul dua kali di baris yang pendek.
+ const meta=[date,e.category&&e.category!==name?e.category:''].filter(Boolean).map(v=>escapeHtml(String(v))).join(' · ');
+ const note=e.note&&e.note!==name?'<span class="subtle">'+escapeHtml(String(e.note))+'</span>':'';
+ return `<div class="expense-row" role="button" tabindex="0" onclick="openExpense('${date}','${date}')"><div class="expense-main"><b>${escapeHtml(name)}</b><span class="subtle">${meta}</span>${note}</div><b>${money(e.amount,'out')}</b></div>`;
 }
 function expenseRecentRows(){
  const rows=expenseEntries().slice(0,5);
