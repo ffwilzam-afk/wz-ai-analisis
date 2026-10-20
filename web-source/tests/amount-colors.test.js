@@ -503,7 +503,8 @@ test('dialog detail pengeluaran menyaring per periode dan menjumlahkan total', (
   try {
     w.escapeHtml = v => String(v);
     w.eval(INDEX.slice(INDEX.indexOf('function rupiah(value){'), INDEX.indexOf('const MONEY_TONE_RULES=')));
-    for (const fn of ['expenseRowHtml', 'expensePeriodRange', 'expenseDetailFiltered', 'filterExpenseDetail']) {
+    for (const fn of ['expenseEntries', 'expenseRowHtml', 'expensePeriodRange',
+      'expenseDetailFiltered', 'filterExpenseDetail']) {
       w.eval(functionBody(fn));
     }
     w.db = {
@@ -511,6 +512,12 @@ test('dialog detail pengeluaran menyaring per periode dan menjumlahkan total', (
         { id: 'X1', date: '2026-09-01', category: 'Listrik', amount: 100000, note: 'September' },
         { id: 'X2', date: '2026-09-15', category: 'Sewa', amount: 500000, note: '' },
         { id: 'X3', date: '2026-10-02', category: 'Listrik', amount: 70000, note: 'Oktober' },
+      ],
+      // Pengeluaran kas dari Tutup Shift: ini juga dihitung kartu "Pengeluaran",
+      // jadi wajib ikut tampil di daftar. Laporan dengan kas 0 tidak jadi baris.
+      shiftReports: [
+        { id: 'R1', date: '2026-09-16', employeeName: 'Andi', shiftType: 'Pagi', cashExpense: 25000 },
+        { id: 'R2', date: '2026-09-17', employeeName: 'Budi', shiftType: 'Sore', cashExpense: 0 },
       ],
     };
     w.dateNow = () => '2026-10-20';
@@ -526,9 +533,14 @@ test('dialog detail pengeluaran menyaring per periode dan menjumlahkan total', (
     let html = w.document.getElementById('eDetailList').innerHTML;
     assert.ok(html.includes('Rp 100.000') && html.includes('Rp 500.000'), 'data September hilang');
     assert.ok(!html.includes('Rp 70.000'), 'pengeluaran Oktober ikut tampil di luar periode');
-    assert.equal((html.match(/class="expense-row"/g) || []).length, 2, 'jumlah baris tidak sesuai periode');
-    assert.match(w.document.getElementById('eDetailTotal').innerHTML, /2 data/);
-    assert.match(w.document.getElementById('eDetailTotal').innerHTML, /Rp 600\.000/);
+    // 2 pengeluaran manual + 1 pengeluaran kas Tutup Shift (yang kas 0 dilewati).
+    assert.equal((html.match(/class="expense-row"/g) || []).length, 3, 'jumlah baris tidak sesuai periode');
+    assert.ok(html.includes('Pengeluaran Kas Shift'), 'pengeluaran kas Tutup Shift tidak dimuat');
+    assert.ok(html.includes('Rp 25.000'), 'nominal pengeluaran kas Tutup Shift hilang');
+    assert.match(w.document.getElementById('eDetailTotal').innerHTML, /3 data/);
+    assert.match(w.document.getElementById('eDetailTotal').innerHTML, /Rp 625\.000/);
+    assert.match(w.document.getElementById('eDetailTotal').innerHTML, /Tutup Shift Rp 25\.000/,
+      'sumber pengeluaran kas tidak dijelaskan');
 
     // Pencarian menyaring kategori, dan total ikut berubah.
     w.document.getElementById('eDetailFrom').value = '';
@@ -539,12 +551,62 @@ test('dialog detail pengeluaran menyaring per periode dan menjumlahkan total', (
     assert.equal((html.match(/class="expense-row"/g) || []).length, 2, 'pencarian kategori tidak menyaring');
     assert.match(w.document.getElementById('eDetailTotal').innerHTML, /Rp 170\.000/);
 
+    // Pencarian juga menjangkau nama karyawan pada pengeluaran kas shift.
+    w.document.getElementById('eDetailSearch').value = 'andi';
+    w.filterExpenseDetail();
+    assert.equal((w.document.getElementById('eDetailList').innerHTML.match(/class="expense-row"/g) || []).length, 1,
+      'pencarian nama karyawan tidak menjangkau pengeluaran kas Tutup Shift');
+
     // Periode kosong memberi pesan jelas, bukan daftar kosong tanpa keterangan.
     w.document.getElementById('eDetailSearch').value = '';
     w.document.getElementById('eDetailFrom').value = '2026-12-01';
     w.document.getElementById('eDetailTo').value = '2026-12-31';
     w.filterExpenseDetail();
     assert.match(w.document.getElementById('eDetailList').innerHTML, /Tidak ada pengeluaran pada periode ini/);
+  } finally {
+    w.close();
+  }
+});
+
+/* Inti keluhan Owner: "datanya sudah ada di server tapi tidak dimuat".
+   Kartu Pengeluaran sudah menjumlahkan pengeluaran manual DAN pengeluaran
+   kas dari Tutup Shift, sementara daftar hanya memuat yang manual. Yang
+   dikunci di sini: jumlah seluruh baris daftar HARUS sama dengan angka
+   di kartu, apa pun sumber datanya. */
+test('total daftar pengeluaran sama dengan angka di kartu Pengeluaran', () => {
+  const w = new JSDOM('<!doctype html><body></body>', { runScripts: 'dangerously' }).window;
+  try {
+    w.escapeHtml = v => String(v);
+    for (const fn of ['ownerBusinessFeed', 'ownerBusinessTotals', 'revenue', 'expenses',
+      'profit', 'expenseEntries']) {
+      w.eval(functionBody(fn));
+    }
+    w.db = {
+      transactions: [
+        { id: 'T1', date: '2026-09-16', status: 'SELESAI', total: 200000, payment: 'Tunai' },
+        { id: 'T2', date: '2026-09-17', status: 'VOID', total: 999999, payment: 'Tunai' },
+      ],
+      shiftReports: [
+        { id: 'R1', date: '2026-09-16', totalOmzet: 150000, customers: 2, cash: 150000, qris: 0, cashExpense: 30000 },
+        { id: 'R2', date: '2026-09-17', totalOmzet: 90000, customers: 1, cash: 0, qris: 90000, cashExpense: 0 },
+      ],
+      expenses: [
+        { id: 'X1', date: '2026-09-16', category: 'Listrik', amount: 120000, note: '' },
+        { id: 'X2', date: '2026-09-18', category: 'Sewa', amount: 50000, note: '' },
+      ],
+    };
+
+    const rows = w.expenseEntries();
+    const listTotal = rows.reduce((sum, row) => sum + row.amount, 0);
+    assert.equal(listTotal, w.expenses(),
+      'total daftar (' + listTotal + ') tidak sama dengan kartu (' + w.expenses() + ')');
+    // Pengeluaran kas shift benar-benar ikut, bukan hanya dijumlahkan di kartu.
+    assert.equal(rows.filter(r => r.source === 'TUTUP_SHIFT').length, 1);
+    assert.equal(rows.filter(r => r.source === 'MANUAL').length, 2);
+    // Laporan shift tanpa pengeluaran kas tidak boleh jadi baris Rp 0.
+    assert.ok(!rows.some(r => r.amount === 0), 'ada baris pengeluaran bernilai nol');
+    // Urutan: tanggal terbaru dulu.
+    assert.deepEqual(rows.map(r => r.date), ['2026-09-18', '2026-09-16', '2026-09-16']);
   } finally {
     w.close();
   }

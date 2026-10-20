@@ -3913,29 +3913,57 @@ function saveService(){
 function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Kategori Gaji<select id="esPayCat"><option value="">Tidak dihitung</option>${payrollCategoryOptions(s.payrollCategory||'')}</select></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
 function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return peringatan('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return peringatan('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return peringatan('Durasi layanan tidak valid.');s.name=name;s.category=category;s.payrollCategory=document.getElementById('esPayCat')?.value||'';s.price=price;s.duration=duration;s.active=esActive.checked;const done=save();closeModal();render();saveReportThenToast(done,'Layanan berhasil diperbarui.','Perubahan layanan belum tersimpan.')}
 
+/* Satu daftar pengeluaran dari SEMUA sumber yang sudah dihitung kartu
+   "Pengeluaran":
+     1. pengeluaran yang dicatat manual (db.expenses, app-state server)
+     2. pengeluaran kas yang dilaporkan saat Tutup Shift
+        (db.shiftReports[].cashExpense, endpoint laporan shift)
+   Dulu daftar hanya memuat nomor 1, padahal expenses() sudah menjumlahkan
+   keduanya. Akibatnya kartu bisa menampilkan Rp 300.000 sementara daftar
+   dan dialog detail berkata "Belum ada pengeluaran" -- datanya ada di
+   server, tapi tidak pernah dimuat ke layar. */
+function expenseEntries(){
+ const manual=(db.expenses||[]).map(e=>({
+  id:'EXP:'+String(e.id||''),date:String(e.date||'').slice(0,10),
+  category:String(e.category||'Operasional'),note:String(e.note||''),
+  amount:Number(e.amount||0),source:'MANUAL'
+ }));
+ // Laporan shift tanpa pengeluaran kas tidak perlu jadi baris kosong.
+ const shift=(db.shiftReports||[]).map(r=>({
+  id:'SHIFT:'+String(r.id||''),date:String(r.date||'').slice(0,10),
+  category:'Pengeluaran Kas Shift',
+  note:[r.employeeName||r.employeeId||'',r.shiftType||''].filter(Boolean).join(' · '),
+  amount:Number(r.cashExpense||0),source:'TUTUP_SHIFT'
+ })).filter(row=>row.amount!==0);
+ return manual.concat(shift).sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:0);
+}
 function expenseRowHtml(e){
  const date=String(e.date||'');
  const note=e.note?' · '+escapeHtml(String(e.note)):'';
- return `<div class="expense-row" role="button" tabindex="0" onclick="openExpense('${date}','${date}')"><span>${escapeHtml(date)} · ${escapeHtml(String(e.category||'Operasional'))}${note}</span><b>${money(e.amount,'out')}</b></div>`;
+ const source=e.source==='TUTUP_SHIFT'?'<span class="subtle"> · Tutup Shift</span>':'';
+ return `<div class="expense-row" role="button" tabindex="0" onclick="openExpense('${date}','${date}')"><span>${escapeHtml(date)} · ${escapeHtml(String(e.category||'Operasional'))}${note}${source}</span><b>${money(e.amount,'out')}</b></div>`;
 }
 function expenseRecentRows(){
- const rows=(db.expenses||[]).slice().reverse().slice(0,5);
+ const rows=expenseEntries().slice(0,5);
  return rows.length?rows.map(expenseRowHtml).join(''):'<div class="empty">Belum ada pengeluaran.</div>';
 }
 function finance(){
  document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="openExpense()">Detail Pengeluaran</button><button class="btn primary" onclick="openExpenseMode('add')">＋ Pengeluaran</button></div></div><section class="kpis">${kpi('💰','Pendapatan',money(revenue(),'in'),'finance')}${kpi('💸','Pengeluaran',money(expenses(),'out'),'finance','openExpense()')}${kpi('📈','Laba',money(profit(),'profit'),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><div class="panel-title"><h3>Pengeluaran Terbaru</h3><span class="subtle clickable" onclick="openExpense()">Lihat semua →</span></div>${expenseRecentRows()}<p class="subtle" style="margin:10px 0 0">Ketuk baris pengeluaran untuk melihat detailnya.</p></section>`}
 function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('fCustomer');if(c)c.value='';},50)}
 function expensePeriodRange(){
- const dates=(db.expenses||[]).map(e=>String(e.date||'')).filter(Boolean).sort();
- const to=dateNow(),first=dates[0];
- return {from:first&&first<=to?first:to,to};
+ // Periode default harus menutup SEMUA data yang ada, termasuk yang
+ // tanggalnya di luar hari ini, supaya tidak ada data yang tersembunyi
+ // hanya karena tanggalnya lebih baru dari jam perangkat.
+ const dates=expenseEntries().map(e=>e.date).filter(Boolean).sort();
+ const today=dateNow(),first=dates[0],last=dates[dates.length-1];
+ return {from:[first,today].filter(Boolean).sort()[0],to:[last,today].filter(Boolean).sort().pop()};
 }
 function expenseDetailFiltered(){
  const q=String((document.getElementById('eDetailSearch')||{}).value||'').toLowerCase();
  const from=String((document.getElementById('eDetailFrom')||{}).value||'');
  const to=String((document.getElementById('eDetailTo')||{}).value||'');
- return (db.expenses||[]).slice().reverse().filter(e=>{
-  const date=String(e.date||''),cat=String(e.category||''),note=String(e.note||'');
+ return expenseEntries().filter(e=>{
+  const date=e.date,cat=e.category,note=e.note;
   const match=!q||date.includes(q)||cat.toLowerCase().includes(q)||note.toLowerCase().includes(q);
   return match&&(!from||date>=from)&&(!to||date<=to);
  });
@@ -3946,8 +3974,12 @@ function filterExpenseDetail(){
  const rows=expenseDetailFiltered();
  list.innerHTML=rows.length?rows.map(expenseRowHtml).join(''):'<div class="empty">Tidak ada pengeluaran pada periode ini.</div>';
  const total=rows.reduce((sum,e)=>sum+Number(e.amount||0),0);
+ const shiftTotal=rows.filter(e=>e.source==='TUTUP_SHIFT').reduce((sum,e)=>sum+Number(e.amount||0),0);
  const summary=document.getElementById('eDetailTotal');
- if(summary)summary.innerHTML=`${rows.length} data · Total ${money(total,'out')}`;
+ // Total harus sama dengan kartu "Pengeluaran". Kalau ada pengeluaran kas
+ // dari Tutup Shift, sebutkan sumbernya supaya jumlahnya tidak terlihat
+ // lebih besar dari baris yang tercatat manual.
+ if(summary)summary.innerHTML=`${rows.length} data · Total ${money(total,'out')}`+(shiftTotal?`<br><span class="subtle">Termasuk pengeluaran kas Tutup Shift ${rupiah(shiftTotal)}</span>`:'');
 }
 function openExpense(from,to){
  if(!guard('finance'))return;
