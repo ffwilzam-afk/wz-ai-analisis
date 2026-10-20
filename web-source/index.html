@@ -325,6 +325,12 @@ button,input,select,textarea{max-width:100%}
 .money-cust{color:var(--wz-cust)!important}
 .money-neg{color:var(--wz-neg)!important;font-weight:700}
 .money-net{font-weight:700}
+/* Baris pengeluaran di menu Keuangan: seluruh baris bisa diketuk untuk
+   membuka detail, jadi kursor dan sorotannya harus terlihat seperti
+   tombol, bukan seperti teks biasa. */
+.expense-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #20242b;cursor:pointer;transition:.15s}
+.expense-row:hover,.expense-row:focus-visible{background:#151a20;outline:none}
+.expense-row:last-child{border-bottom:none}
 /* Alias lama: dipakai kartu Karyawan. Upah dan bonus ikut warna
    biaya (merah) karena keduanya bagian dari gaji. */
 .payroll-revenue{color:var(--wz-in)!important}
@@ -2867,7 +2873,7 @@ function dashboard(branchId){
 }
 
 
-function kpi(icon,label,value,key){return `<div class="kpi clickable" onclick="go('${key}')"><div class="kpi-icon">${icon}</div><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-change">Klik untuk detail →</div></div>`}
+function kpi(icon,label,value,key,action){const open=action||("go('"+key+"')");return `<div class="kpi clickable" onclick="${open}"><div class="kpi-icon">${icon}</div><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-change">Klik untuk detail →</div></div>`}
 function quick(icon,title,text,key){return `<div class="card clickable" onclick="go('${key}')"><div style="font-size:25px">${icon}</div><h3>${title}</h3><p class="muted">${text}</p><span class="pill gold">BUKA →</span></div>`}
 function metricLine(a,b){return `<div class="feature" style="display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #20242b"><span class="muted">${a}</span><b>${b}</b></div>`}
 function txRow(t){let c=getCustomer(t.customerId),s=getService(t.serviceId),e=getEmployee(t.employeeId);return `<div class="feature" style="display:flex;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(t.id))} · ${escapeHtml(String(c?.name||'-'))} · ${escapeHtml(String(s?.name||'-'))}</span><b>${money(t.total,'in')}</b></div>`}
@@ -3907,9 +3913,54 @@ function saveService(){
 function editService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');show(`<span class="gold-label">LAYANAN</span><h2>Edit Layanan</h2><div class="form"><label>Nama<input id="esName" value="${ownerChartEsc(s.name)}"></label><label>Kategori<input id="esCat" value="${ownerChartEsc(s.category||'Umum')}"></label><label>Kategori Gaji<select id="esPayCat"><option value="">Tidak dihitung</option>${payrollCategoryOptions(s.payrollCategory||'')}</select></label><label>Harga<input id="esPrice" type="number" min="0" value="${Number(s.price)||0}"></label><label>Durasi (menit)<input id="esDur" type="number" min="1" value="${Number(s.duration)||45}"></label><label class="full"><span style="display:flex;align-items:center;gap:8px"><input id="esActive" type="checkbox" ${s.active!==false?'checked':''}> Aktif</span></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="updateService('${s.id}')">Simpan Perubahan</button></div>`)}
 function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return peringatan('Layanan tidak ditemukan.');const name=esName.value.trim();const category=esCat.value.trim()||'Umum';const price=Number(esPrice.value);const duration=Number(esDur.value);if(!name)return peringatan('Nama layanan wajib diisi.');if(!Number.isFinite(price)||price<0)return peringatan('Harga layanan tidak valid.');if(!Number.isFinite(duration)||duration<=0)return peringatan('Durasi layanan tidak valid.');s.name=name;s.category=category;s.payrollCategory=document.getElementById('esPayCat')?.value||'';s.price=price;s.duration=duration;s.active=esActive.checked;const done=save();closeModal();render();saveReportThenToast(done,'Layanan berhasil diperbarui.','Perubahan layanan belum tersimpan.')}
 
-function finance(){document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><button class="btn primary" onclick="openExpense()">＋ Pengeluaran</button></div><section class="kpis">${kpi('💰','Pendapatan',money(revenue(),'in'),'finance')}${kpi('💸','Pengeluaran',money(expenses(),'out'),'finance')}${kpi('📈','Laba',money(profit(),'profit'),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><h3>Pengeluaran Terbaru</h3>${db.expenses.slice().reverse().map(e=>`<div class="feature" style="display:flex;justify-content:space-between;padding:11px 0;border-bottom:1px solid #20242b"><span>${escapeHtml(String(e.date||''))} · ${escapeHtml(String(e.category||''))} · ${escapeHtml(String(e.note||''))}</span><b>${money(e.amount,'out')}</b></div>`).join('')||'<div class="empty">Belum ada pengeluaran.</div>'}</section>`}
+function expenseRowHtml(e){
+ const date=String(e.date||'');
+ const note=e.note?' · '+escapeHtml(String(e.note)):'';
+ return `<div class="expense-row" role="button" tabindex="0" onclick="openExpense('${date}','${date}')"><span>${escapeHtml(date)} · ${escapeHtml(String(e.category||'Operasional'))}${note}</span><b>${money(e.amount,'out')}</b></div>`;
+}
+function expenseRecentRows(){
+ const rows=(db.expenses||[]).slice().reverse().slice(0,5);
+ return rows.length?rows.map(expenseRowHtml).join(''):'<div class="empty">Belum ada pengeluaran.</div>';
+}
+function finance(){
+ document.getElementById('content').innerHTML=`<div class="section-head"><div><span class="gold-label">FINANCE</span><h1>Keuangan</h1><p>Pendapatan, pengeluaran dan laba dihitung dari data online.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" onclick="openExpense()">Detail Pengeluaran</button><button class="btn primary" onclick="openExpenseMode('add')">＋ Pengeluaran</button></div></div><section class="kpis">${kpi('💰','Pendapatan',money(revenue(),'in'),'finance')}${kpi('💸','Pengeluaran',money(expenses(),'out'),'finance','openExpense()')}${kpi('📈','Laba',money(profit(),'profit'),'finance')}${kpi('🧮','Margin',revenue()?((profit()/revenue())*100).toFixed(1)+'%':'0%','finance')}${kpi('🧾','Transaksi',db.transactions.length+(db.shiftReports||[]).length,'reports')}</section><section class="card"><div class="panel-title"><h3>Pengeluaran Terbaru</h3><span class="subtle clickable" onclick="openExpense()">Lihat semua →</span></div>${expenseRecentRows()}<p class="subtle" style="margin:10px 0 0">Ketuk baris pengeluaran untuk melihat detailnya.</p></section>`}
 function showWalkin(){openTransaction();setTimeout(()=>{const c=document.getElementById('fCustomer');if(c)c.value='';},50)}
-function openExpense(){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat"></label><label>Nominal<input id="xAmount" type="number"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}
+function expensePeriodRange(){
+ const dates=(db.expenses||[]).map(e=>String(e.date||'')).filter(Boolean).sort();
+ const to=dateNow(),first=dates[0];
+ return {from:first&&first<=to?first:to,to};
+}
+function expenseDetailFiltered(){
+ const q=String((document.getElementById('eDetailSearch')||{}).value||'').toLowerCase();
+ const from=String((document.getElementById('eDetailFrom')||{}).value||'');
+ const to=String((document.getElementById('eDetailTo')||{}).value||'');
+ return (db.expenses||[]).slice().reverse().filter(e=>{
+  const date=String(e.date||''),cat=String(e.category||''),note=String(e.note||'');
+  const match=!q||date.includes(q)||cat.toLowerCase().includes(q)||note.toLowerCase().includes(q);
+  return match&&(!from||date>=from)&&(!to||date<=to);
+ });
+}
+function filterExpenseDetail(){
+ const list=document.getElementById('eDetailList');
+ if(!list)return;
+ const rows=expenseDetailFiltered();
+ list.innerHTML=rows.length?rows.map(expenseRowHtml).join(''):'<div class="empty">Tidak ada pengeluaran pada periode ini.</div>';
+ const total=rows.reduce((sum,e)=>sum+Number(e.amount||0),0);
+ const summary=document.getElementById('eDetailTotal');
+ if(summary)summary.innerHTML=`${rows.length} data · Total ${money(total,'out')}`;
+}
+function openExpense(from,to){
+ if(!guard('finance'))return;
+ const def=expensePeriodRange(),start=String(from||def.from),end=String(to||def.to);
+ show(`<span class="gold-label">KEUANGAN</span><h2>Detail Pengeluaran</h2>
+ <div class="form"><label>Dari<input id="eDetailFrom" type="date" value="${start}" onchange="filterExpenseDetail()"></label><label>Sampai<input id="eDetailTo" type="date" value="${end}" onchange="filterExpenseDetail()"></label></div>
+ <div class="toolbar"><input id="eDetailSearch" placeholder="Cari kategori atau catatan..." oninput="filterExpenseDetail()"><button type="button" class="btn primary" onclick="openExpenseMode('add')">＋ Tambah</button></div>
+ <div class="subtle" id="eDetailTotal"></div>
+ <div id="eDetailList"></div>
+ <div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Tutup</button></div>`);
+ filterExpenseDetail();
+}
+function openExpenseMode(mode){if(mode==='add'){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat"></label><label>Nominal<input id="xAmount" type="number"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button type="button" class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}}
 function saveExpense(){if(!guard('finance'))return;const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:xDate.value,category:xCat.value||'Operasional',amount:Number(xAmount.value)||0,note:xNote.value||''};db.expenses.push(x);const done=save();closeModal();render();saveReportThenToast(done,'Pengeluaran tersimpan.','Pengeluaran belum tersimpan.')}
 
 function reports(){

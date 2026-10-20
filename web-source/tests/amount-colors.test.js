@@ -219,8 +219,10 @@ test('semua halaman memakai peran warna yang tepat', () => {
     ['dashboard', "money(todayRev,'in')", "money(todayRev-todayExp,'profit')", 'money-cust"'],
     ['shiftReports', "money(r.totalPayment||0,'in')", "money(r.totalOmzet||0,'in')",
       "money(r.cashDifference||0,'neg')", 'class="money-cust"'],
-    ['finance', "money(revenue(),'in')", "money(expenses(),'out')", "money(profit(),'profit')",
-      "money(e.amount,'out')"],
+    ['finance', "money(revenue(),'in')", "money(expenses(),'out')", "money(profit(),'profit')"],
+    // Baris pengeluaran dirender satu helper supaya halaman Keuangan dan
+    // dialog detail memakai bentuk dan warna yang sama.
+    ['expenseRowHtml', "money(e.amount,'out')"],
     ['analyticsDetail', "money(row.total,'in')", "money(row.totalOmzet,'in')", "money(row.amount,'out')"],
     ['analyticsMetricBoxes', "money(metric.omzet,'in')", "money(metric.pengeluaran,'out')",
       "money(metric.laba,'profit')", "money(metric.pelanggan,'cust')"],
@@ -459,6 +461,90 @@ test('halaman yang dirender nyata memakai kelas warna sesuai aturan', async () =
     // Tidak boleh ada peran yang sudah dihapus.
     assert.doesNotMatch(html, /money-bonus/, 'peran bonus masih bocor ke halaman');
     assert.deepEqual(errors, [], 'halaman error saat merender Keuangan');
+  } finally {
+    w.close();
+  }
+});
+
+/* ---------------------------------------------------- detail pengeluaran
+   Owner meminta data pengeluaran di menu Keuangan bisa diketuk dan
+   memunculkan detailnya. Yang dikunci di sini: baris benar-benar bisa
+   diketuk, dialog detail menyaring per periode, dan totalnya ikut
+   berubah sesuai hasil saring -- bukan sekadar daftar statis. */
+test('baris pengeluaran di menu Keuangan bisa diketuk untuk membuka detail', () => {
+  const row = functionBody('expenseRowHtml');
+  assert.match(row, /class="expense-row"/, 'baris pengeluaran tidak punya kelas yang bisa diketuk');
+  assert.ok(row.includes("onclick=\"openExpense('${date}','${date}')\""),
+    'baris pengeluaran tidak membuka detail saat diketuk');
+  assert.match(row, /role="button"/, 'baris pengeluaran tidak terbaca sebagai tombol');
+
+  // Halaman Keuangan memakai baris itu, dan tetap menyediakan jalan ke form input.
+  const finance = functionBody('finance');
+  assert.ok(finance.includes('expenseRecentRows()'), 'halaman Keuangan tidak menampilkan baris pengeluaran');
+  assert.ok(finance.includes("onclick=\"openExpense()\""), 'halaman Keuangan tidak punya jalan ke detail');
+  assert.ok(finance.includes("openExpenseMode('add')"), 'tombol input pengeluaran hilang');
+
+  // Dialog detail: periode, pencarian, total, dan tombol tambah.
+  const detail = functionBody('openExpense');
+  for (const id of ['eDetailFrom', 'eDetailTo', 'eDetailSearch', 'eDetailTotal', 'eDetailList']) {
+    assert.ok(detail.includes(id), 'dialog detail tidak punya ' + id);
+  }
+  assert.ok(detail.includes("openExpenseMode('add')"), 'dialog detail tidak bisa menambah pengeluaran');
+});
+
+test('dialog detail pengeluaran menyaring per periode dan menjumlahkan total', () => {
+  const dom = new JSDOM(
+    '<!doctype html><body><input id="eDetailFrom"><input id="eDetailTo">' +
+    '<input id="eDetailSearch"><div id="eDetailList"></div>' +
+    '<div id="eDetailTotal"></div></body>',
+    { runScripts: 'dangerously' }
+  );
+  const w = dom.window;
+  try {
+    w.escapeHtml = v => String(v);
+    w.eval(INDEX.slice(INDEX.indexOf('function rupiah(value){'), INDEX.indexOf('const MONEY_TONE_RULES=')));
+    for (const fn of ['expenseRowHtml', 'expensePeriodRange', 'expenseDetailFiltered', 'filterExpenseDetail']) {
+      w.eval(functionBody(fn));
+    }
+    w.db = {
+      expenses: [
+        { id: 'X1', date: '2026-09-01', category: 'Listrik', amount: 100000, note: 'September' },
+        { id: 'X2', date: '2026-09-15', category: 'Sewa', amount: 500000, note: '' },
+        { id: 'X3', date: '2026-10-02', category: 'Listrik', amount: 70000, note: 'Oktober' },
+      ],
+    };
+    w.dateNow = () => '2026-10-20';
+
+    // Periode default menutup semua data yang ada, bukan hanya hari ini.
+    const range = w.expensePeriodRange();
+    assert.equal(range.from, '2026-09-01', 'periode awal tidak ikut data paling lama');
+    assert.equal(range.to, '2026-10-20');
+
+    w.document.getElementById('eDetailFrom').value = '2026-09-01';
+    w.document.getElementById('eDetailTo').value = '2026-09-30';
+    w.filterExpenseDetail();
+    let html = w.document.getElementById('eDetailList').innerHTML;
+    assert.ok(html.includes('Rp 100.000') && html.includes('Rp 500.000'), 'data September hilang');
+    assert.ok(!html.includes('Rp 70.000'), 'pengeluaran Oktober ikut tampil di luar periode');
+    assert.equal((html.match(/class="expense-row"/g) || []).length, 2, 'jumlah baris tidak sesuai periode');
+    assert.match(w.document.getElementById('eDetailTotal').innerHTML, /2 data/);
+    assert.match(w.document.getElementById('eDetailTotal').innerHTML, /Rp 600\.000/);
+
+    // Pencarian menyaring kategori, dan total ikut berubah.
+    w.document.getElementById('eDetailFrom').value = '';
+    w.document.getElementById('eDetailTo').value = '';
+    w.document.getElementById('eDetailSearch').value = 'listrik';
+    w.filterExpenseDetail();
+    html = w.document.getElementById('eDetailList').innerHTML;
+    assert.equal((html.match(/class="expense-row"/g) || []).length, 2, 'pencarian kategori tidak menyaring');
+    assert.match(w.document.getElementById('eDetailTotal').innerHTML, /Rp 170\.000/);
+
+    // Periode kosong memberi pesan jelas, bukan daftar kosong tanpa keterangan.
+    w.document.getElementById('eDetailSearch').value = '';
+    w.document.getElementById('eDetailFrom').value = '2026-12-01';
+    w.document.getElementById('eDetailTo').value = '2026-12-31';
+    w.filterExpenseDetail();
+    assert.match(w.document.getElementById('eDetailList').innerHTML, /Tidak ada pengeluaran pada periode ini/);
   } finally {
     w.close();
   }

@@ -288,7 +288,13 @@ Cakupan: Dashboard (omzet & laba hari ini, pelanggan, insight, filter tanggal), 
 
 **Struk cetak tetap hitam semua.** Printer thermal 1-bit tidak bisa mencetak warna, jadi `renderTransactionReceipt()` tidak boleh memakai kelas warna apa pun. Sebagai jaring pengaman, ada aturan yang memaksa semua `.money-*` dan `.payroll-*` di dalam `#wzReceipt` menjadi `color:#000!important`, dan aturan `@media print` yang sudah ada tetap berlaku.
 
-Tes: `tests/amount-colors.test.js` (17 tes) mengunci empat aturan Owner dan menolak warna liar, kontras WCAG minimal 4.5:1 tiap warna terhadap tiga latar gelap, pemetaan label ke peran dengan urutan benar ("Laba Bersih" harus biru, bukan hijau omzet), `moneyNumber()` untuk nilai berformat, perilaku `money()` (tanpa tone tetap polos, `neg` membedakan minus dan nol), cakupan peran di seluruh halaman, aturan `box()`/`boxCard()`, warna grafik, dan dua lapis penjaga struk: pemeriksaan sumber `renderTransactionReceipt()` plus merender nota sungguhan lewat `saveTransaction()` lalu memastikan tidak ada satu pun kelas warna di dalam `#wzReceipt`. Dua tes merender halaman sungguhan di jsdom: halaman Keuangan untuk memastikan ketiga peran inti benar-benar muncul di DOM, dan sumber warna diagram bulat.
+### Detail pengeluaran bisa diketuk
+
+Baris di kartu **Pengeluaran Terbaru** di menu Keuangan, tombol **Detail Pengeluaran**, label **Lihat semua →**, dan kartu KPI **Pengeluaran** semuanya membuka dialog yang sama, `openExpense()`. Isinya daftar pengeluaran untuk periode **Dari / Sampai** (default: tanggal pengeluaran paling lama sampai hari ini), pencarian kategori/catatan, jumlah data dan **total** yang ikut berubah saat periode atau pencarian diubah, plus tombol **＋ Tambah** untuk membuka form `openExpenseMode('add')`.
+
+Mengetuk satu baris membuka dialog dengan periode diisi tanggal baris itu, jadi yang terlihat hanya pengeluaran pada hari tersebut. Barisnya dirender satu helper, `expenseRowHtml()`, sehingga halaman Keuangan dan dialog detail memakai bentuk dan warna (merah, `money(e.amount,'out')`) yang sama. Manifest `sw.js` naik ke `v21`.
+
+Tes: `tests/amount-colors.test.js` (19 tes) mengunci empat aturan Owner dan menolak warna liar, kontras WCAG minimal 4.5:1 tiap warna terhadap tiga latar gelap, pemetaan label ke peran dengan urutan benar ("Laba Bersih" harus biru, bukan hijau omzet), `moneyNumber()` untuk nilai berformat, perilaku `money()` (tanpa tone tetap polos, `neg` membedakan minus dan nol), cakupan peran di seluruh halaman, aturan `box()`/`boxCard()`, warna grafik, dan dua lapis penjaga struk: pemeriksaan sumber `renderTransactionReceipt()` plus merender nota sungguhan lewat `saveTransaction()` lalu memastikan tidak ada satu pun kelas warna di dalam `#wzReceipt`. Dua tes merender halaman sungguhan di jsdom: halaman Keuangan untuk memastikan ketiga peran inti benar-benar muncul di DOM, dan sumber warna diagram bulat.
 
 ## Menu geser menutup sendiri saat diketuk di luar
 
