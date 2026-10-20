@@ -611,3 +611,54 @@ test('total daftar pengeluaran sama dengan angka di kartu Pengeluaran', () => {
     w.close();
   }
 });
+
+/* Owner: "nama pengeluaran nya ndk ada". Baris hanya menampilkan tanggal
+   dan kategori, sehingga tidak jelas pengeluaran apa yang dicatat. */
+test('setiap baris pengeluaran menampilkan namanya', () => {
+  const w = new JSDOM('<!doctype html><body></body>', { runScripts: 'dangerously' }).window;
+  try {
+    w.escapeHtml = v => String(v);
+    w.eval(INDEX.slice(INDEX.indexOf('function rupiah(value){'), INDEX.indexOf('const MONEY_TONE_RULES=')));
+    for (const fn of ['expenseEntries', 'expenseRowHtml']) w.eval(functionBody(fn));
+    w.db = {
+      expenses: [
+        { id: 'P1', date: '2026-09-01', name: 'Bayar listrik', category: 'Operasional', amount: 100000, note: 'PLN' },
+        // Data lama: belum punya name, jadi nama diambil dari catatan.
+        { id: 'P2', date: '2026-09-02', category: 'Kebersihan', amount: 50000, note: 'sabun' },
+        // Tanpa name dan tanpa catatan: kategori jadi nama terakhir.
+        { id: 'P3', date: '2026-09-03', category: 'Lain-lain', amount: 20000, note: '' },
+      ],
+      shiftReports: [
+        { id: 'R1', date: '2026-09-04', employeeName: 'Andi', shiftType: 'Pagi', cashExpense: 25000 },
+      ],
+    };
+
+    const rows = w.expenseEntries();
+    assert.deepEqual(rows.map(r => r.name),
+      ['Pengeluaran Kas Shift', 'Lain-lain', 'sabun', 'Bayar listrik'],
+      'nama pengeluaran tidak diisi dengan benar');
+
+    const html = rows.map(w.expenseRowHtml).join('');
+    for (const name of ['Bayar listrik', 'sabun', 'Lain-lain', 'Pengeluaran Kas Shift']) {
+      assert.ok(html.includes('<b>' + name + '</b>'), 'nama "' + name + '" tidak tampil di baris');
+    }
+    // Nama yang diambil dari catatan tidak boleh tampil dua kali.
+    const satu = w.expenseRowHtml(rows[2]);
+    assert.equal((satu.match(/sabun/g) || []).length, 1, 'catatan diulang sebagai baris kedua');
+    // Catatan yang berbeda tetap tampil sebagai keterangan tambahan.
+    assert.ok(w.expenseRowHtml(rows[3]).includes('PLN'), 'catatan yang berbeda ikut hilang');
+  } finally {
+    w.close();
+  }
+});
+
+test('form pengeluaran punya kolom nama dan menyimpannya', () => {
+  const form = functionBody('openExpenseMode');
+  assert.ok(form.includes('id="xName"'), 'form pengeluaran tidak punya kolom nama');
+  assert.match(form, /Nama Pengeluaran/, 'kolom nama tidak diberi label');
+  const save = functionBody('saveExpense');
+  assert.ok(save.includes("getElementById('xName')"), 'saveExpense tidak membaca kolom nama');
+  assert.ok(save.includes('name,category'), 'nama pengeluaran tidak disimpan ke data');
+  // Nama wajib: tanpa nama, baris akan kembali tanpa keterangan.
+  assert.match(save, /peringatan\('Isi nama pengeluaran'\)/);
+});

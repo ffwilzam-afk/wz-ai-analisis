@@ -329,6 +329,8 @@ button,input,select,textarea{max-width:100%}
    membuka detail, jadi kursor dan sorotannya harus terlihat seperti
    tombol, bukan seperti teks biasa. */
 .expense-row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #20242b;cursor:pointer;transition:.15s}
+.expense-main{display:flex;flex-direction:column;gap:2px;min-width:0;overflow-wrap:anywhere}
+.expense-row>b{white-space:nowrap}
 .expense-row:hover,.expense-row:focus-visible{background:#151a20;outline:none}
 .expense-row:last-child{border-bottom:none}
 /* Alias lama: dipakai kartu Karyawan. Upah dan bonus ikut warna
@@ -3923,15 +3925,18 @@ function updateService(id){const s=db.services.find(x=>x.id===id);if(!s)return p
    dan dialog detail berkata "Belum ada pengeluaran" -- datanya ada di
    server, tapi tidak pernah dimuat ke layar. */
 function expenseEntries(){
- const manual=(db.expenses||[]).map(e=>({
-  id:'EXP:'+String(e.id||''),date:String(e.date||'').slice(0,10),
-  category:String(e.category||'Operasional'),note:String(e.note||''),
-  amount:Number(e.amount||0),source:'MANUAL'
- }));
+ const manual=(db.expenses||[]).map(e=>{
+  const category=String(e.category||'Operasional'),note=String(e.note||'');
+  // Nama adalah hal pertama yang dibaca Owner. Data lama belum punya
+  // `name`, jadi pakai catatan lalu kategori supaya tidak pernah ada
+  // baris pengeluaran tanpa keterangan.
+  const name=String(e.name||'').trim()||note.trim()||category;
+  return {id:'EXP:'+String(e.id||''),date:String(e.date||'').slice(0,10),name,category,note,amount:Number(e.amount||0),source:'MANUAL'};
+ });
  // Laporan shift tanpa pengeluaran kas tidak perlu jadi baris kosong.
  const shift=(db.shiftReports||[]).map(r=>({
   id:'SHIFT:'+String(r.id||''),date:String(r.date||'').slice(0,10),
-  category:'Pengeluaran Kas Shift',
+  name:'Pengeluaran Kas Shift',category:'Tutup Shift',
   note:[r.employeeName||r.employeeId||'',r.shiftType||''].filter(Boolean).join(' · '),
   amount:Number(r.cashExpense||0),source:'TUTUP_SHIFT'
  })).filter(row=>row.amount!==0);
@@ -3939,9 +3944,11 @@ function expenseEntries(){
 }
 function expenseRowHtml(e){
  const date=String(e.date||'');
- const note=e.note?' · '+escapeHtml(String(e.note)):'';
- const source=e.source==='TUTUP_SHIFT'?'<span class="subtle"> · Tutup Shift</span>':'';
- return `<div class="expense-row" role="button" tabindex="0" onclick="openExpense('${date}','${date}')"><span>${escapeHtml(date)} · ${escapeHtml(String(e.category||'Operasional'))}${note}${source}</span><b>${money(e.amount,'out')}</b></div>`;
+ const meta=[date,e.category].filter(Boolean).map(v=>escapeHtml(String(v))).join(' · ');
+ // Catatan disembunyikan kalau namanya memang diambil dari catatan itu,
+ // supaya teks yang sama tidak muncul dua kali.
+ const note=e.note&&e.note!==e.name?'<span class="subtle">'+escapeHtml(String(e.note))+'</span>':'';
+ return `<div class="expense-row" role="button" tabindex="0" onclick="openExpense('${date}','${date}')"><div class="expense-main"><b>${escapeHtml(String(e.name||'Pengeluaran'))}</b><span class="subtle">${meta}</span>${note}</div><b>${money(e.amount,'out')}</b></div>`;
 }
 function expenseRecentRows(){
  const rows=expenseEntries().slice(0,5);
@@ -3963,8 +3970,8 @@ function expenseDetailFiltered(){
  const from=String((document.getElementById('eDetailFrom')||{}).value||'');
  const to=String((document.getElementById('eDetailTo')||{}).value||'');
  return expenseEntries().filter(e=>{
-  const date=e.date,cat=e.category,note=e.note;
-  const match=!q||date.includes(q)||cat.toLowerCase().includes(q)||note.toLowerCase().includes(q);
+  const date=e.date,name=e.name,cat=e.category,note=e.note;
+  const match=!q||date.includes(q)||name.toLowerCase().includes(q)||cat.toLowerCase().includes(q)||note.toLowerCase().includes(q);
   return match&&(!from||date>=from)&&(!to||date<=to);
  });
 }
@@ -3992,8 +3999,8 @@ function openExpense(from,to){
  <div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Tutup</button></div>`);
  filterExpenseDetail();
 }
-function openExpenseMode(mode){if(mode==='add'){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat"></label><label>Nominal<input id="xAmount" type="number"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button type="button" class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}}
-function saveExpense(){if(!guard('finance'))return;const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:xDate.value,category:xCat.value||'Operasional',amount:Number(xAmount.value)||0,note:xNote.value||''};db.expenses.push(x);const done=save();closeModal();render();saveReportThenToast(done,'Pengeluaran tersimpan.','Pengeluaran belum tersimpan.')}
+function openExpenseMode(mode){if(mode==='add'){if(!guard('finance'))return;show(`<span class="gold-label">KEUANGAN</span><h2>Catat Pengeluaran</h2><div class="form"><label class="full">Nama Pengeluaran<input id="xName" placeholder="Contoh: Bayar listrik"></label><label>Tanggal<input id="xDate" type="date" value="${dateNow()}"></label><label>Kategori<input id="xCat" placeholder="Operasional"></label><label>Nominal<input id="xAmount" type="number" min="0"></label><label class="full">Catatan<textarea id="xNote" rows="3"></textarea></label></div><div class="dialog-actions"><button type="button" class="btn" onclick="closeModal()">Batal</button><button type="button" class="btn primary" onclick="saveExpense()">Simpan</button></div>`)}}
+function saveExpense(){if(!guard('finance'))return;const name=String(document.getElementById('xName')?.value||'').trim(),category=String(document.getElementById('xCat')?.value||'').trim()||'Operasional',amount=Number(document.getElementById('xAmount')?.value)||0;if(!name)return peringatan('Isi nama pengeluaran');if(!(amount>0))return peringatan('Nominal pengeluaran harus lebih dari 0');const x={id:'EXP'+String(db.expenses.length+1).padStart(3,'0'),date:document.getElementById('xDate')?.value||dateNow(),name,category,amount,note:String(document.getElementById('xNote')?.value||'')};db.expenses.push(x);const done=save();closeModal();render();saveReportThenToast(done,'Pengeluaran tersimpan.','Pengeluaran belum tersimpan.')}
 
 function reports(){
  const u=ownerBusinessTotals(),feed=ownerBusinessFeed(),posCount=feed.filter(x=>x.source==='POS').length,shiftCount=feed.filter(x=>x.source==='TUTUP_SHIFT').length;
